@@ -1,0 +1,77 @@
+{
+  "info": {
+    "name": "Code Clone Detector API",
+    "description": "API endpoints for code clone detection and analysis",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/v1/health",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "v1", "health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Supported Languages",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:5000/api/v1/languages",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "v1", "languages"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Analyze Python Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"def hello():\\n    print('hello')\\n\\ndef greet():\\n    print('hello')\",\n  \"language\": \"python\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:5000/api/v1/analyze",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "5000",
+          "path": ["api", "v1", "analyze"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Analyze Java Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"public class Test {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello\\\");\\n    }\\n}\",\n  \"language\": \"java\"\n}"
+        },
+        "url": {
+          "raw": "
