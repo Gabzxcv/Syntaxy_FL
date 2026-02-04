@@ -32,7 +32,12 @@ class AnalysisException(CodeCloneDetectorException):
         super().__init__(message, status_code=500, details=details)
 
 
-class ValidationException(CodeCloneDetectorException):
-    """Raised when request validation fails"""
-    def __init__(self, message, details=None):
-        super().__init__(message, status_code=400, details=details)
+class ValidationException(Exception):
+    """Raised when request validation fails."""
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
+
+    def __str__(self):
+        return self.message
+        
