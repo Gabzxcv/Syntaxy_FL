@@ -245,15 +245,15 @@ For the Code Clone Detector repository:
 
 ### Available Branches
 
-To see all available branches in this repository:
+To see all currently available branches in this repository, run:
 ```bash
 git fetch origin
 git branch -a
 ```
 
-Current main branches:
+**Note**: Branch names and purposes may change over time. Use the commands above to see the current list. Common branch types in this repository include:
 - `main` - Production-ready code
-- `Allen_code_test` - Test branch for Allen's code changes
+- Feature and test branches - Various development branches
 - `copilot/*` - Automated branches created by GitHub Copilot
 
 ---
