@@ -3,134 +3,443 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Test - Code Clone Detector</title>
+    <title>Code Clone Detector - Test Interface</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 20px;
         }
-        h1 { color: #333; }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin: 10px 5px;
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         }
-        button:hover { background: #0056b3; }
+        h1 { 
+            color: #667eea; 
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }
+        .test-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
         textarea {
             width: 100%;
-            height: 150px;
-            font-family: monospace;
-            padding: 10px;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 15px;
+            resize: vertical;
+        }
+        select, input {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #667eea;
+        }
+        .results h3 {
+            color: #667eea;
+            margin-bottom: 15px;
         }
         pre {
-            background: #f4f4f4;
-            padding: 15px;
-            border-radius: 5px;
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
             overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
         }
-        .success { color: green; }
-        .error { color: red; }
+        .metric {
+            display: inline-block;
+            margin: 10px 15px 10px 0;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        .status {
+            padding: 8px 15px;
+            border-radius: 5px;
+            display: inline-block;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.loading { background: #fff3cd; color: #856404; }
+        .clone-item {
+            background: #fff3cd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+        }
+        .suggestion-item {
+            background: #d1ecf1;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #17a2b8;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
-    <h1>🔍 Code Clone Detector API Test</h1>
-    
-    <h2>1. Test Health Check</h2>
-    <button onclick="testHealth()">Test /health</button>
-    <pre id="health-result">Click button to test...</pre>
-    
-    <h2>2. Test Get Languages</h2>
-    <button onclick="testLanguages()">Test /languages</button>
-    <pre id="languages-result">Click button to test...</pre>
-    
-    <h2>3. Test Code Analysis</h2>
-    <label>Code to analyze:</label>
-    <textarea id="code-input">def hello():
-    print("hello")
+    <div class="container">
+        <h1>🔍 Code Clone Detector - API Test Interface</h1>
 
-def greet():
-    print("hello")</textarea>
-    
-    <label>Language:</label>
-    <select id="language-select">
-        <option value="python">Python</option>
-        <option value="java">Java</option>
-    </select>
-    
-    <br>
-    <button onclick="testAnalyze()">Analyze Code</button>
-    <pre id="analyze-result">Click button to test...</pre>
+        <!-- Health Check -->
+        <div class="test-section">
+            <h2>1️⃣ Health Check</h2>
+            <button onclick="testHealth()">Test Health Endpoint</button>
+            <div id="healthResult" class="results" style="display:none;"></div>
+        </div>
+
+        <!-- Get Languages -->
+        <div class="test-section">
+            <h2>2️⃣ Get Supported Languages</h2>
+            <button onclick="testLanguages()">Test Languages Endpoint</button>
+            <div id="languagesResult" class="results" style="display:none;"></div>
+        </div>
+
+        <!-- Analyze Code -->
+        <div class="test-section">
+            <h2>3️⃣ Analyze Code (Main Test)</h2>
+            
+            <label for="languageSelect"><strong>Select Language:</strong></label>
+            <select id="languageSelect">
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+            </select>
+
+            <label for="userIdInput"><strong>User ID (optional):</strong></label>
+            <input type="text" id="userIdInput" placeholder="user123" value="test_user">
+
+            <label for="assignmentIdInput"><strong>Assignment ID (optional):</strong></label>
+            <input type="text" id="assignmentIdInput" placeholder="assignment456" value="hw_week3">
+
+            <br><br>
+
+            <label for="codeInput"><strong>Paste Your Code:</strong></label>
+            <textarea id="codeInput" placeholder="Paste your code here...">def calculate_grade(score):
+    if score >= 90:
+        return 'A'
+    elif score >= 80:
+        return 'B'
+    elif score >= 70:
+        return 'C'
+    else:
+        return 'F'
+
+def get_grade(points):
+    if points >= 90:
+        return 'A'
+    elif points >= 80:
+        return 'B'
+    elif points >= 70:
+        return 'C'
+    else:
+        return 'F'</textarea>
+
+            <button onclick="testAnalyze()">🚀 Analyze Code</button>
+            <button onclick="loadPythonSample()">Load Python Sample</button>
+            <button onclick="loadJavaSample()">Load Java Sample</button>
+
+            <div id="analyzeResult" class="results" style="display:none;"></div>
+        </div>
+
+        <!-- Test Error Cases -->
+        <div class="test-section">
+            <h2>4️⃣ Test Error Handling</h2>
+            <button onclick="testMissingCode()">Test Missing Code</button>
+            <button onclick="testUnsupportedLanguage()">Test Unsupported Language</button>
+            <button onclick="testEmptyCode()">Test Empty Code</button>
+            <div id="errorResult" class="results" style="display:none;"></div>
+        </div>
+    </div>
 
     <script>
-        const API_BASE = 'http://localhost:5000/api/v1';
+        const BASE_URL = 'http://localhost:5000/api/v1';
 
+        // Health Check
         async function testHealth() {
-            const resultEl = document.getElementById('health-result');
-            resultEl.textContent = 'Loading...';
-            
+            const resultDiv = document.getElementById('healthResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="status loading">⏳ Testing...</div>';
+
             try {
-                const response = await fetch(`${API_BASE}/health`);
+                const response = await fetch(`${BASE_URL}/health`);
                 const data = await response.json();
                 
-                resultEl.className = 'success';
-                resultEl.textContent = JSON.stringify(data, null, 2);
+                resultDiv.innerHTML = `
+                    <div class="status success">✅ Success (${response.status})</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
             } catch (error) {
-                resultEl.className = 'error';
-                resultEl.textContent = `Error: ${error.message}`;
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error</div>
+                    <pre>${error.message}</pre>
+                `;
             }
         }
 
+        // Get Languages
         async function testLanguages() {
-            const resultEl = document.getElementById('languages-result');
-            resultEl.textContent = 'Loading...';
-            
+            const resultDiv = document.getElementById('languagesResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="status loading">⏳ Testing...</div>';
+
             try {
-                const response = await fetch(`${API_BASE}/languages`);
+                const response = await fetch(`${BASE_URL}/languages`);
                 const data = await response.json();
                 
-                resultEl.className = 'success';
-                resultEl.textContent = JSON.stringify(data, null, 2);
+                resultDiv.innerHTML = `
+                    <div class="status success">✅ Success (${response.status})</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
             } catch (error) {
-                resultEl.className = 'error';
-                resultEl.textContent = `Error: ${error.message}`;
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error</div>
+                    <pre>${error.message}</pre>
+                `;
             }
         }
 
+        // Analyze Code
         async function testAnalyze() {
-            const resultEl = document.getElementById('analyze-result');
-            const code = document.getElementById('code-input').value;
-            const language = document.getElementById('language-select').value;
-            
-            resultEl.textContent = 'Analyzing...';
-            
+            const resultDiv = document.getElementById('analyzeResult');
+            const code = document.getElementById('codeInput').value;
+            const language = document.getElementById('languageSelect').value;
+            const userId = document.getElementById('userIdInput').value;
+            const assignmentId = document.getElementById('assignmentIdInput').value;
+
+            if (!code.trim()) {
+                alert('Please enter some code to analyze!');
+                return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="status loading">⏳ Analyzing code...</div>';
+
             try {
-                const response = await fetch(`${API_BASE}/analyze`, {
+                const payload = {
+                    code: code,
+                    language: language,
+                    user_id: userId || undefined,
+                    assignment_id: assignmentId || undefined
+                };
+
+                const response = await fetch(`${BASE_URL}/analyze`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ code, language })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
-                
+
                 const data = await response.json();
                 
                 if (response.ok) {
-                    resultEl.className = 'success';
+                    displayAnalysisResults(data, resultDiv);
                 } else {
-                    resultEl.className = 'error';
+                    resultDiv.innerHTML = `
+                        <div class="status error">❌ Error (${response.status})</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
                 }
-                
-                resultEl.textContent = JSON.stringify(data, null, 2);
             } catch (error) {
-                resultEl.className = 'error';
-                resultEl.textContent = `Error: ${error.message}`;
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error</div>
+                    <pre>${error.message}</pre>
+                `;
             }
+        }
+
+        // Display Analysis Results
+        function displayAnalysisResults(data, resultDiv) {
+            let html = '<div class="status success">✅ Analysis Complete</div>';
+            
+            // Metrics
+            html += '<h3>📊 Code Metrics</h3>';
+            html += `<div class="metric">Clone %: ${data.clone_percentage}%</div>`;
+            html += `<div class="metric">Complexity: ${data.cyclomatic_complexity}</div>`;
+            html += `<div class="metric">Maintainability: ${data.maintainability_index}</div>`;
+            
+            // Clones
+            if (data.clones && data.clones.length > 0) {
+                html += '<h3>🔍 Detected Clones</h3>';
+                data.clones.forEach((clone, idx) => {
+                    html += `
+                        <div class="clone-item">
+                            <strong>Clone #${idx + 1}</strong> (Type ${clone.type}, Similarity: ${(clone.similarity * 100).toFixed(1)}%)<br>
+                            <strong>Locations:</strong> ${clone.locations.map(loc => `Lines ${loc.start_line}-${loc.end_line}`).join(', ')}<br>
+                            <pre>${clone.code_snippet}</pre>
+                        </div>
+                    `;
+                });
+            }
+            
+            // Suggestions
+            if (data.refactoring_suggestions && data.refactoring_suggestions.length > 0) {
+                html += '<h3>💡 Refactoring Suggestions</h3>';
+                data.refactoring_suggestions.forEach((sugg, idx) => {
+                    html += `
+                        <div class="suggestion-item">
+                            <strong>Suggestion #${idx + 1}: ${sugg.refactoring_type}</strong> (Priority: ${sugg.priority})<br>
+                            <strong>Remember:</strong> ${sugg.explanation.remember}<br>
+                            <strong>Understand:</strong> ${sugg.explanation.understand}<br>
+                            <strong>Apply:</strong> ${sugg.explanation.apply}<br>
+                            <details>
+                                <summary><strong>Show Code Example</strong></summary>
+                                <p><strong>Before:</strong></p>
+                                <pre>${sugg.before_code}</pre>
+                                <p><strong>After:</strong></p>
+                                <pre>${sugg.after_code}</pre>
+                            </details>
+                        </div>
+                    `;
+                });
+            }
+            
+            // Raw JSON
+            html += '<details><summary><strong>View Raw JSON Response</strong></summary>';
+            html += `<pre>${JSON.stringify(data, null, 2)}</pre></details>`;
+            
+            resultDiv.innerHTML = html;
+        }
+
+        // Error Tests
+        async function testMissingCode() {
+            await testError({ language: 'python' }, 'Missing Code');
+        }
+
+        async function testUnsupportedLanguage() {
+            await testError({ code: 'console.log("hi");', language: 'javascript' }, 'Unsupported Language');
+        }
+
+        async function testEmptyCode() {
+            await testError({ code: '', language: 'python' }, 'Empty Code');
+        }
+
+        async function testError(payload, testName) {
+            const resultDiv = document.getElementById('errorResult');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `<div class="status loading">⏳ Testing ${testName}...</div>`;
+
+            try {
+                const response = await fetch(`${BASE_URL}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `
+                    <h3>${testName} Test</h3>
+                    <div class="status ${response.ok ? 'success' : 'error'}">
+                        ${response.ok ? '✅' : '❌'} Status: ${response.status}
+                    </div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">❌ Error</div>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+
+        // Sample Code Loaders
+        function loadPythonSample() {
+            document.getElementById('languageSelect').value = 'python';
+            document.getElementById('codeInput').value = `def calculate_grade(score):
+    if score >= 90:
+        return 'A'
+    elif score >= 80:
+        return 'B'
+    elif score >= 70:
+        return 'C'
+    else:
+        return 'F'
+
+def get_grade(points):
+    if points >= 90:
+        return 'A'
+    elif points >= 80:
+        return 'B'
+    elif points >= 70:
+        return 'C'
+    else:
+        return 'F'`;
+        }
+
+        function loadJavaSample() {
+            document.getElementById('languageSelect').value = 'java';
+            document.getElementById('codeInput').value = `public class GradeCalculator {
+    public static String calculateGrade(int score) {
+        if (score >= 90) return "A";
+        else if (score >= 80) return "B";
+        else if (score >= 70) return "C";
+        else return "F";
+    }
+
+    public static String getGrade(int points) {
+        if (points >= 90) return "A";
+        else if (points >= 80) return "B";
+        else if (points >= 70) return "C";
+        else return "F";
+    }
+}`;
         }
     </script>
 </body>

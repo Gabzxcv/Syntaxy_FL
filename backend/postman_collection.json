@@ -1,9 +1,17 @@
 {
   "info": {
     "name": "Code Clone Detector API",
-    "description": "API endpoints for code clone detection and analysis",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    "description": "Complete API collection for code clone detection and analysis with Python and Java support",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
   },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    }
+  ],
   "item": [
     {
       "name": "Health Check",
@@ -11,14 +19,36 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:5000/api/v1/health",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "5000",
-          "path": ["api", "v1", "health"]
-        }
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the API server is running and healthy"
       },
-      "response": []
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"status\": \"healthy\",\n  \"version\": \"1.0.0\",\n  \"timestamp\": 1737123456.789\n}"
+        }
+      ]
     },
     {
       "name": "Get Supported Languages",
@@ -26,14 +56,36 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:5000/api/v1/languages",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "5000",
-          "path": ["api", "v1", "languages"]
-        }
+          "raw": "{{base_url}}/languages",
+          "host": ["{{base_url}}"],
+          "path": ["languages"]
+        },
+        "description": "Retrieve list of programming languages supported by the analyzer"
       },
-      "response": []
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/languages",
+              "host": ["{{base_url}}"],
+              "path": ["languages"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"languages\": [\n    {\n      \"code\": \"java\",\n      \"name\": \"Java\",\n      \"versions\": [\"8\", \"11\", \"17\"]\n    },\n    {\n      \"code\": \"python\",\n      \"name\": \"Python\",\n      \"versions\": [\"3.7\", \"3.8\", \"3.9\", \"3.10\", \"3.11\"]\n    }\n  ]\n}"
+        }
+      ]
     },
     {
       "name": "Analyze Python Code",
@@ -47,17 +99,53 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"code\": \"def hello():\\n    print('hello')\\n\\ndef greet():\\n    print('hello')\",\n  \"language\": \"python\"\n}"
+          "raw": "{\n  \"code\": \"def hello():\\n    print('hello')\\n\\ndef greet():\\n    print('hello')\",\n  \"language\": \"python\",\n  \"user_id\": \"user123\",\n  \"assignment_id\": \"assignment456\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
-          "raw": "http://localhost:5000/api/v1/analyze",
-          "protocol": "http",
-          "host": ["localhost"],
-          "port": "5000",
-          "path": ["api", "v1", "analyze"]
-        }
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Submit Python code for clone detection and quality analysis"
       },
-      "response": []
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"def hello():\\n    print('hello')\\n\\ndef greet():\\n    print('hello')\",\n  \"language\": \"python\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["analyze"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"analysis_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"clone_percentage\": 22.5,\n  \"cyclomatic_complexity\": 15.3,\n  \"maintainability_index\": 58.2,\n  \"execution_time_ms\": 3245,\n  \"clones\": [\n    {\n      \"clone_id\": \"650e8400-e29b-41d4-a716-446655440001\",\n      \"type\": 2,\n      \"similarity\": 0.92,\n      \"locations\": [\n        {\"start_line\": 1, \"end_line\": 5},\n        {\"start_line\": 10, \"end_line\": 14}\n      ],\n      \"code_snippet\": \"def hello():\\n    print('hello')\"\n    }\n  ],\n  \"refactoring_suggestions\": [\n    {\n      \"suggestion_id\": \"750e8400-e29b-41d4-a716-446655440002\",\n      \"priority\": 1,\n      \"priority_score\": 0.87,\n      \"refactoring_type\": \"Extract Method\",\n      \"affected_clone_id\": \"650e8400-e29b-41d4-a716-446655440001\",\n      \"explanation\": {\n        \"remember\": \"You have duplicated this code 2 times\",\n        \"understand\": \"Code duplication makes bugs hard to fix\",\n        \"apply\": \"Extract this into a reusable method\"\n      },\n      \"before_code\": \"def hello():\\n    print('hello')\",\n      \"after_code\": \"def greet():\\n    print('hello')\\n\\nhello = greet\"\n    }\n  ]\n}"
+        }
+      ]
     },
     {
       "name": "Analyze Java Code",
@@ -71,7 +159,197 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"code\": \"public class Test {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello\\\");\\n    }\\n}\",\n  \"language\": \"java\"\n}"
+          "raw": "{\n  \"code\": \"public class Test {\\n    public static void main(String[] args) {\\n        System.out.println(\\\"Hello\\\");\\n    }\\n\\n    public static void greet() {\\n        System.out.println(\\\"Hello\\\");\\n    }\\n}\",\n  \"language\": \"java\",\n  \"user_id\": \"user123\",\n  \"assignment_id\": \"assignment456\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": {
-          "raw": "
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Submit Java code for clone detection and quality analysis"
+      },
+      "response": []
+    },
+    {
+      "name": "Analyze Code - Missing Code Field",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"language\": \"python\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Test error handling when code field is missing"
+      },
+      "response": [
+        {
+          "name": "Error Response - Missing Code",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"python\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["analyze"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": \"Missing required field: code\",\n  \"details\": \"Request must include \\\"code\\\" field with source code\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Analyze Code - Unsupported Language",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"console.log('Hello');\",\n  \"language\": \"javascript\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Test error handling for unsupported programming language"
+      },
+      "response": [
+        {
+          "name": "Error Response - Unsupported Language",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"console.log('Hello');\",\n  \"language\": \"javascript\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["analyze"]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": \"Unsupported language: javascript\",\n  \"details\": \"Supported languages: java, python\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Analyze Code - Empty Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"\",\n  \"language\": \"python\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Test error handling when empty code is provided"
+      },
+      "response": []
+    },
+    {
+      "name": "Analyze Complex Python Code",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"def calculate_grade(score):\\n    if score >= 90:\\n        return 'A'\\n    elif score >= 80:\\n        return 'B'\\n    elif score >= 70:\\n        return 'C'\\n    else:\\n        return 'F'\\n\\ndef get_grade(points):\\n    if points >= 90:\\n        return 'A'\\n    elif points >= 80:\\n        return 'B'\\n    elif points >= 70:\\n        return 'C'\\n    else:\\n        return 'F'\",\n  \"language\": \"python\",\n  \"user_id\": \"student001\",\n  \"assignment_id\": \"hw_week3\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/analyze",
+          "host": ["{{base_url}}"],
+          "path": ["analyze"]
+        },
+        "description": "Analyze complex Python code with clear clone patterns"
+      },
+      "response": []
+    }
+  ]
+}
