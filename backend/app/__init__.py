@@ -19,7 +19,7 @@ def create_app():
     
     # Enable CORS (Cross-Origin Resource Sharing)
     # This allows React (running on localhost:3000) to call our API
-    CORS(app, origins=["http://localhost:3000", "http://localhost:5173"])
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
     
     # Register blueprints (routes)
     from app.api import routes
