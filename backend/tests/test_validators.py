@@ -3,8 +3,8 @@ Tests for request validators
 """
 
 import pytest
-from backend.utils.validators import AnalyzeRequestValidator
-from backend.utils.exceptions import ValidationException
+from app.utils.validators import AnalyzeRequestValidator
+from app.utils.exceptions import ValidationException
 
 
 class TestAnalyzeRequestValidator:
