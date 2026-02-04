@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
 from app.api.errors import ValidationError, AnalysisError
+from app.services.analyzer import CodeAnalyzer, validate_syntax
 import time
 import uuid
+import random
 
 # Create a Blueprint
 bp = Blueprint('api', __name__)
@@ -35,91 +37,74 @@ def get_languages():
     }), 200
 
 
-from flask import Blueprint, request, jsonify
-from app.api.errors import ValidationError, AnalysisError
-from app.services.analyzer import CodeAnalyzer, validate_syntax
-import time
-
-# ... (keep existing code) ...
-
 @bp.route('/analyze', methods=['POST'])
 def analyze_code():
     """Analyze code for clones and quality metrics"""
     start_time = time.time()
-    
-    # ... (keep existing validation code) ...
-    
+
+    data = request.get_json()
+    if not data:
+        return jsonify({
+            'error': 'No JSON data provided',
+            'details': 'Request body must be valid JSON'
+        }), 400
+
+    # Required fields
+    code = data.get('code')
+    language = data.get('language')
+
+    # Optional fields
+    user_id = data.get('user_id')
+    assignment_id = data.get('assignment_id')
+
+    if not code or not code.strip():
+        return jsonify({
+            'error': 'Missing required field: code',
+            'details': 'Request must include "code" field with source code'
+        }), 400
+
+    if not language:
+        return jsonify({
+            'error': 'Missing required field: language',
+            'details': 'Request must include "language" field (java or python)'
+        }), 400
+
+    if language not in ['java', 'python']:
+        return jsonify({
+            'error': f'Unsupported language: {language}',
+            'details': 'Supported languages: java, python'
+        }), 400
+
     try:
-        # Validate syntax first
+        # Validate syntax first (validate_syntax should raise SyntaxError if invalid)
         validate_syntax(code, language)
-        
+
         # Create analyzer and run analysis
         analyzer = CodeAnalyzer(language)
         result = analyzer.analyze(code)
-        
+
         # Add metadata
         result['execution_time_ms'] = int((time.time() - start_time) * 1000)
         if user_id:
             result['user_id'] = user_id
         if assignment_id:
             result['assignment_id'] = assignment_id
-        
+
         return jsonify(result), 200
-        
+
     except SyntaxError as e:
-        raise AnalysisError(
-            'Syntax error in code',
-            status_code=400,
-            details=str(e)
-        )
+        return jsonify({
+            'error': 'Syntax error in code',
+            'details': str(e)
+        }), 400
+    except ValidationError as e:
+        # If you have a ValidationError class, return its message
+        return jsonify({
+            'error': 'Validation error',
+            'details': str(e)
+        }), getattr(e, 'status_code', 400)
     except Exception as e:
-        raise AnalysisError(
-            'Analysis failed',
-            details=f'Unexpected error: {str(e)}'
-        )
-
-# ========== SERVICES/ANALYZER.PY ==========
-
-def _generate_mock_clones(num_lines):
-    """Generate mock clone data"""
-    if num_lines < 10:
-        return []  # Too small to have clones
-    
-    return [
-        {
-            'clone_id': str(uuid.uuid4()),
-            'type': 2,
-            'similarity': round(random.uniform(0.85, 0.98), 2),
-            'locations': [
-                {
-                    'start_line': max(1, num_lines // 4),
-                    'end_line': max(5, num_lines // 4 + 5)
-                },
-                {
-                    'start_line': max(1, num_lines // 2),
-                    'end_line': max(5, num_lines // 2 + 5)
-                }
-            ],
-            'code_snippet': 'Mock code snippet here...'
-        }
-    ]
-
-
-def _generate_mock_suggestions():
-    """Generate mock refactoring suggestions"""
-    return [
-        {
-            'suggestion_id': str(uuid.uuid4()),
-            'priority': 1,
-            'priority_score': round(random.uniform(0.7, 0.95), 2),
-            'refactoring_type': 'Extract Method',
-            'affected_clone_id': str(uuid.uuid4()),
-            'explanation': {
-                'remember': 'You have duplicated this code 2 times',
-                'understand': 'Code duplication makes bugs hard to fix because changes must be made in multiple places',
-                'apply': 'Extract this into a reusable method called processData()'
-            },
-            'before_code': '// Mock before code\nif (x > 0) {\n    result = x * 2;\n}',
-            'after_code': '// Mock after code\nint processData(int x) {\n    return x * 2;\n}\n\nif (x > 0) {\n    result = processData(x);\n}'
-        }
-    ]
+        return jsonify({
+            'error': 'Analysis failed',
+            'details': f'Unexpected error: {str(e)}'
+        }), 500
