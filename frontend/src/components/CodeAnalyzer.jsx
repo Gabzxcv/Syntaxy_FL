@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import JSZip from 'jszip';
 import './CodeAnalyzer.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -66,6 +67,12 @@ function CodeAnalyzer() {
     }
   }, []);
 
+  useEffect(() => {
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.body.classList.add('dark-mode');
+    }
+  }, []);
+
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
@@ -124,7 +131,7 @@ function CodeAnalyzer() {
     reader.readAsText(file);
   }
 
-  function handleZipUpload(e) {
+  async function handleZipUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -137,23 +144,123 @@ function CodeAnalyzer() {
     setBatchFiles(prev => [...prev, fileEntry]);
     setUploadedFileName(file.name);
 
-    const historyEntries = JSON.parse(localStorage.getItem('activityHistory') || '[]');
-    historyEntries.unshift({
-      id: Date.now(),
-      type: 'upload',
-      icon: '📤',
-      description: `Uploaded batch: ${file.name} - processing files`,
-      time: new Date().toISOString(),
-      status: 'success'
-    });
-    localStorage.setItem('activityHistory', JSON.stringify(historyEntries));
+    const userId = user.id || user.username || 'default';
+    const historyKey = `activityHistory_${userId}`;
 
-    // Generate mock refactoring suggestions for batch upload
-    setBatchSuggestions([
-      { type: 'Extract Method', description: 'Duplicate logging pattern found across 3 files', severity: 'high', files: 3 },
-      { type: 'Replace Magic Numbers', description: 'Numeric literals used without named constants', severity: 'medium', files: 4 },
-      { type: 'Simplify Conditionals', description: 'Nested if-else chains can be simplified', severity: 'low', files: 1 },
-    ]);
+    try {
+      const zip = new JSZip();
+      const contents = await zip.loadAsync(file);
+      const extractedFiles = [];
+
+      for (const [fileName, zipEntry] of Object.entries(contents.files)) {
+        if (zipEntry.dir) continue;
+        const ext = fileName.split('.').pop().toLowerCase();
+        if (['py', 'java', 'txt'].includes(ext)) {
+          const content = await zipEntry.async('text');
+          extractedFiles.push({ name: fileName, content, ext });
+        }
+      }
+
+      if (extractedFiles.length === 0) {
+        setBatchSuggestions([{ type: 'No Code Files', description: 'No .py, .java, or .txt files found in the zip', severity: 'medium', files: 0 }]);
+        return;
+      }
+
+      // Load sections to match filenames to students
+      const savedSections = localStorage.getItem('savedSections');
+      const sections = savedSections ? JSON.parse(savedSections) : [];
+      const allStudents = sections.flatMap(s => s.students);
+
+      const results = [];
+      const suggestions = [];
+
+      for (const ef of extractedFiles) {
+        // Try to match filename to a student name or email
+        const baseName = ef.name.split('/').pop().replace(/\.(py|java|txt)$/i, '').toLowerCase().replace(/[_\-]/g, ' ');
+        const matchedStudent = allStudents.find(st =>
+          st.name.toLowerCase().includes(baseName) ||
+          baseName.includes(st.name.toLowerCase().split(' ')[0]) ||
+          st.email.toLowerCase().split('@')[0] === baseName.replace(/\s/g, '')
+        );
+
+        // Analyze the extracted code
+        try {
+          const lang = ef.ext === 'py' ? 'python' : ef.ext === 'java' ? 'java' : 'python';
+          const res = await fetch(`${API}/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: ef.content, language: lang }),
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            results.push({
+              fileName: ef.name,
+              studentName: matchedStudent ? matchedStudent.name : null,
+              studentEmail: matchedStudent ? matchedStudent.email : null,
+              clonePercentage: data.clone_percentage,
+              complexity: data.cyclomatic_complexity,
+              maintainability: data.maintainability_index,
+              date: new Date().toLocaleDateString(),
+            });
+
+            if (data.clone_percentage > 30) {
+              suggestions.push({
+                type: 'High Clone %',
+                description: `${ef.name}${matchedStudent ? ` (${matchedStudent.name})` : ''}: ${data.clone_percentage}% clone detected`,
+                severity: data.clone_percentage > 50 ? 'high' : 'medium',
+                files: 1,
+              });
+            }
+          }
+        } catch {
+          results.push({
+            fileName: ef.name,
+            studentName: matchedStudent ? matchedStudent.name : null,
+            studentEmail: matchedStudent ? matchedStudent.email : null,
+            clonePercentage: 0,
+            complexity: 'N/A',
+            maintainability: 'N/A',
+            date: new Date().toLocaleDateString(),
+          });
+        }
+      }
+
+      // Store results so students can see them
+      const existingResults = JSON.parse(localStorage.getItem('studentResults') || '[]');
+      localStorage.setItem('studentResults', JSON.stringify([...results, ...existingResults]));
+
+      if (suggestions.length === 0) {
+        suggestions.push({ type: 'All Clear', description: `All ${extractedFiles.length} files have acceptable clone levels`, severity: 'low', files: extractedFiles.length });
+      }
+      setBatchSuggestions(suggestions);
+
+      // Log to history
+      const historyEntries = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      historyEntries.unshift({
+        id: Date.now(),
+        type: 'upload',
+        icon: '📤',
+        description: `Uploaded batch: ${file.name} - ${extractedFiles.length} files extracted and analyzed`,
+        time: new Date().toISOString(),
+        status: 'success'
+      });
+      localStorage.setItem(historyKey, JSON.stringify(historyEntries));
+
+    } catch (err) {
+      setBatchSuggestions([{ type: 'Error', description: `Failed to read zip: ${err.message}`, severity: 'high', files: 0 }]);
+      
+      const historyEntries = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      historyEntries.unshift({
+        id: Date.now(),
+        type: 'upload',
+        icon: '📤',
+        description: `Upload failed: ${file.name} - ${err.message}`,
+        time: new Date().toISOString(),
+        status: 'warning'
+      });
+      localStorage.setItem(historyKey, JSON.stringify(historyEntries));
+    }
   }
 
   async function analyze() {
@@ -178,7 +285,9 @@ function CodeAnalyzer() {
         setAnalysisData(data);
         setAnalyzeResult({ text: '', className: 'success' });
 
-        const historyEntries = JSON.parse(localStorage.getItem('activityHistory') || '[]');
+        const userId = user.id || user.username || 'default';
+        const historyKey = `activityHistory_${userId}`;
+        const historyEntries = JSON.parse(localStorage.getItem(historyKey) || '[]');
         historyEntries.unshift({
           id: Date.now(),
           type: 'analysis',
@@ -187,7 +296,7 @@ function CodeAnalyzer() {
           time: new Date().toISOString(),
           status: data.clone_percentage > 30 ? 'warning' : 'success'
         });
-        localStorage.setItem('activityHistory', JSON.stringify(historyEntries));
+        localStorage.setItem(historyKey, JSON.stringify(historyEntries));
       } else {
         setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
       }

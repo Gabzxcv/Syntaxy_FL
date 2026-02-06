@@ -484,3 +484,18 @@ def admin_list_users():
         return jsonify({'users': [u.to_dict() for u in users]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/registered-students', methods=['GET'])
+@jwt_required()
+def list_registered_students():
+    """List all registered student accounts - available to instructors and admins"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = db.session.get(User, current_user_id)
+        if not user or user.role not in ('admin', 'instructor'):
+            return jsonify({'error': 'Instructor or admin access required'}), 403
+        students = User.query.filter_by(role='student').all()
+        return jsonify({'users': [u.to_dict() for u in students]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
