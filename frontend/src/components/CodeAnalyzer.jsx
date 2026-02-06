@@ -43,25 +43,42 @@ function CodeAnalyzer() {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
+  // Get user info from localStorage for sidebar
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+
+  function handleLogout() {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API}/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  }
+
   async function testHealth() {
-    setQuickResult({ text: 'Testing...', className: 'result loading' });
+    setQuickResult({ text: 'Testing...', className: 'loading' });
     try {
       const res = await fetch(`${API}/health`);
       const data = await res.json();
-      setQuickResult({ text: JSON.stringify(data, null, 2), className: 'result success' });
+      setQuickResult({ text: JSON.stringify(data, null, 2), className: 'success' });
     } catch (error) {
-      setQuickResult({ text: `Error: ${error.message}`, className: 'result error' });
+      setQuickResult({ text: `Error: ${error.message}`, className: 'error' });
     }
   }
 
   async function testLanguages() {
-    setQuickResult({ text: 'Testing...', className: 'result loading' });
+    setQuickResult({ text: 'Testing...', className: 'loading' });
     try {
       const res = await fetch(`${API}/languages`);
       const data = await res.json();
-      setQuickResult({ text: JSON.stringify(data, null, 2), className: 'result success' });
+      setQuickResult({ text: JSON.stringify(data, null, 2), className: 'success' });
     } catch (error) {
-      setQuickResult({ text: `Error: ${error.message}`, className: 'result error' });
+      setQuickResult({ text: `Error: ${error.message}`, className: 'error' });
     }
   }
 
@@ -94,7 +111,7 @@ function CodeAnalyzer() {
       return;
     }
 
-    setAnalyzeResult({ text: 'Analyzing...', className: 'result loading' });
+    setAnalyzeResult({ text: 'Analyzing...', className: 'loading' });
 
     try {
       const res = await fetch(`${API}/analyze`, {
@@ -106,14 +123,14 @@ function CodeAnalyzer() {
       const data = await res.json();
 
       if (res.ok) {
-        let output = '\u{1F4CA} METRICS\n';
+        let output = '📊 METRICS\n';
         output += `Clone Percentage: ${data.clone_percentage}%\n`;
         output += `Complexity: ${data.cyclomatic_complexity}\n`;
         output += `Maintainability: ${data.maintainability_index}\n`;
         output += `Execution Time: ${data.execution_time_ms}ms\n\n`;
 
         if (data.clones && data.clones.length > 0) {
-          output += `\u{1F50D} CLONES DETECTED: ${data.clones.length}\n\n`;
+          output += `🔍 CLONES DETECTED: ${data.clones.length}\n\n`;
           data.clones.forEach((clone, i) => {
             output += `Clone #${i + 1}:\n`;
             output += `  Type: ${clone.type}\n`;
@@ -123,7 +140,7 @@ function CodeAnalyzer() {
         }
 
         if (data.refactoring_suggestions && data.refactoring_suggestions.length > 0) {
-          output += `\u{1F4A1} SUGGESTIONS: ${data.refactoring_suggestions.length}\n\n`;
+          output += `💡 SUGGESTIONS: ${data.refactoring_suggestions.length}\n\n`;
           data.refactoring_suggestions.forEach((sugg, i) => {
             output += `Suggestion #${i + 1}: ${sugg.refactoring_type}\n`;
             output += `  ${sugg.explanation.remember}\n`;
@@ -135,69 +152,178 @@ function CodeAnalyzer() {
         output += 'RAW JSON:\n';
         output += JSON.stringify(data, null, 2);
 
-        setAnalyzeResult({ text: output, className: 'result success' });
+        setAnalyzeResult({ text: output, className: 'success' });
       } else {
-        setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'result error' });
+        setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
       }
     } catch (error) {
-      setAnalyzeResult({ text: `Error: ${error.message}`, className: 'result error' });
+      setAnalyzeResult({ text: `Error: ${error.message}`, className: 'error' });
     }
   }
 
   return (
-    <div className="analyzer-container">
-      <div className="analyzer-nav">
-        <button className="nav-btn" onClick={() => navigate('/dashboard')}>Dashboard</button>
-      </div>
-
-      <h1>Code Clone Detector</h1>
-
-      <div className="section">
-        <h2>Quick Tests</h2>
-        <button onClick={testHealth}>Health Check</button>
-        <button onClick={testLanguages}>Get Languages</button>
-        {quickResult.text && (
-          <div className={quickResult.className}>{quickResult.text}</div>
-        )}
-      </div>
-
-      <div className="section">
-        <h2>Analyze Code</h2>
-
-        <div className="analyzer-controls">
-          <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-            <option value="python">Python</option>
-            <option value="java">Java</option>
-          </select>
-
-          <button onClick={loadSample}>Load Sample Code</button>
-
-          <button onClick={() => fileInputRef.current.click()}>Upload File</button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            accept=".py,.java,.txt"
-            onChange={handleFileUpload}
-          />
+    <div className="analyzer-layout">
+      {/* Side Panel */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <h1 className="sidebar-logo">Dashboard</h1>
         </div>
+        
+        <nav className="sidebar-nav">
+          <button className="nav-item" onClick={() => navigate('/dashboard')}>
+            <span className="nav-icon">📊</span>
+            Dashboard
+          </button>
+          <button className="nav-item active">
+            <span className="nav-icon">⚙️</span>
+            Compiler Area
+          </button>
+          <button className="nav-item">
+            <span className="nav-icon">📁</span>
+            Files
+          </button>
+          <button className="nav-item" onClick={() => navigate('/students')}>
+            <span className="nav-icon">📈</span>
+            Analysis Results
+          </button>
+          <button className="nav-item">
+            <span className="nav-icon">🔄</span>
+            Refactoring
+          </button>
+          <button className="nav-item">
+            <span className="nav-icon">📜</span>
+            History
+          </button>
+          <button className="nav-item">
+            <span className="nav-icon">⚙️</span>
+            Settings
+          </button>
+        </nav>
 
-        {uploadedFileName && (
-          <div className="uploaded-file-info">Loaded file: {uploadedFileName}</div>
-        )}
+        <div className="sidebar-footer">
+          <button className="nav-item help-btn">
+            <span className="nav-icon">❓</span>
+            Help
+          </button>
+          <div className="user-profile">
+            <div className="user-avatar">
+              {(user.full_name || user.username).charAt(0).toUpperCase()}
+            </div>
+            <div className="user-info-sidebar">
+              <div className="user-name">{user.full_name || user.username}</div>
+              <div className="user-email">{user.email}</div>
+            </div>
+          </div>
+          <button className="btn-logout-sidebar" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      </aside>
 
-        <textarea
-          value={code}
-          onChange={(e) => { setCode(e.target.value); setUploadedFileName(''); }}
-          placeholder="Paste your code here or upload a file..."
-        />
+      {/* Main Content */}
+      <main className="main-content">
+        <header className="analyzer-header">
+          <div className="header-left">
+            <h2 className="page-title">Code Clone Detector</h2>
+            <p className="page-subtitle">Analyze your code for duplicates and get refactoring suggestions</p>
+          </div>
+        </header>
 
-        <button onClick={analyze}>Analyze Code</button>
+        <div className="analyzer-content">
+          {/* Quick Tests Section */}
+          <section className="analyzer-section">
+            <h3 className="section-title">Quick Tests</h3>
+            <div className="quick-test-buttons">
+              <button className="test-btn" onClick={testHealth}>
+                <span className="btn-icon">🏥</span>
+                Health Check
+              </button>
+              <button className="test-btn" onClick={testLanguages}>
+                <span className="btn-icon">💻</span>
+                Get Languages
+              </button>
+            </div>
+            {quickResult.text && (
+              <div className={`result-box ${quickResult.className}`}>
+                <pre>{quickResult.text}</pre>
+              </div>
+            )}
+          </section>
 
-        {analyzeResult.text && (
-          <div className={analyzeResult.className}>{analyzeResult.text}</div>
-        )}
-      </div>
+          {/* Code Analysis Section */}
+          <section className="analyzer-section">
+            <h3 className="section-title">Analyze Code</h3>
+            
+            <div className="controls-row">
+              <div className="control-group">
+                <label className="control-label">Language</label>
+                <select 
+                  className="language-select" 
+                  value={language} 
+                  onChange={(e) => setLanguage(e.target.value)}
+                >
+                  <option value="python">Python</option>
+                  <option value="java">Java</option>
+                </select>
+              </div>
+
+              <button className="action-btn secondary" onClick={loadSample}>
+                <span className="btn-icon">📝</span>
+                Load Sample
+              </button>
+
+              <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
+                <span className="btn-icon">📤</span>
+                Upload File
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept=".py,.java,.txt"
+                onChange={handleFileUpload}
+              />
+            </div>
+
+            {uploadedFileName && (
+              <div className="file-uploaded-badge">
+                <span className="badge-icon">✓</span>
+                Loaded: {uploadedFileName}
+              </div>
+            )}
+
+            <div className="code-editor-container">
+              <div className="editor-header">
+                <span className="editor-label">Code Editor</span>
+                <span className="editor-lang">{language === 'python' ? 'Python' : 'Java'}</span>
+              </div>
+              <textarea
+                className="code-editor"
+                value={code}
+                onChange={(e) => { 
+                  setCode(e.target.value); 
+                  setUploadedFileName(''); 
+                }}
+                placeholder="Paste your code here or upload a file..."
+              />
+            </div>
+
+            <button className="action-btn primary analyze-btn" onClick={analyze}>
+              <span className="btn-icon">🔍</span>
+              Analyze Code
+            </button>
+
+            {analyzeResult.text && (
+              <div className={`result-box ${analyzeResult.className}`}>
+                <div className="result-header">
+                  <span className="result-title">Analysis Results</span>
+                </div>
+                <pre>{analyzeResult.text}</pre>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
