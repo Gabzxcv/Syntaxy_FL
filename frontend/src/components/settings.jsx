@@ -14,13 +14,24 @@ function Settings() {
   const [editEmail, setEditEmail] = useState(user.email || '');
   const [accountSaving, setAccountSaving] = useState(false);
 
-  const [settings, setSettings] = useState({
-    emailNotifications: true,
-    autoSave: true,
-    darkMode: localStorage.getItem('darkMode') === 'true',
-    languageDefault: 'python',
-    maxFileSize: '10',
-    enableHistory: true,
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('appSettings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...parsed, darkMode: localStorage.getItem('darkMode') === 'true' };
+      } catch (e) {
+        console.warn('Failed to parse saved settings:', e);
+      }
+    }
+    return {
+      emailNotifications: true,
+      autoSave: true,
+      darkMode: localStorage.getItem('darkMode') === 'true',
+      languageDefault: 'python',
+      maxFileSize: '10',
+      enableHistory: true,
+    };
   });
 
   useEffect(() => {
@@ -59,8 +70,13 @@ function Settings() {
   }
 
   function saveSettings() {
-    alert('Settings saved successfully!');
-    console.log('Saved settings:', settings);
+    try {
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+      alert('Settings saved successfully!');
+    } catch (e) {
+      console.error('Failed to save settings:', e);
+      alert('Failed to save settings. Storage may be full.');
+    }
   }
 
   return (

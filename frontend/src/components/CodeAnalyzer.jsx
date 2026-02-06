@@ -325,7 +325,7 @@ function CodeAnalyzer() {
   function getMaintainabilityClass(val) {
     if (val >= 60) return 'good';
     if (val >= 30) return 'medium';
-    return 'high';
+    return 'low';
   }
 
   return (
