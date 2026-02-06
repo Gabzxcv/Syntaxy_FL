@@ -37,9 +37,10 @@ def create_app():
     bcrypt.init_app(app)
     JWTManager(app)
     
-    # Create database tables
+    # Create database tables and seed admin account
     with app.app_context():
         db.create_all()
+        _seed_admin(db, bcrypt)
     
     # Register blueprints (routes)
     from app.api import routes
@@ -48,3 +49,18 @@ def create_app():
     app.register_blueprint(auth.bp, url_prefix='/api/v1/auth')
     
     return app
+
+
+def _seed_admin(db, bcrypt):
+    """Create the default admin account if it doesn't exist."""
+    from app.models import User
+    if not User.query.filter_by(username='admin').first():
+        admin = User(
+            username='admin',
+            email='admin@codeclonedetector.local',
+            full_name='Administrator',
+            role='admin'
+        )
+        admin.set_password('admin')
+        db.session.add(admin)
+        db.session.commit()

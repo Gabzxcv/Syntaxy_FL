@@ -144,7 +144,6 @@ function Login() {
               <select id="reg-role" name="reg-role" className="form-select">
                 <option value="instructor">Instructor</option>
                 <option value="student">Student</option>
-                <option value="admin">Admin</option>
               </select>
             </div>
             <div className="form-group">

@@ -42,8 +42,8 @@ def register():
         full_name = data.get('full_name', '').strip()
         role = data.get('role', 'instructor').strip().lower()
         
-        # Validate role
-        if role not in ('instructor', 'student', 'admin'):
+        # Validate role (admin accounts cannot be created via registration)
+        if role not in ('instructor', 'student'):
             role = 'instructor'
         
         # Validate username
