@@ -137,7 +137,7 @@ function History() {
           {/* Timeline */}
           <div className="history-timeline">
             {filtered.map((item) => (
-              <div className="timeline-item" key={item.id} onClick={() => {}}>
+              <div className="timeline-item" key={item.id}>
                 <div className="timeline-icon">{item.icon}</div>
                 <div className="timeline-body">
                   <div className="timeline-description">{item.description}</div>

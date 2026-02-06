@@ -78,19 +78,6 @@ function Students() {
     ? sections.find(s => s.id === activeSection)?.students || []
     : sections.flatMap(s => s.students);
 
-  function handleLogout() {
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-    }
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  }
-
   return (
     <div className="students-layout">
       {/* Side Panel */}

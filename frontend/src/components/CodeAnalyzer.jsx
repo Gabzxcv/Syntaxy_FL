@@ -292,7 +292,7 @@ function CodeAnalyzer() {
                 <span className="btn-icon">📤</span>
                 Upload File
               </button>
-              <button className="action-btn secondary" onClick={() => zipInputRef.current.click()}>
+              <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
                 <span className="btn-icon">📦</span>
                 Upload Zip
               </button>

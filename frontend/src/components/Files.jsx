@@ -87,7 +87,7 @@ function Files() {
     Array.from(selectedFiles).forEach((file) => {
       const type = getFileType(file.name);
       const newFile = {
-        id: Date.now().toString(36) + '_' + Math.random().toString(36).substr(2, 9),
+        id: Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11),
         name: file.name,
         size: file.size,
         type,
