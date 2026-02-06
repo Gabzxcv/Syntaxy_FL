@@ -36,12 +36,25 @@ const JAVA_SAMPLE = `public class GradeCalculator {
 }`;
 
 function CodeAnalyzer() {
-  const [language, setLanguage] = useState('python');
-  const [code, setCode] = useState(PYTHON_SAMPLE);
+  const [language, setLanguage] = useState(() => {
+    const scanName = localStorage.getItem('scanFileName');
+    if (scanName) {
+      const ext = scanName.split('.').pop().toLowerCase();
+      if (ext === 'py') return 'python';
+      if (ext === 'java') return 'java';
+    }
+    return 'python';
+  });
+  const [code, setCode] = useState(() => {
+    const scanContent = localStorage.getItem('scanFileContent');
+    return scanContent || PYTHON_SAMPLE;
+  });
   const [quickResult, setQuickResult] = useState({ text: '', className: '' });
   const [analyzeResult, setAnalyzeResult] = useState({ text: '', className: '' });
   const [analysisData, setAnalysisData] = useState(null);
-  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState(() => {
+    return localStorage.getItem('scanFileContent') ? (localStorage.getItem('scanFileName') || '') : '';
+  });
   const [batchFiles, setBatchFiles] = useState([]);
   const [batchSuggestions, setBatchSuggestions] = useState([]);
   const [showHelp, setShowHelp] = useState(false);
@@ -54,17 +67,9 @@ function CodeAnalyzer() {
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
 
   useEffect(() => {
-    const scanContent = localStorage.getItem('scanFileContent');
-    const scanName = localStorage.getItem('scanFileName');
-    if (scanContent) {
-      setCode(scanContent);
-      setUploadedFileName(scanName || '');
-      const ext = (scanName || '').split('.').pop().toLowerCase();
-      if (ext === 'py') setLanguage('python');
-      else if (ext === 'java') setLanguage('java');
-      localStorage.removeItem('scanFileContent');
-      localStorage.removeItem('scanFileName');
-    }
+    // Clean up scan data after initializing from it
+    localStorage.removeItem('scanFileContent');
+    localStorage.removeItem('scanFileName');
   }, []);
 
   useEffect(() => {
@@ -176,7 +181,7 @@ function CodeAnalyzer() {
 
       for (const ef of extractedFiles) {
         // Try to match filename to a student name or email
-        const baseName = ef.name.split('/').pop().replace(/\.(py|java|txt)$/i, '').toLowerCase().replace(/[_\-]/g, ' ');
+        const baseName = ef.name.split('/').pop().replace(/\.(py|java|txt)$/i, '').toLowerCase().replace(/[_-]/g, ' ');
         const matchedStudent = allStudents.find(st =>
           st.name.toLowerCase().includes(baseName) ||
           baseName.includes(st.name.toLowerCase().split(' ')[0]) ||
