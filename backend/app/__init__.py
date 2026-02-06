@@ -1,4 +1,4 @@
-from flask import Flask, send_from_directory
+from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
@@ -46,14 +46,5 @@ def create_app():
     from app.api import auth
     app.register_blueprint(routes.bp, url_prefix='/api/v1')
     app.register_blueprint(auth.bp, url_prefix='/api/v1/auth')
-    
-    # Serve static HTML pages
-    @app.route('/login')
-    def login_page():
-        return send_from_directory(os.path.join(basedir, '..'), 'login.html')
-
-    @app.route('/')
-    def index():
-        return send_from_directory(os.path.join(basedir, '..'), 'login.html')
     
     return app
