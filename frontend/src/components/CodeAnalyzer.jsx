@@ -79,9 +79,11 @@ function CodeAnalyzer() {
       setCode(event.target.result);
       setUploadedFileName(file.name);
 
-      const ext = file.name.split('.').pop().toLowerCase();
-      if (ext === 'py') setLanguage('python');
-      else if (ext === 'java') setLanguage('java');
+      if (file.name.includes('.')) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'py') setLanguage('python');
+        else if (ext === 'java') setLanguage('java');
+      }
     };
     reader.readAsText(file);
   }
