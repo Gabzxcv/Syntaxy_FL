@@ -117,7 +117,7 @@ function Login() {
             </div>
             <div className="form-group">
               <label htmlFor="login-password">Password</label>
-              <input type="password" id="login-password" name="login-password" placeholder="Enter your password" required minLength="6" />
+              <input type="password" id="login-password" name="login-password" placeholder="Enter your password" required />
             </div>
             <button type="submit" className="btn" disabled={loginLoading}>
               {loginLoading ? 'Logging in...' : 'Login'}
