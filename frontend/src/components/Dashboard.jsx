@@ -68,7 +68,7 @@ function Dashboard() {
             <span className="nav-icon">⚙️</span>
             Compiler Area
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/files')}>
             <span className="nav-icon">📁</span>
             Files
           </button>
@@ -76,11 +76,11 @@ function Dashboard() {
             <span className="nav-icon">📈</span>
             Analysis Results
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon">🔄</span>
             Refactoring
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/history')}>
             <span className="nav-icon">📜</span>
             History
           </button>

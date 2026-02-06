@@ -40,7 +40,9 @@ function CodeAnalyzer() {
   const [quickResult, setQuickResult] = useState({ text: '', className: '' });
   const [analyzeResult, setAnalyzeResult] = useState({ text: '', className: '' });
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [batchFiles, setBatchFiles] = useState([]);
   const fileInputRef = useRef(null);
+  const zipInputRef = useRef(null);
   const navigate = useNavigate();
 
   // Get user info from localStorage for sidebar
@@ -103,6 +105,20 @@ function CodeAnalyzer() {
       }
     };
     reader.readAsText(file);
+  }
+
+  function handleZipUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fileEntry = {
+      name: file.name,
+      size: (file.size / 1024).toFixed(1) + ' KB',
+      type: 'zip',
+      uploadedAt: new Date().toLocaleString(),
+    };
+    setBatchFiles(prev => [...prev, fileEntry]);
+    setUploadedFileName(file.name);
   }
 
   async function analyze() {
@@ -178,7 +194,7 @@ function CodeAnalyzer() {
             <span className="nav-icon">⚙️</span>
             Compiler Area
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/files')}>
             <span className="nav-icon">📁</span>
             Files
           </button>
@@ -186,15 +202,15 @@ function CodeAnalyzer() {
             <span className="nav-icon">📈</span>
             Analysis Results
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon">🔄</span>
             Refactoring
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/history')}>
             <span className="nav-icon">📜</span>
             History
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/settings')}>
             <span className="nav-icon">⚙️</span>
             Settings
           </button>
@@ -276,6 +292,10 @@ function CodeAnalyzer() {
                 <span className="btn-icon">📤</span>
                 Upload File
               </button>
+              <button className="action-btn secondary" onClick={() => zipInputRef.current.click()}>
+                <span className="btn-icon">📦</span>
+                Upload Zip
+              </button>
               <input
                 type="file"
                 ref={fileInputRef}
@@ -283,12 +303,32 @@ function CodeAnalyzer() {
                 accept=".py,.java,.txt"
                 onChange={handleFileUpload}
               />
+              <input
+                type="file"
+                ref={zipInputRef}
+                style={{ display: 'none' }}
+                accept=".zip"
+                onChange={handleZipUpload}
+              />
             </div>
 
             {uploadedFileName && (
               <div className="file-uploaded-badge">
                 <span className="badge-icon">✓</span>
                 Loaded: {uploadedFileName}
+              </div>
+            )}
+
+            {batchFiles.length > 0 && (
+              <div className="batch-files-list">
+                <h4 className="batch-title">📦 Batch Files ({batchFiles.length})</h4>
+                {batchFiles.map((f, i) => (
+                  <div key={i} className="batch-file-item">
+                    <span className="batch-file-name">{f.name}</span>
+                    <span className="batch-file-size">{f.size}</span>
+                    <span className="batch-file-time">{f.uploadedAt}</span>
+                  </div>
+                ))}
               </div>
             )}
 
