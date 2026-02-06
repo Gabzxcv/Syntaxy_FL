@@ -3,6 +3,7 @@ import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CodeAnalyzer from './components/CodeAnalyzer';
 import Students from './components/Students';
+import Refactoring from './components/Refactoring';
 import './App.css';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/analyzer" element={<CodeAnalyzer />} />
           <Route path="/students" element={<Students />} />
+          <Route path="/refactoring" element={<Refactoring />} />
         </Routes>
       </div>
     </BrowserRouter>
