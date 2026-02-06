@@ -20,7 +20,9 @@ function Settings() {
       try {
         const parsed = JSON.parse(saved);
         return { ...parsed, darkMode: localStorage.getItem('darkMode') === 'true' };
-      } catch { /* ignore */ }
+      } catch (e) {
+        console.warn('Failed to parse saved settings:', e);
+      }
     }
     return {
       emailNotifications: true,
@@ -68,8 +70,13 @@ function Settings() {
   }
 
   function saveSettings() {
-    localStorage.setItem('appSettings', JSON.stringify(settings));
-    alert('Settings saved successfully!');
+    try {
+      localStorage.setItem('appSettings', JSON.stringify(settings));
+      alert('Settings saved successfully!');
+    } catch (e) {
+      console.error('Failed to save settings:', e);
+      alert('Failed to save settings. Storage may be full.');
+    }
   }
 
   return (
