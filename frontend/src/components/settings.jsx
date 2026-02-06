@@ -92,7 +92,7 @@ function Settings() {
             <span className="nav-icon">🔄</span>
             Refactoring
           </button>
-          <button className="nav-item">
+          <button className="nav-item" onClick={() => navigate('/history')}>
             <span className="nav-icon">📜</span>
             History
           </button>

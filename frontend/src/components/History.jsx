@@ -33,6 +33,19 @@ function formatRelativeTime(isoString) {
   return `${Math.floor(diffDay / 7)} weeks ago`;
 }
 
+function computeStats(data, now) {
+  const totalActivities = data.length;
+  const thisWeek = data.filter((h) => {
+    const diffDays = (now - new Date(h.time).getTime()) / (1000 * 60 * 60 * 24);
+    return diffDays < 7;
+  }).length;
+  const today = data.filter((h) => {
+    const diffHours = (now - new Date(h.time).getTime()) / (1000 * 60 * 60);
+    return diffHours < 24;
+  }).length;
+  return { totalActivities, thisWeek, today };
+}
+
 function History() {
   const [filter, setFilter] = useState('all');
   const [showHelp, setShowHelp] = useState(false);
@@ -63,19 +76,6 @@ function History() {
   });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const stored = localStorage.getItem(historyKey);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setHistoryData(parsed);
-        } catch { /* ignore */ }
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [historyKey]);
-
-  useEffect(() => {
     if (localStorage.getItem('darkMode') === 'true') {
       document.body.classList.add('dark-mode');
     }
@@ -98,15 +98,28 @@ function History() {
     ? historyData
     : historyData.filter((item) => item.type === filter);
 
-  const totalActivities = historyData.length;
-  const thisWeek = historyData.filter((h) => {
-    const diffDays = (Date.now() - new Date(h.time).getTime()) / (1000 * 60 * 60 * 24);
-    return diffDays < 7;
-  }).length;
-  const today = historyData.filter((h) => {
-    const diffHours = (Date.now() - new Date(h.time).getTime()) / (1000 * 60 * 60);
-    return diffHours < 24;
-  }).length;
+  const [stats, setStats] = useState(() => {
+    const ts = Date.now();
+    return computeStats(historyData, ts);
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const stored = localStorage.getItem(historyKey);
+      let current = historyData;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setHistoryData(parsed);
+          current = parsed;
+        } catch { /* ignore */ }
+      }
+      setStats(computeStats(current, Date.now()));
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [historyKey, historyData]);
+
+  const { totalActivities, thisWeek, today } = stats;
 
   return (
     <div className="history-layout">

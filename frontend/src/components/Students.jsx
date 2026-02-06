@@ -32,6 +32,12 @@ const DEFAULT_SECTIONS = [
 
 function Students() {
   const navigate = useNavigate();
+
+  // Get user info from localStorage for sidebar
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User', role: 'instructor' };
+  const isStudent = user.role === 'student';
+
   const savedSections = localStorage.getItem('savedSections');
   const [sections, setSections] = useState(savedSections ? JSON.parse(savedSections) : DEFAULT_SECTIONS);
   const [activeSection, setActiveSection] = useState(null);
@@ -42,13 +48,18 @@ function Students() {
   const [showHelp, setShowHelp] = useState(false);
   const [registeredStudents, setRegisteredStudents] = useState([]);
   const [selectedRegisteredStudent, setSelectedRegisteredStudent] = useState('');
-  const [studentResults, setStudentResults] = useState(null);
-
-  // Get user info from localStorage for sidebar
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User', role: 'instructor' };
-
-  const isStudent = user.role === 'student';
+  const [studentResults] = useState(() => {
+    if (!isStudent) return null;
+    const results = localStorage.getItem('studentResults');
+    if (results) {
+      try {
+        const all = JSON.parse(results);
+        const mine = all.filter(r => r.studentEmail && r.studentEmail.toLowerCase() === user.email.toLowerCase());
+        if (mine.length > 0) return mine;
+      } catch { /* ignore */ }
+    }
+    return null;
+  });
 
   useEffect(() => {
     localStorage.setItem('savedSections', JSON.stringify(sections));
@@ -84,21 +95,6 @@ function Students() {
 
   const totalStudents = visibleSections.reduce((acc, s) => acc + s.students.length, 0);
   const totalSubmissions = visibleSections.reduce((acc, s) => acc + s.students.reduce((a, st) => a + st.submissions, 0), 0);
-
-  // Load student results from localStorage (set by instructor via zip upload)
-  useEffect(() => {
-    if (isStudent) {
-      const results = localStorage.getItem('studentResults');
-      if (results) {
-        try {
-          const all = JSON.parse(results);
-          // Find results for this student by email
-          const mine = all.filter(r => r.studentEmail && r.studentEmail.toLowerCase() === user.email.toLowerCase());
-          if (mine.length > 0) setStudentResults(mine);
-        } catch { /* ignore */ }
-      }
-    }
-  }, [isStudent, user.email]);
 
   function handleLogout() {
     const token = localStorage.getItem('token');

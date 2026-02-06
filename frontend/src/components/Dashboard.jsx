@@ -5,7 +5,10 @@ import './Dashboard.css';
 const API = 'http://localhost:5000/api/v1';
 
 function Dashboard() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const userStr = localStorage.getItem('user');
+    try { return userStr ? JSON.parse(userStr) : null; } catch { return null; }
+  });
   const [showHelp, setShowHelp] = useState(false);
   const navigate = useNavigate();
 
@@ -16,8 +19,6 @@ function Dashboard() {
       navigate('/login');
       return;
     }
-    // Use cached user immediately to avoid flicker
-    try { setUser(JSON.parse(userStr)); } catch { /* ignore */ }
 
     fetch(`${API}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },

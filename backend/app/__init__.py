@@ -43,6 +43,10 @@ def create_app():
         _migrate_db(db)
         _seed_admin(db, bcrypt)
     
+    # Register error handlers
+    from app.api.errors import register_error_handlers
+    register_error_handlers(app)
+    
     # Register blueprints (routes)
     from app.api import routes
     from app.api import auth
