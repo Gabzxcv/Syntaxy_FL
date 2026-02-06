@@ -39,8 +39,10 @@ function CodeAnalyzer() {
   const [code, setCode] = useState(PYTHON_SAMPLE);
   const [quickResult, setQuickResult] = useState({ text: '', className: '' });
   const [analyzeResult, setAnalyzeResult] = useState({ text: '', className: '' });
+  const [analysisData, setAnalysisData] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [batchFiles, setBatchFiles] = useState([]);
+  const [batchSuggestions, setBatchSuggestions] = useState([]);
   const fileInputRef = useRef(null);
   const zipInputRef = useRef(null);
   const navigate = useNavigate();
@@ -119,6 +121,13 @@ function CodeAnalyzer() {
     };
     setBatchFiles(prev => [...prev, fileEntry]);
     setUploadedFileName(file.name);
+
+    // Generate mock refactoring suggestions for batch upload
+    setBatchSuggestions([
+      { type: 'Extract Method', description: 'Duplicate logging pattern found across 3 files', severity: 'high', files: 2 },
+      { type: 'Replace Magic Numbers', description: 'Numeric literals used without named constants', severity: 'medium', files: 4 },
+      { type: 'Simplify Conditionals', description: 'Nested if-else chains can be simplified', severity: 'low', files: 1 },
+    ]);
   }
 
   async function analyze() {
@@ -128,6 +137,7 @@ function CodeAnalyzer() {
     }
 
     setAnalyzeResult({ text: 'Analyzing...', className: 'loading' });
+    setAnalysisData(null);
 
     try {
       const res = await fetch(`${API}/analyze`, {
@@ -139,36 +149,8 @@ function CodeAnalyzer() {
       const data = await res.json();
 
       if (res.ok) {
-        let output = '📊 METRICS\n';
-        output += `Clone Percentage: ${data.clone_percentage}%\n`;
-        output += `Complexity: ${data.cyclomatic_complexity}\n`;
-        output += `Maintainability: ${data.maintainability_index}\n`;
-        output += `Execution Time: ${data.execution_time_ms}ms\n\n`;
-
-        if (data.clones && data.clones.length > 0) {
-          output += `🔍 CLONES DETECTED: ${data.clones.length}\n\n`;
-          data.clones.forEach((clone, i) => {
-            output += `Clone #${i + 1}:\n`;
-            output += `  Type: ${clone.type}\n`;
-            output += `  Similarity: ${(clone.similarity * 100).toFixed(1)}%\n`;
-            output += `  Locations: ${clone.locations.map((l) => `lines ${l.start_line}-${l.end_line}`).join(', ')}\n\n`;
-          });
-        }
-
-        if (data.refactoring_suggestions && data.refactoring_suggestions.length > 0) {
-          output += `💡 SUGGESTIONS: ${data.refactoring_suggestions.length}\n\n`;
-          data.refactoring_suggestions.forEach((sugg, i) => {
-            output += `Suggestion #${i + 1}: ${sugg.refactoring_type}\n`;
-            output += `  ${sugg.explanation.remember}\n`;
-            output += `  ${sugg.explanation.apply}\n\n`;
-          });
-        }
-
-        output += '\n' + '='.repeat(50) + '\n';
-        output += 'RAW JSON:\n';
-        output += JSON.stringify(data, null, 2);
-
-        setAnalyzeResult({ text: output, className: 'success' });
+        setAnalysisData(data);
+        setAnalyzeResult({ text: '', className: 'success' });
       } else {
         setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
       }
@@ -353,12 +335,125 @@ function CodeAnalyzer() {
               Analyze Code
             </button>
 
-            {analyzeResult.text && (
-              <div className={`result-box ${analyzeResult.className}`}>
+            {analyzeResult.className === 'loading' && (
+              <div className="result-box loading">
+                <pre>Analyzing...</pre>
+              </div>
+            )}
+
+            {analyzeResult.className === 'error' && analyzeResult.text && (
+              <div className="result-box error">
+                <pre>{analyzeResult.text}</pre>
+              </div>
+            )}
+
+            {analysisData && (
+              <div className="analysis-visual-results">
                 <div className="result-header">
                   <span className="result-title">Analysis Results</span>
+                  <span className="result-time">{analysisData.execution_time_ms}ms</span>
                 </div>
-                <pre>{analyzeResult.text}</pre>
+
+                {/* Metric Graphs */}
+                <div className="metrics-grid">
+                  <div className="metric-card">
+                    <div className="metric-label">Clone Percentage</div>
+                    <div className="metric-bar-container">
+                      <div
+                        className={`metric-bar-fill ${analysisData.clone_percentage > 50 ? 'high' : analysisData.clone_percentage > 25 ? 'medium' : 'low'}`}
+                        style={{ width: `${Math.min(analysisData.clone_percentage, 100)}%` }}
+                      />
+                    </div>
+                    <div className="metric-value">{analysisData.clone_percentage}%</div>
+                  </div>
+
+                  <div className="metric-card">
+                    <div className="metric-label">Cyclomatic Complexity</div>
+                    <div className="metric-bar-container">
+                      <div
+                        className={`metric-bar-fill ${analysisData.cyclomatic_complexity > 20 ? 'high' : analysisData.cyclomatic_complexity > 10 ? 'medium' : 'low'}`}
+                        style={{ width: `${Math.min(analysisData.cyclomatic_complexity * 2, 100)}%` }}
+                      />
+                    </div>
+                    <div className="metric-value">{analysisData.cyclomatic_complexity}</div>
+                  </div>
+
+                  <div className="metric-card">
+                    <div className="metric-label">Maintainability Index</div>
+                    <div className="metric-bar-container">
+                      <div
+                        className={`metric-bar-fill ${analysisData.maintainability_index >= 60 ? 'good' : analysisData.maintainability_index >= 30 ? 'medium' : 'high'}`}
+                        style={{ width: `${Math.min(analysisData.maintainability_index, 100)}%` }}
+                      />
+                    </div>
+                    <div className="metric-value">{analysisData.maintainability_index}/100</div>
+                  </div>
+                </div>
+
+                {/* Clones Detected */}
+                {analysisData.clones && analysisData.clones.length > 0 && (
+                  <div className="clones-section">
+                    <h4 className="subsection-title">🔍 Clones Detected ({analysisData.clones.length})</h4>
+                    <div className="clones-list">
+                      {analysisData.clones.map((clone, i) => (
+                        <div key={i} className="clone-card">
+                          <div className="clone-header">
+                            <span className="clone-type">{clone.type}</span>
+                            <span className="clone-similarity">{(clone.similarity * 100).toFixed(1)}%</span>
+                          </div>
+                          <div className="clone-locations">
+                            {clone.locations.map((l, j) => (
+                              <span key={j} className="clone-location">Lines {l.start_line}–{l.end_line}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Refactoring Suggestions */}
+                {analysisData.refactoring_suggestions && analysisData.refactoring_suggestions.length > 0 && (
+                  <div className="suggestions-section">
+                    <h4 className="subsection-title">💡 Refactoring Suggestions</h4>
+                    <div className="suggestion-cards">
+                      {analysisData.refactoring_suggestions.map((sugg, i) => (
+                        <div key={i} className="analyzer-suggestion-card">
+                          <div className="analyzer-suggestion-type">{sugg.refactoring_type}</div>
+                          <div className="analyzer-suggestion-text">{sugg.explanation.remember}</div>
+                          <div className="analyzer-suggestion-text">{sugg.explanation.apply}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <button className="action-btn primary refactoring-link-btn" onClick={() => navigate('/refactoring')}>
+                      <span className="btn-icon">🔄</span>
+                      Open in Refactoring Tool
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Batch Upload Refactoring Suggestions */}
+            {batchSuggestions.length > 0 && (
+              <div className="batch-suggestions">
+                <h4 className="subsection-title">🔄 Batch Refactoring Suggestions</h4>
+                <div className="batch-suggestion-cards">
+                  {batchSuggestions.map((s, i) => (
+                    <div key={i} className={`batch-suggestion-card severity-${s.severity}`}>
+                      <div className="batch-suggestion-header">
+                        <span className="batch-suggestion-type">{s.type}</span>
+                        <span className={`severity-badge ${s.severity}`}>{s.severity}</span>
+                      </div>
+                      <div className="batch-suggestion-desc">{s.description}</div>
+                      <div className="batch-suggestion-files">Affects {s.files} file(s)</div>
+                    </div>
+                  ))}
+                </div>
+                <button className="action-btn primary refactoring-link-btn" onClick={() => navigate('/refactoring')}>
+                  <span className="btn-icon">🔄</span>
+                  View Detailed Refactoring
+                </button>
               </div>
             )}
           </section>

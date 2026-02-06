@@ -376,6 +376,31 @@
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
+/* ===== ADD STUDENT FORM ===== */
+.add-student-form {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.section-select {
+  min-width: 180px;
+}
+
+.action-btn.secondary {
+  background: #f9fafb;
+  color: #1a1f36;
+  border: 2px solid #e5e7eb;
+}
+
+.action-btn.secondary:hover {
+  background: #f3f4f6;
+  border-color: #6366f1;
+  color: #6366f1;
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;

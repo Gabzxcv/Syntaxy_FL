@@ -36,6 +36,10 @@ function Students() {
   const [activeSection, setActiveSection] = useState(null);
   const [newSectionName, setNewSectionName] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [addStudentSection, setAddStudentSection] = useState('');
 
   // Get user info from localStorage for sidebar
   const userStr = localStorage.getItem('user');
@@ -72,6 +76,24 @@ function Students() {
   function deleteSection(sectionId) {
     setSections(prev => prev.filter(s => s.id !== sectionId));
     if (activeSection === sectionId) setActiveSection(null);
+  }
+
+  function addStudent() {
+    if (!newStudentName.trim() || !newStudentEmail.trim() || !addStudentSection) return;
+    const sectionId = parseInt(addStudentSection);
+    const newStudent = {
+      id: Date.now(),
+      name: newStudentName.trim(),
+      email: newStudentEmail.trim(),
+      submissions: 0,
+    };
+    setSections(prev => prev.map(s =>
+      s.id === sectionId ? { ...s, students: [...s.students, newStudent] } : s
+    ));
+    setNewStudentName('');
+    setNewStudentEmail('');
+    setAddStudentSection('');
+    setShowAddStudent(false);
   }
 
   const displayedStudents = activeSection
@@ -236,7 +258,42 @@ function Students() {
                   ? sections.find(s => s.id === activeSection)?.name || 'Students'
                   : 'All Students'}
               </h3>
+              <button className="action-btn primary" onClick={() => setShowAddStudent(!showAddStudent)}>
+                <span className="btn-icon">👤</span>
+                Add Student
+              </button>
             </div>
+
+            {showAddStudent && (
+              <div className="add-student-form">
+                <input
+                  type="text"
+                  className="section-input"
+                  placeholder="Student name..."
+                  value={newStudentName}
+                  onChange={(e) => setNewStudentName(e.target.value)}
+                />
+                <input
+                  type="email"
+                  className="section-input"
+                  placeholder="Email..."
+                  value={newStudentEmail}
+                  onChange={(e) => setNewStudentEmail(e.target.value)}
+                />
+                <select
+                  className="section-input section-select"
+                  value={addStudentSection}
+                  onChange={(e) => setAddStudentSection(e.target.value)}
+                >
+                  <option value="">Select section...</option>
+                  {sections.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <button className="action-btn primary" onClick={addStudent}>Add</button>
+                <button className="action-btn secondary" onClick={() => setShowAddStudent(false)}>Cancel</button>
+              </div>
+            )}
 
             <div className="table-container">
               <table className="students-table">
