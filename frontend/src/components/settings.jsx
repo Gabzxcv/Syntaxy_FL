@@ -292,10 +292,11 @@ function Settings() {
                       localStorage.setItem('user', JSON.stringify(updatedUser));
                       alert('Account updated successfully!');
                     } else {
-                      alert('Failed to update account');
+                      const data = await res.json().catch(() => ({}));
+                      alert(data.error || 'Failed to update account');
                     }
                   } catch {
-                    alert('Connection error');
+                    alert('Unable to connect to server. Please check your connection and try again.');
                   } finally {
                     setAccountSaving(false);
                   }
