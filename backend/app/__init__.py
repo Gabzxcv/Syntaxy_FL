@@ -37,9 +37,11 @@ def create_app():
     bcrypt.init_app(app)
     JWTManager(app)
     
-    # Create database tables
+    # Create database tables, migrate schema, and seed admin account
     with app.app_context():
         db.create_all()
+        _migrate_db(db)
+        _seed_admin(db, bcrypt)
     
     # Register blueprints (routes)
     from app.api import routes
@@ -48,3 +50,78 @@ def create_app():
     app.register_blueprint(auth.bp, url_prefix='/api/v1/auth')
     
     return app
+
+
+def _seed_admin(db, bcrypt):
+    """Create the default admin account if it doesn't exist."""
+    from app.models import User
+    if not User.query.filter_by(username='admin').first():
+        admin = User(
+            username='admin',
+            email='admin@codeclonedetector.local',
+            full_name='Administrator',
+            role='admin'
+        )
+        admin.set_password('admin')
+        db.session.add(admin)
+        db.session.commit()
+
+
+def _migrate_db(db):
+    """Add any missing columns to existing database tables.
+
+    SQLAlchemy's ``create_all`` only creates tables that do not exist; it
+    does not add new columns to tables that already exist. This helper
+    inspects each table and runs ``ALTER TABLE ... ADD COLUMN`` for any
+    column that is missing, preventing the ``no such column`` error when
+    the schema evolves.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    metadata = db.metadata
+
+    for table_name, table in metadata.tables.items():
+        if not inspector.has_table(table_name):
+            continue
+
+        existing_cols = {c['name'] for c in inspector.get_columns(table_name)}
+
+        for column in table.columns:
+            if column.name in existing_cols:
+                continue
+
+            # Build a portable column type string
+            col_type = column.type.compile(dialect=db.engine.dialect)
+
+            # Determine a sensible DEFAULT for the ALTER statement
+            default_clause = ''
+            if column.default is not None:
+                default_val = column.default.arg
+                if callable(default_val):
+                    # For callable defaults (uuid, datetime) use a safe
+                    # literal; the ORM will supply the real value later.
+                    if isinstance(column.type, db.String):
+                        default_val = ''
+                    else:
+                        default_val = None
+                if default_val is not None:
+                    if isinstance(column.type, (db.Integer, db.Float)):
+                        default_clause = f" DEFAULT {default_val}"
+                    else:
+                        default_clause = f" DEFAULT '{default_val}'"
+
+            nullable = '' if column.nullable else ' NOT NULL'
+            # SQLite requires a default when adding a NOT NULL column
+            if nullable and not default_clause:
+                if isinstance(column.type, db.String):
+                    default_clause = " DEFAULT ''"
+                elif isinstance(column.type, db.Integer):
+                    default_clause = " DEFAULT 0"
+                else:
+                    default_clause = " DEFAULT ''"
+
+            stmt = f'ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type}{nullable}{default_clause}'
+            db.session.execute(text(stmt))
+
+    db.session.commit()
