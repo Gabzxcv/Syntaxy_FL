@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Clone Detector - Simple Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 10px 0;
+            resize: vertical;
+        }
+        select, input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px 5px 5px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { border-left: 4px solid #28a745; }
+        .error { border-left: 4px solid #dc3545; }
+        .loading { border-left: 4px solid #ffc107; }
+        .metric {
+            display: inline-block;
+            margin: 5px 10px 5px 0;
+            padding: 5px 12px;
+            background: #e7f3ff;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #0066cc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1> Code Clone Detector API Test</h1>
+        <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROP5HhVVX9jCoFOLyQlbI-TO9IE4C6OzfMWQ&s" alt="Girl in a jacket" width="500" height="600">
+        <!-- Quick Tests -->
+        <div class="section">
+            <h2>Quick Tests</h2>
+            <button onclick="testHealth()">Health Check</button>
+            <button onclick="testLanguages()">Get Languages</button>
+            <div id="quick-result" class="result" style="display:none;"></div>
+        </div>
+
+        <!-- Analyze Code -->
+        <div class="section">
+            <h2>Analyze Code</h2>
+            
+            <select id="language">
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+            </select>
+            
+            <button onclick="loadSample()">Load Sample Code</button>
+            
+            <textarea id="code" placeholder="Paste your code here...">def calculate_grade(score):
+    if score >= 90:
+        return 'A'
+    elif score >= 80:
+        return 'B'
+    else:
+        return 'F'
+
+def get_grade(points):
+    if points >= 90:
+        return 'A'
+    elif points >= 80:
+        return 'B'
+    else:
+        return 'F'</textarea>
+            
+            <button onclick="analyze()">Analyze Code</button>
+            
+            <div id="analyze-result" class="result" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:5000/api/v1';
+
+        // Health Check
+        async function testHealth() {
+            const result = document.getElementById('quick-result');
+            result.style.display = 'block';
+            result.className = 'result loading';
+            result.textContent = 'Testing...';
+
+            try {
+                const res = await fetch(`${API}/health`);
+                const data = await res.json();
+                result.className = 'result success';
+                result.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Get Languages
+        async function testLanguages() {
+            const result = document.getElementById('quick-result');
+            result.style.display = 'block';
+            result.className = 'result loading';
+            result.textContent = 'Testing...';
+
+            try {
+                const res = await fetch(`${API}/languages`);
+                const data = await res.json();
+                result.className = 'result success';
+                result.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Analyze Code
+        async function analyze() {
+            const code = document.getElementById('code').value;
+            const language = document.getElementById('language').value;
+            const result = document.getElementById('analyze-result');
+
+            if (!code.trim()) {
+                alert('Please enter some code!');
+                return;
+            }
+
+            result.style.display = 'block';
+            result.className = 'result loading';
+            result.textContent = 'Analyzing...';
+
+            try {
+                const res = await fetch(`${API}/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, language })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    result.className = 'result success';
+                    
+                    // Show metrics
+                    let output = '📊 METRICS\n';
+                    output += `Clone Percentage: ${data.clone_percentage}%\n`;
+                    output += `Complexity: ${data.cyclomatic_complexity}\n`;
+                    output += `Maintainability: ${data.maintainability_index}\n`;
+                    output += `Execution Time: ${data.execution_time_ms}ms\n\n`;
+
+                    // Show clones
+                    if (data.clones && data.clones.length > 0) {
+                        output += `🔍 CLONES DETECTED: ${data.clones.length}\n\n`;
+                        data.clones.forEach((clone, i) => {
+                            output += `Clone #${i + 1}:\n`;
+                            output += `  Type: ${clone.type}\n`;
+                            output += `  Similarity: ${(clone.similarity * 100).toFixed(1)}%\n`;
+                            output += `  Locations: ${clone.locations.map(l => `lines ${l.start_line}-${l.end_line}`).join(', ')}\n\n`;
+                        });
+                    }
+
+                    // Show suggestions
+                    if (data.refactoring_suggestions && data.refactoring_suggestions.length > 0) {
+                        output += `💡 SUGGESTIONS: ${data.refactoring_suggestions.length}\n\n`;
+                        data.refactoring_suggestions.forEach((sugg, i) => {
+                            output += `Suggestion #${i + 1}: ${sugg.refactoring_type}\n`;
+                            output += `  ${sugg.explanation.remember}\n`;
+                            output += `  ${sugg.explanation.apply}\n\n`;
+                        });
+                    }
+
+                    // Raw JSON
+                    output += '\n' + '='.repeat(50) + '\n';
+                    output += 'RAW JSON:\n';
+                    output += JSON.stringify(data, null, 2);
+
+                    result.textContent = output;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Load Sample Code
+        function loadSample() {
+            const language = document.getElementById('language').value;
+            const code = document.getElementById('code');
+
+            if (language === 'python') {
+                code.value = `def calculate_grade(score):
+    if score >= 90:
+        return 'A'
+    elif score >= 80:
+        return 'B'
+    else:
+        return 'F'
+
+def get_grade(points):
+    if points >= 90:
+        return 'A'
+    elif points >= 80:
+        return 'B'
+    else:
+        return 'F'`;
+            } else {
+                code.value = `public class GradeCalculator {
+    public String calculateGrade(int score) {
+        if (score >= 90) return "A";
+        else if (score >= 80) return "B";
+        else return "F";
+    }
+
+    public String getGrade(int points) {
+        if (points >= 90) return "A";
+        else if (points >= 80) return "B";
+        else return "F";
+    }
+}`;
+            }
+        }
+    </script>
+</body>
+</html>
