@@ -106,13 +106,15 @@ function History() {
   useEffect(() => {
     const interval = setInterval(() => {
       const stored = localStorage.getItem(historyKey);
+      let current = historyData;
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
           setHistoryData(parsed);
+          current = parsed;
         } catch { /* ignore */ }
       }
-      setStats(computeStats(historyData, Date.now()));
+      setStats(computeStats(current, Date.now()));
     }, 2000);
     return () => clearInterval(interval);
   }, [historyKey, historyData]);
