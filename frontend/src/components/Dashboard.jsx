@@ -16,20 +16,39 @@ function Dashboard() {
       navigate('/login');
       return;
     }
+    // Use cached user immediately to avoid flicker
+    try { setUser(JSON.parse(userStr)); } catch { /* ignore */ }
+
     fetch(`${API}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error('Token expired');
+        if (res.status === 401 || res.status === 422) {
+          // Token is actually invalid/expired — log out
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+          return null;
+        }
+        if (!res.ok) return null; // server error — keep cached user
+        return res.json();
       })
-      .then((data) => setUser(data.user))
+      .then((data) => {
+        if (data && data.user) {
+          setUser(data.user);
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+      })
       .catch(() => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        navigate('/login');
+        // Network error — keep cached user, don't log out
       });
   }, [navigate]);
+
+  useEffect(() => {
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.body.classList.add('dark-mode');
+    }
+  }, []);
 
   function handleLogout() {
     const token = localStorage.getItem('token');

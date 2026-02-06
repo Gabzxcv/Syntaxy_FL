@@ -38,18 +38,33 @@ function History() {
   const [showHelp, setShowHelp] = useState(false);
   const navigate = useNavigate();
 
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+
+  const userId = user.id || user.username || 'default';
+  const historyKey = `activityHistory_${userId}`;
+
   const [historyData, setHistoryData] = useState(() => {
-    const stored = localStorage.getItem('activityHistory');
+    const stored = localStorage.getItem(historyKey);
     if (stored) {
       try { return JSON.parse(stored); } catch { /* ignore */ }
     }
-    localStorage.setItem('activityHistory', JSON.stringify(DEFAULT_HISTORY_DATA));
+    // Migrate old global history if it exists
+    const oldGlobal = localStorage.getItem('activityHistory');
+    if (oldGlobal) {
+      try {
+        const parsed = JSON.parse(oldGlobal);
+        localStorage.setItem(historyKey, JSON.stringify(parsed));
+        return parsed;
+      } catch { /* ignore */ }
+    }
+    localStorage.setItem(historyKey, JSON.stringify(DEFAULT_HISTORY_DATA));
     return DEFAULT_HISTORY_DATA;
   });
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const stored = localStorage.getItem('activityHistory');
+      const stored = localStorage.getItem(historyKey);
       if (stored) {
         try {
           const parsed = JSON.parse(stored);
@@ -58,10 +73,13 @@ function History() {
       }
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [historyKey]);
 
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+  useEffect(() => {
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.body.classList.add('dark-mode');
+    }
+  }, []);
 
   function handleLogout() {
     const token = localStorage.getItem('token');

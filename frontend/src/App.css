@@ -281,3 +281,88 @@ body.dark-mode .help-modal {
 body.dark-mode .help-section {
   border-color: #374151;
 }
+
+/* Dark Mode - Sidebar */
+body.dark-mode .sidebar {
+  background: #111827 !important;
+  border-color: #374151;
+}
+body.dark-mode .sidebar-logo {
+  color: #f3f4f6;
+}
+body.dark-mode .nav-item {
+  color: #9ca3af;
+}
+body.dark-mode .nav-item:hover {
+  background: #1e2538;
+  color: #e5e7eb;
+}
+body.dark-mode .nav-item.active {
+  background: #1e2538;
+  color: #6366f1;
+}
+body.dark-mode .user-name {
+  color: #e5e7eb;
+}
+body.dark-mode .user-email {
+  color: #6b7280;
+}
+body.dark-mode .btn-logout-sidebar {
+  color: #9ca3af;
+  border-color: #374151;
+}
+body.dark-mode .btn-logout-sidebar:hover {
+  background: #1e2538;
+  color: #f3f4f6;
+}
+body.dark-mode .notification-btn {
+  color: #e5e7eb;
+}
+body.dark-mode .section-select {
+  background: #1a1f36;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+body.dark-mode .add-section-form,
+body.dark-mode .add-student-form {
+  background: #1e2538;
+  border-color: #374151;
+}
+body.dark-mode .section-tab-wrapper .section-delete-btn {
+  color: #6b7280;
+}
+body.dark-mode .file-preview {
+  background: #0f1419;
+  border-color: #374151;
+}
+body.dark-mode .file-preview pre {
+  color: #e5e7eb;
+}
+body.dark-mode .drop-zone-hint {
+  color: #6b7280;
+}
+body.dark-mode .file-meta {
+  color: #6b7280;
+}
+body.dark-mode .empty-text {
+  color: #6b7280;
+}
+body.dark-mode .help-modal-header {
+  border-color: #374151;
+}
+body.dark-mode .help-modal-header h3 {
+  color: #f3f4f6;
+}
+body.dark-mode .help-section h4 {
+  color: #f3f4f6;
+}
+body.dark-mode .help-section p {
+  color: #9ca3af;
+}
+body.dark-mode .help-close-btn {
+  color: #9ca3af;
+}
+body.dark-mode .help-close-btn:hover {
+  background: #1e2538;
+  color: #f3f4f6;
+}
