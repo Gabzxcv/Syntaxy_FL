@@ -1,23 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './History.css';
 
-const HISTORY_DATA = [
-  { id: 1, type: 'analysis', icon: '🔍', description: 'Analyzed Python code - 15.3% clone detected', time: '2 hours ago', status: 'success' },
-  { id: 2, type: 'upload', icon: '📤', description: 'Uploaded batch: project_files.zip - 5 files processed', time: '3 hours ago', status: 'success' },
-  { id: 3, type: 'refactoring', icon: '🔄', description: 'Refactored Java code - 3 code smells fixed', time: '5 hours ago', status: 'success' },
-  { id: 4, type: 'analysis', icon: '🔍', description: 'Analyzed JavaScript code - 42.7% clone detected', time: 'Yesterday', status: 'warning' },
-  { id: 5, type: 'upload', icon: '📤', description: 'Uploaded file: utils.py - 1 file processed', time: 'Yesterday', status: 'success' },
-  { id: 6, type: 'analysis', icon: '🔍', description: 'Analyzed C++ code - 8.1% clone detected', time: '2 days ago', status: 'success' },
-  { id: 7, type: 'refactoring', icon: '🔄', description: 'Refactored Python code - 5 duplicates removed', time: '3 days ago', status: 'info' },
-  { id: 8, type: 'upload', icon: '📤', description: 'Uploaded batch: homework_set3.zip - 12 files processed', time: '4 days ago', status: 'success' },
-  { id: 9, type: 'analysis', icon: '🔍', description: 'Analyzed Java code - 27.5% clone detected', time: '5 days ago', status: 'warning' },
-  { id: 10, type: 'refactoring', icon: '🔄', description: 'Refactored JavaScript code - 2 functions consolidated', time: '1 week ago', status: 'info' },
+const DEFAULT_HISTORY_DATA = [
+  { id: 1, type: 'analysis', icon: '🔍', description: 'Analyzed Python code - 15.3% clone detected', time: '2024-12-01T10:00:00Z', status: 'success' },
+  { id: 2, type: 'upload', icon: '📤', description: 'Uploaded batch: project_files.zip - 5 files processed', time: '2024-12-01T09:00:00Z', status: 'success' },
+  { id: 3, type: 'refactoring', icon: '🔄', description: 'Refactored Java code - 3 code smells fixed', time: '2024-12-01T07:00:00Z', status: 'success' },
+  { id: 4, type: 'analysis', icon: '🔍', description: 'Analyzed JavaScript code - 42.7% clone detected', time: '2024-11-30T12:00:00Z', status: 'warning' },
+  { id: 5, type: 'upload', icon: '📤', description: 'Uploaded file: utils.py - 1 file processed', time: '2024-11-30T08:00:00Z', status: 'success' },
+  { id: 6, type: 'analysis', icon: '🔍', description: 'Analyzed C++ code - 8.1% clone detected', time: '2024-11-29T14:00:00Z', status: 'success' },
+  { id: 7, type: 'refactoring', icon: '🔄', description: 'Refactored Python code - 5 duplicates removed', time: '2024-11-28T16:00:00Z', status: 'info' },
+  { id: 8, type: 'upload', icon: '📤', description: 'Uploaded batch: homework_set3.zip - 12 files processed', time: '2024-11-27T11:00:00Z', status: 'success' },
+  { id: 9, type: 'analysis', icon: '🔍', description: 'Analyzed Java code - 27.5% clone detected', time: '2024-11-26T09:00:00Z', status: 'warning' },
+  { id: 10, type: 'refactoring', icon: '🔄', description: 'Refactored JavaScript code - 2 functions consolidated', time: '2024-11-20T10:00:00Z', status: 'info' },
 ];
+
+function formatRelativeTime(isoString) {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffMs = now - then;
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffSec < 60) return 'Just now';
+  if (diffMin < 60) return `${diffMin} minute${diffMin > 1 ? 's' : ''} ago`;
+  if (diffHr < 24) return `${diffHr} hour${diffHr > 1 ? 's' : ''} ago`;
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay} days ago`;
+  if (diffDay < 14) return '1 week ago';
+  return `${Math.floor(diffDay / 7)} weeks ago`;
+}
 
 function History() {
   const [filter, setFilter] = useState('all');
+  const [showHelp, setShowHelp] = useState(false);
   const navigate = useNavigate();
+
+  const [historyData, setHistoryData] = useState(() => {
+    const stored = localStorage.getItem('activityHistory');
+    if (stored) {
+      try { return JSON.parse(stored); } catch { /* ignore */ }
+    }
+    localStorage.setItem('activityHistory', JSON.stringify(DEFAULT_HISTORY_DATA));
+    return DEFAULT_HISTORY_DATA;
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const stored = localStorage.getItem('activityHistory');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setHistoryData(parsed);
+        } catch { /* ignore */ }
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
@@ -36,12 +77,18 @@ function History() {
   }
 
   const filtered = filter === 'all'
-    ? HISTORY_DATA
-    : HISTORY_DATA.filter((item) => item.type === filter);
+    ? historyData
+    : historyData.filter((item) => item.type === filter);
 
-  const totalActivities = HISTORY_DATA.length;
-  const thisWeek = HISTORY_DATA.filter((h) => !h.time.includes('week')).length;
-  const today = HISTORY_DATA.filter((h) => h.time.includes('hour')).length;
+  const totalActivities = historyData.length;
+  const thisWeek = historyData.filter((h) => {
+    const diffDays = (Date.now() - new Date(h.time).getTime()) / (1000 * 60 * 60 * 24);
+    return diffDays < 7;
+  }).length;
+  const today = historyData.filter((h) => {
+    const diffHours = (Date.now() - new Date(h.time).getTime()) / (1000 * 60 * 60);
+    return diffHours < 24;
+  }).length;
 
   return (
     <div className="history-layout">
@@ -73,7 +120,7 @@ function History() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <button className="nav-item help-btn">
+          <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
             <span className="nav-icon">❓</span>
             Help
           </button>
@@ -142,7 +189,7 @@ function History() {
                 <div className="timeline-body">
                   <div className="timeline-description">{item.description}</div>
                   <div className="timeline-meta">
-                    <span className="timeline-time">{item.time}</span>
+                    <span className="timeline-time">{formatRelativeTime(item.time)}</span>
                     <span className={`timeline-status ${item.status}`}>
                       {item.status === 'success' ? '✓ Success' : item.status === 'warning' ? '⚠ Warning' : 'ℹ Info'}
                     </span>
@@ -153,6 +200,43 @@ function History() {
           </div>
         </div>
       </main>
+
+      {showHelp && (
+        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <h3>Help & Documentation</h3>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+            </div>
+            <div className="help-modal-body">
+              <div className="help-section">
+                <h4>🔍 Code Analyzer</h4>
+                <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
+              </div>
+              <div className="help-section">
+                <h4>📁 Files</h4>
+                <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
+              </div>
+              <div className="help-section">
+                <h4>📈 Analysis Results</h4>
+                <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
+              </div>
+              <div className="help-section">
+                <h4>🔄 Refactoring</h4>
+                <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
+              </div>
+              <div className="help-section">
+                <h4>📜 History</h4>
+                <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
+              </div>
+              <div className="help-section">
+                <h4>⚙️ Settings</h4>
+                <p>Configure dark mode, notification preferences, and update your account information.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

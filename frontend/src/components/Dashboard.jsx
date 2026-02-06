@@ -6,6 +6,7 @@ const API = 'http://localhost:5000/api/v1';
 
 function Dashboard() {
   const [user, setUser] = useState(null);
+  const [showHelp, setShowHelp] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -72,10 +73,12 @@ function Dashboard() {
             <span className="nav-icon">📁</span>
             Files
           </button>
-          <button className="nav-item" onClick={() => navigate('/students')}>
-            <span className="nav-icon">📈</span>
-            Analysis Results
-          </button>
+          {user.role !== 'student' && (
+            <button className="nav-item" onClick={() => navigate('/students')}>
+              <span className="nav-icon">📈</span>
+              Analysis Results
+            </button>
+          )}
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon">🔄</span>
             Refactoring
@@ -88,10 +91,16 @@ function Dashboard() {
             <span className="nav-icon">⚙️</span>
             Settings
           </button>
+          {user.role === 'admin' && (
+            <button className="nav-item" onClick={() => navigate('/settings')}>
+              <span className="nav-icon">🛡️</span>
+              Admin
+            </button>
+          )}
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item help-btn">
+          <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
             <span className="nav-icon">❓</span>
             Help
           </button>
@@ -183,14 +192,25 @@ function Dashboard() {
                 <div className="action-arrow">→</div>
               </button>
               
-              <button className="action-card" onClick={() => navigate('/students')}>
-                <div className="action-icon">👥</div>
-                <div className="action-content">
-                  <div className="action-title">View Students</div>
-                  <div className="action-desc">Manage student submissions</div>
-                </div>
-                <div className="action-arrow">→</div>
-              </button>
+              {user.role === 'student' ? (
+                <button className="action-card" onClick={() => navigate('/files')}>
+                  <div className="action-icon">📝</div>
+                  <div className="action-content">
+                    <div className="action-title">My Submissions</div>
+                    <div className="action-desc">View your submitted files</div>
+                  </div>
+                  <div className="action-arrow">→</div>
+                </button>
+              ) : (
+                <button className="action-card" onClick={() => navigate('/students')}>
+                  <div className="action-icon">👥</div>
+                  <div className="action-content">
+                    <div className="action-title">View Students</div>
+                    <div className="action-desc">Manage student submissions</div>
+                  </div>
+                  <div className="action-arrow">→</div>
+                </button>
+              )}
               
               <button className="action-card">
                 <div className="action-icon">📄</div>
@@ -200,6 +220,17 @@ function Dashboard() {
                 </div>
                 <div className="action-arrow">→</div>
               </button>
+
+              {user.role === 'admin' && (
+                <button className="action-card" onClick={() => navigate('/settings')}>
+                  <div className="action-icon">🛡️</div>
+                  <div className="action-content">
+                    <div className="action-title">Admin Panel</div>
+                    <div className="action-desc">Manage users and system settings</div>
+                  </div>
+                  <div className="action-arrow">→</div>
+                </button>
+              )}
             </div>
           </div>
 
@@ -235,6 +266,43 @@ function Dashboard() {
           </div>
         </div>
       </main>
+
+      {showHelp && (
+        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <h3>Help & Documentation</h3>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+            </div>
+            <div className="help-modal-body">
+              <div className="help-section">
+                <h4>🔍 Code Analyzer</h4>
+                <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
+              </div>
+              <div className="help-section">
+                <h4>📁 Files</h4>
+                <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
+              </div>
+              <div className="help-section">
+                <h4>📈 Analysis Results</h4>
+                <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
+              </div>
+              <div className="help-section">
+                <h4>🔄 Refactoring</h4>
+                <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
+              </div>
+              <div className="help-section">
+                <h4>📜 History</h4>
+                <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
+              </div>
+              <div className="help-section">
+                <h4>⚙️ Settings</h4>
+                <p>Configure dark mode, notification preferences, and update your account information.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

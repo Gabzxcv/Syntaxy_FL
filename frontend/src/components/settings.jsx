@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './settings.css';
 
@@ -9,14 +9,37 @@ function Settings() {
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
 
+  const [showHelp, setShowHelp] = useState(false);
+  const [editFullName, setEditFullName] = useState(user.full_name || '');
+  const [editEmail, setEditEmail] = useState(user.email || '');
+  const [accountSaving, setAccountSaving] = useState(false);
+
   const [settings, setSettings] = useState({
     emailNotifications: true,
     autoSave: true,
-    darkMode: false,
+    darkMode: localStorage.getItem('darkMode') === 'true',
     languageDefault: 'python',
     maxFileSize: '10',
     enableHistory: true,
   });
+
+  useEffect(() => {
+    const isDark = localStorage.getItem('darkMode') === 'true';
+    if (isDark) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', settings.darkMode);
+    if (settings.darkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [settings.darkMode]);
 
   function handleLogout() {
     const token = localStorage.getItem('token');
@@ -80,7 +103,7 @@ function Settings() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item help-btn">
+          <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
             <span className="nav-icon">❓</span>
             Help
           </button>
@@ -147,14 +170,13 @@ function Settings() {
               <div className="setting-item">
                 <div className="setting-info">
                   <div className="setting-label">Dark Mode</div>
-                  <div className="setting-description">Enable dark theme (Coming soon)</div>
+                  <div className="setting-description">Enable dark theme</div>
                 </div>
                 <label className="toggle-switch">
                   <input
                     type="checkbox"
                     checked={settings.darkMode}
                     onChange={(e) => handleSettingChange('darkMode', e.target.checked)}
-                    disabled
                   />
                   <span className="toggle-slider"></span>
                 </label>
@@ -227,16 +249,61 @@ function Settings() {
               </div>
               <div className="account-row">
                 <span className="account-label">Email:</span>
-                <span className="account-value">{user.email}</span>
+                <input
+                  type="email"
+                  className="setting-input"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                />
               </div>
               <div className="account-row">
                 <span className="account-label">Full Name:</span>
-                <span className="account-value">{user.full_name || 'Not set'}</span>
+                <input
+                  type="text"
+                  className="setting-input"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  placeholder="Enter full name"
+                />
               </div>
               <div className="account-row">
                 <span className="account-label">Account Type:</span>
                 <span className="account-badge">Premium</span>
               </div>
+              <button
+                className="action-btn primary"
+                style={{ marginTop: '12px' }}
+                disabled={accountSaving}
+                onClick={async () => {
+                  setAccountSaving(true);
+                  try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch(`${API}/auth/me`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ full_name: editFullName, email: editEmail }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      const updatedUser = data.user || { ...user, full_name: editFullName, email: editEmail };
+                      localStorage.setItem('user', JSON.stringify(updatedUser));
+                      alert('Account updated successfully!');
+                    } else {
+                      alert('Failed to update account');
+                    }
+                  } catch {
+                    alert('Connection error');
+                  } finally {
+                    setAccountSaving(false);
+                  }
+                }}
+              >
+                <span className="btn-icon">💾</span>
+                {accountSaving ? 'Saving...' : 'Save Account'}
+              </button>
             </div>
           </section>
 
@@ -252,6 +319,43 @@ function Settings() {
           </div>
         </div>
       </main>
+
+      {showHelp && (
+        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <h3>Help & Documentation</h3>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+            </div>
+            <div className="help-modal-body">
+              <div className="help-section">
+                <h4>🔍 Code Analyzer</h4>
+                <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
+              </div>
+              <div className="help-section">
+                <h4>📁 Files</h4>
+                <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
+              </div>
+              <div className="help-section">
+                <h4>📈 Analysis Results</h4>
+                <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
+              </div>
+              <div className="help-section">
+                <h4>🔄 Refactoring</h4>
+                <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
+              </div>
+              <div className="help-section">
+                <h4>📜 History</h4>
+                <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
+              </div>
+              <div className="help-section">
+                <h4>⚙️ Settings</h4>
+                <p>Configure dark mode, notification preferences, and update your account information.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

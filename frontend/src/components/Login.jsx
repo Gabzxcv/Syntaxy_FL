@@ -54,6 +54,7 @@ function Login() {
     const username = e.target.elements['reg-username'].value.trim();
     const email = e.target.elements['reg-email'].value.trim();
     const fullName = e.target.elements['reg-fullname'].value.trim();
+    const role = e.target.elements['reg-role'].value;
     const password = e.target.elements['reg-password'].value;
 
     setRegisterLoading(true);
@@ -63,7 +64,7 @@ function Login() {
       const res = await fetch(`${API}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, email, password, full_name: fullName }),
+        body: JSON.stringify({ username, email, password, full_name: fullName, role }),
       });
       const data = await res.json();
 
@@ -137,6 +138,14 @@ function Login() {
             <div className="form-group">
               <label htmlFor="reg-fullname">Full Name (optional)</label>
               <input type="text" id="reg-fullname" name="reg-fullname" placeholder="Enter your full name" />
+            </div>
+            <div className="form-group">
+              <label htmlFor="reg-role">Account Type</label>
+              <select id="reg-role" name="reg-role" className="form-select">
+                <option value="instructor">Instructor</option>
+                <option value="student">Student</option>
+                <option value="admin">Admin</option>
+              </select>
             </div>
             <div className="form-group">
               <label htmlFor="reg-password">Password</label>

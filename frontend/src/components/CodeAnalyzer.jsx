@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './CodeAnalyzer.css';
 
@@ -43,6 +43,7 @@ function CodeAnalyzer() {
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [batchFiles, setBatchFiles] = useState([]);
   const [batchSuggestions, setBatchSuggestions] = useState([]);
+  const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef(null);
   const zipInputRef = useRef(null);
   const navigate = useNavigate();
@@ -50,6 +51,20 @@ function CodeAnalyzer() {
   // Get user info from localStorage for sidebar
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+
+  useEffect(() => {
+    const scanContent = localStorage.getItem('scanFileContent');
+    const scanName = localStorage.getItem('scanFileName');
+    if (scanContent) {
+      setCode(scanContent);
+      setUploadedFileName(scanName || '');
+      const ext = (scanName || '').split('.').pop().toLowerCase();
+      if (ext === 'py') setLanguage('python');
+      else if (ext === 'java') setLanguage('java');
+      localStorage.removeItem('scanFileContent');
+      localStorage.removeItem('scanFileName');
+    }
+  }, []);
 
   function handleLogout() {
     const token = localStorage.getItem('token');
@@ -122,6 +137,17 @@ function CodeAnalyzer() {
     setBatchFiles(prev => [...prev, fileEntry]);
     setUploadedFileName(file.name);
 
+    const historyEntries = JSON.parse(localStorage.getItem('activityHistory') || '[]');
+    historyEntries.unshift({
+      id: Date.now(),
+      type: 'upload',
+      icon: '📤',
+      description: `Uploaded batch: ${file.name} - processing files`,
+      time: new Date().toISOString(),
+      status: 'success'
+    });
+    localStorage.setItem('activityHistory', JSON.stringify(historyEntries));
+
     // Generate mock refactoring suggestions for batch upload
     setBatchSuggestions([
       { type: 'Extract Method', description: 'Duplicate logging pattern found across 3 files', severity: 'high', files: 3 },
@@ -151,6 +177,17 @@ function CodeAnalyzer() {
       if (res.ok) {
         setAnalysisData(data);
         setAnalyzeResult({ text: '', className: 'success' });
+
+        const historyEntries = JSON.parse(localStorage.getItem('activityHistory') || '[]');
+        historyEntries.unshift({
+          id: Date.now(),
+          type: 'analysis',
+          icon: '🔍',
+          description: `Analyzed ${language} code - ${data.clone_percentage}% clone detected`,
+          time: new Date().toISOString(),
+          status: data.clone_percentage > 30 ? 'warning' : 'success'
+        });
+        localStorage.setItem('activityHistory', JSON.stringify(historyEntries));
       } else {
         setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
       }
@@ -217,7 +254,7 @@ function CodeAnalyzer() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item help-btn">
+          <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
             <span className="nav-icon">❓</span>
             Help
           </button>
@@ -477,6 +514,43 @@ function CodeAnalyzer() {
           </section>
         </div>
       </main>
+
+      {showHelp && (
+        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <h3>Help & Documentation</h3>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+            </div>
+            <div className="help-modal-body">
+              <div className="help-section">
+                <h4>🔍 Code Analyzer</h4>
+                <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
+              </div>
+              <div className="help-section">
+                <h4>📁 Files</h4>
+                <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
+              </div>
+              <div className="help-section">
+                <h4>📈 Analysis Results</h4>
+                <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
+              </div>
+              <div className="help-section">
+                <h4>🔄 Refactoring</h4>
+                <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
+              </div>
+              <div className="help-section">
+                <h4>📜 History</h4>
+                <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
+              </div>
+              <div className="help-section">
+                <h4>⚙️ Settings</h4>
+                <p>Configure dark mode, notification preferences, and update your account information.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

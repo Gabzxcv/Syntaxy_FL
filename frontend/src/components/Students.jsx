@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Students.css';
 
@@ -32,7 +32,8 @@ const DEFAULT_SECTIONS = [
 
 function Students() {
   const navigate = useNavigate();
-  const [sections, setSections] = useState(DEFAULT_SECTIONS);
+  const savedSections = localStorage.getItem('savedSections');
+  const [sections, setSections] = useState(savedSections ? JSON.parse(savedSections) : DEFAULT_SECTIONS);
   const [activeSection, setActiveSection] = useState(null);
   const [newSectionName, setNewSectionName] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
@@ -40,6 +41,11 @@ function Students() {
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentEmail, setNewStudentEmail] = useState('');
   const [addStudentSection, setAddStudentSection] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('savedSections', JSON.stringify(sections));
+  }, [sections]);
 
   // Get user info from localStorage for sidebar
   const userStr = localStorage.getItem('user');
@@ -140,7 +146,7 @@ function Students() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item help-btn">
+          <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
             <span className="nav-icon">❓</span>
             Help
           </button>
@@ -355,6 +361,43 @@ function Students() {
           </section>
         </div>
       </main>
+
+      {showHelp && (
+        <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <h3>Help & Documentation</h3>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+            </div>
+            <div className="help-modal-body">
+              <div className="help-section">
+                <h4>🔍 Code Analyzer</h4>
+                <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
+              </div>
+              <div className="help-section">
+                <h4>📁 Files</h4>
+                <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
+              </div>
+              <div className="help-section">
+                <h4>📈 Analysis Results</h4>
+                <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
+              </div>
+              <div className="help-section">
+                <h4>🔄 Refactoring</h4>
+                <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
+              </div>
+              <div className="help-section">
+                <h4>📜 History</h4>
+                <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
+              </div>
+              <div className="help-section">
+                <h4>⚙️ Settings</h4>
+                <p>Configure dark mode, notification preferences, and update your account information.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
