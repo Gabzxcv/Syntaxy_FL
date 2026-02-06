@@ -1,7 +1,9 @@
-# backend/app/models/__init__.py
+"""
+Database models for Code Clone Detector
+"""
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from datetime import datetime, timezone
+from datetime import datetime
 import uuid
 
 db = SQLAlchemy()
@@ -17,14 +19,14 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(120))
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     
-    # Relationships
+    # Relationship to analyses
     analyses = db.relationship('Analysis', backref='user', lazy='dynamic', cascade='all, delete-orphan')
     
     def set_password(self, password):
-        """Hash and set password"""
+        """Hash and store password"""
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
     
     def check_password(self, password):
@@ -32,7 +34,7 @@ class User(db.Model):
         return bcrypt.check_password_hash(self.password_hash, password)
     
     def to_dict(self):
-        """Convert to dictionary"""
+        """Convert to JSON-serializable dict"""
         return {
             'id': self.id,
             'username': self.username,
@@ -48,27 +50,23 @@ class Analysis(db.Model):
     __tablename__ = 'analyses'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
     
     # Input data
     language = db.Column(db.String(20), nullable=False)
     code = db.Column(db.Text, nullable=False)
     
-    # Results
+    # Analysis results
     clone_percentage = db.Column(db.Float)
     cyclomatic_complexity = db.Column(db.Float)
     maintainability_index = db.Column(db.Float)
     execution_time_ms = db.Column(db.Integer)
     
     # Metadata
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-    
-    # Stored JSON results
-    clones_json = db.Column(db.Text)  # Store full clone data as JSON
-    suggestions_json = db.Column(db.Text)  # Store suggestions as JSON
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     
     def to_dict(self, include_code=False):
-        """Convert to dictionary"""
+        """Convert to JSON-serializable dict"""
         result = {
             'id': self.id,
             'language': self.language,
