@@ -5,8 +5,8 @@ from flask_jwt_extended import (
     jwt_required, 
     get_jwt_identity
 )
-from app.models import db, User
-from datetime import datetime
+from app.models import db, User, Analysis
+from datetime import datetime, timezone
 
 bp = Blueprint('auth', __name__)
 
@@ -107,7 +107,7 @@ def login():
             return jsonify({'error': 'Invalid username or password'}), 401
         
         # Update last login
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         db.session.commit()
         
         # Create access token
@@ -151,7 +151,7 @@ def get_current_user():
     """
     try:
         current_user_id = get_jwt_identity()
-        user = User.query.get(current_user_id)
+        user = db.session.get(User, current_user_id)
         
         if not user:
             return jsonify({'error': 'User not found'}), 404
@@ -173,7 +173,7 @@ def get_analysis_history():
     """
     try:
         current_user_id = get_jwt_identity()
-        user = User.query.get(current_user_id)
+        user = db.session.get(User, current_user_id)
         
         if not user:
             return jsonify({'error': 'User not found'}), 404
