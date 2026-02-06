@@ -107,7 +107,8 @@ function Files() {
           const content = e.target.result;
           const preview = content.split('\n').slice(0, 5).join('\n');
           newFile.preview = preview;
-          setFiles((prev) => prev.map((f) => (f.id === newFile.id ? { ...f, preview } : f)));
+          newFile.fullContent = content;
+          setFiles((prev) => prev.map((f) => (f.id === newFile.id ? { ...f, preview, fullContent: content } : f)));
         };
         reader.readAsText(file);
       }
@@ -159,8 +160,9 @@ function Files() {
   }
 
   function handleScan(file) {
-    if (file.preview) {
-      localStorage.setItem('scanFileContent', file.preview);
+    const content = file.fullContent || file.preview;
+    if (content) {
+      localStorage.setItem('scanFileContent', content);
       localStorage.setItem('scanFileName', file.name);
       navigate('/analyzer');
     }
