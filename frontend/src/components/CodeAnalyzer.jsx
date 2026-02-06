@@ -57,6 +57,12 @@ function CodeAnalyzer() {
   });
   const [batchFiles, setBatchFiles] = useState([]);
   const [batchSuggestions, setBatchSuggestions] = useState([]);
+  const [extractedFiles, setExtractedFiles] = useState([]);
+  const [selectedSection, setSelectedSection] = useState('');
+  const [sections] = useState(() => {
+    const savedSections = localStorage.getItem('savedSections');
+    return savedSections ? JSON.parse(savedSections) : [];
+  });
   const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef(null);
   const zipInputRef = useRef(null);
@@ -132,6 +138,21 @@ function CodeAnalyzer() {
         if (ext === 'py') setLanguage('python');
         else if (ext === 'java') setLanguage('java');
       }
+
+      // Also add to extractedFiles list for section tracking
+      if (selectedSection) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        setExtractedFiles(prev => [...prev, {
+          id: Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11),
+          name: file.name,
+          content: event.target.result,
+          ext,
+          lang: ext === 'py' ? 'python' : ext === 'java' ? 'java' : 'python',
+          analyzed: false,
+          result: null,
+          section: selectedSection,
+        }]);
+      }
     };
     reader.readAsText(file);
   }
@@ -155,90 +176,32 @@ function CodeAnalyzer() {
     try {
       const zip = new JSZip();
       const contents = await zip.loadAsync(file);
-      const extractedFiles = [];
+      const newExtractedFiles = [];
 
       for (const [fileName, zipEntry] of Object.entries(contents.files)) {
         if (zipEntry.dir) continue;
         const ext = fileName.split('.').pop().toLowerCase();
         if (['py', 'java', 'txt'].includes(ext)) {
           const content = await zipEntry.async('text');
-          extractedFiles.push({ name: fileName, content, ext });
+          newExtractedFiles.push({
+            id: Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11),
+            name: fileName,
+            content,
+            ext,
+            lang: ext === 'py' ? 'python' : ext === 'java' ? 'java' : 'python',
+            analyzed: false,
+            result: null,
+            section: selectedSection,
+          });
         }
       }
 
-      if (extractedFiles.length === 0) {
+      if (newExtractedFiles.length === 0) {
         setBatchSuggestions([{ type: 'No Code Files', description: 'No .py, .java, or .txt files found in the zip', severity: 'medium', files: 0 }]);
         return;
       }
 
-      // Load sections to match filenames to students
-      const savedSections = localStorage.getItem('savedSections');
-      const sections = savedSections ? JSON.parse(savedSections) : [];
-      const allStudents = sections.flatMap(s => s.students);
-
-      const results = [];
-      const suggestions = [];
-
-      for (const ef of extractedFiles) {
-        // Try to match filename to a student name or email
-        const baseName = ef.name.split('/').pop().replace(/\.(py|java|txt)$/i, '').toLowerCase().replace(/[_-]/g, ' ');
-        const matchedStudent = allStudents.find(st =>
-          st.name.toLowerCase().includes(baseName) ||
-          baseName.includes(st.name.toLowerCase().split(' ')[0]) ||
-          st.email.toLowerCase().split('@')[0] === baseName.replace(/\s/g, '')
-        );
-
-        // Analyze the extracted code
-        try {
-          const lang = ef.ext === 'py' ? 'python' : ef.ext === 'java' ? 'java' : 'python';
-          const res = await fetch(`${API}/analyze`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: ef.content, language: lang }),
-          });
-
-          if (res.ok) {
-            const data = await res.json();
-            results.push({
-              fileName: ef.name,
-              studentName: matchedStudent ? matchedStudent.name : null,
-              studentEmail: matchedStudent ? matchedStudent.email : null,
-              clonePercentage: data.clone_percentage,
-              complexity: data.cyclomatic_complexity,
-              maintainability: data.maintainability_index,
-              date: new Date().toLocaleDateString(),
-            });
-
-            if (data.clone_percentage > 30) {
-              suggestions.push({
-                type: 'High Clone %',
-                description: `${ef.name}${matchedStudent ? ` (${matchedStudent.name})` : ''}: ${data.clone_percentage}% clone detected`,
-                severity: data.clone_percentage > 50 ? 'high' : 'medium',
-                files: 1,
-              });
-            }
-          }
-        } catch {
-          results.push({
-            fileName: ef.name,
-            studentName: matchedStudent ? matchedStudent.name : null,
-            studentEmail: matchedStudent ? matchedStudent.email : null,
-            clonePercentage: 0,
-            complexity: 'N/A',
-            maintainability: 'N/A',
-            date: new Date().toLocaleDateString(),
-          });
-        }
-      }
-
-      // Store results so students can see them
-      const existingResults = JSON.parse(localStorage.getItem('studentResults') || '[]');
-      localStorage.setItem('studentResults', JSON.stringify([...results, ...existingResults]));
-
-      if (suggestions.length === 0) {
-        suggestions.push({ type: 'All Clear', description: `All ${extractedFiles.length} files have acceptable clone levels`, severity: 'low', files: extractedFiles.length });
-      }
-      setBatchSuggestions(suggestions);
+      setExtractedFiles(prev => [...prev, ...newExtractedFiles]);
 
       // Log to history
       const historyEntries = JSON.parse(localStorage.getItem(historyKey) || '[]');
@@ -246,7 +209,7 @@ function CodeAnalyzer() {
         id: Date.now(),
         type: 'upload',
         icon: '📤',
-        description: `Uploaded batch: ${file.name} - ${extractedFiles.length} files extracted and analyzed`,
+        description: `Uploaded batch: ${file.name} - ${newExtractedFiles.length} files extracted${selectedSection ? ` (Section: ${sections.find(s => s.id?.toString() === selectedSection || s.name === selectedSection)?.name || selectedSection})` : ''}`,
         time: new Date().toISOString(),
         status: 'success'
       });
@@ -265,6 +228,102 @@ function CodeAnalyzer() {
         status: 'warning'
       });
       localStorage.setItem(historyKey, JSON.stringify(historyEntries));
+    }
+  }
+
+  function handleSelectExtractedFile(ef) {
+    setCode(ef.content);
+    setLanguage(ef.lang);
+    setUploadedFileName(ef.name);
+    setAnalysisData(ef.result);
+    setAnalyzeResult(ef.result ? { text: '', className: 'success' } : { text: '', className: '' });
+  }
+
+  async function handleAnalyzeExtractedFile(ef) {
+    // Load the file into the editor
+    setCode(ef.content);
+    setLanguage(ef.lang);
+    setUploadedFileName(ef.name);
+    setAnalysisData(null);
+    setAnalyzeResult({ text: 'Analyzing...', className: 'loading' });
+
+    try {
+      const res = await fetch(`${API}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: ef.content, language: ef.lang }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setAnalysisData(data);
+        setAnalyzeResult({ text: '', className: 'success' });
+
+        // Update the extracted file with results
+        setExtractedFiles(prev => prev.map(f =>
+          f.id === ef.id ? { ...f, analyzed: true, result: data } : f
+        ));
+
+        // Load sections to match filenames to students
+        const savedSections = localStorage.getItem('savedSections');
+        const sectionsList = savedSections ? JSON.parse(savedSections) : [];
+        const targetSection = ef.section
+          ? sectionsList.find(s => s.id?.toString() === ef.section || s.name === ef.section)
+          : null;
+        const allStudents = targetSection ? targetSection.students : sectionsList.flatMap(s => s.students);
+
+        const baseName = ef.name.split('/').pop().replace(/\.(py|java|txt)$/i, '').toLowerCase().replace(/[_-]/g, ' ');
+        const matchedStudent = allStudents.find(st =>
+          st.name.toLowerCase().includes(baseName) ||
+          baseName.includes(st.name.toLowerCase().split(' ')[0]) ||
+          st.email.toLowerCase().split('@')[0] === baseName.replace(/\s/g, '')
+        );
+
+        // Store result so students can see them
+        const studentResult = {
+          fileName: ef.name,
+          studentName: matchedStudent ? matchedStudent.name : null,
+          studentEmail: matchedStudent ? matchedStudent.email : null,
+          clonePercentage: data.clone_percentage,
+          complexity: data.cyclomatic_complexity,
+          maintainability: data.maintainability_index,
+          date: new Date().toLocaleDateString(),
+          section: ef.section || null,
+        };
+        const existingResults = JSON.parse(localStorage.getItem('studentResults') || '[]');
+        localStorage.setItem('studentResults', JSON.stringify([studentResult, ...existingResults]));
+
+        // Check for high clone and add to batch suggestions
+        if (data.clone_percentage > 30) {
+          setBatchSuggestions(prev => {
+            const filtered = prev.filter(s => s.description && !s.description.startsWith(ef.name));
+            return [...filtered, {
+              type: 'High Clone %',
+              description: `${ef.name}${matchedStudent ? ` (${matchedStudent.name})` : ''}: ${data.clone_percentage}% clone detected`,
+              severity: data.clone_percentage > 50 ? 'high' : 'medium',
+              files: 1,
+            }];
+          });
+        }
+
+        const userId = user.id || user.username || 'default';
+        const historyKey = `activityHistory_${userId}`;
+        const historyEntries = JSON.parse(localStorage.getItem(historyKey) || '[]');
+        historyEntries.unshift({
+          id: Date.now(),
+          type: 'analysis',
+          icon: '🔍',
+          description: `Analyzed ${ef.lang} file: ${ef.name} - ${data.clone_percentage}% clone detected`,
+          time: new Date().toISOString(),
+          status: data.clone_percentage > 30 ? 'warning' : 'success'
+        });
+        localStorage.setItem(historyKey, JSON.stringify(historyEntries));
+      } else {
+        setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
+      }
+    } catch (error) {
+      setAnalyzeResult({ text: `Error: ${error.message}`, className: 'error' });
     }
   }
 
@@ -434,6 +493,22 @@ function CodeAnalyzer() {
                 </select>
               </div>
 
+              <div className="control-group">
+                <label className="control-label">Section</label>
+                <select
+                  className="language-select"
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                >
+                  <option value="">No Section</option>
+                  {sections.map((s) => (
+                    <option key={s.id || s.name} value={s.id?.toString() || s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <button className="action-btn secondary" onClick={loadSample}>
                 <span className="btn-icon">📝</span>
                 Load Sample
@@ -478,6 +553,37 @@ function CodeAnalyzer() {
                     <span className="batch-file-name">{f.name}</span>
                     <span className="batch-file-size">{f.size}</span>
                     <span className="batch-file-time">{f.uploadedAt}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {extractedFiles.length > 0 && (
+              <div className="batch-files-list">
+                <h4 className="batch-title">📄 Extracted Files ({extractedFiles.length}) — Select a file to scan individually</h4>
+                {extractedFiles.map((ef) => (
+                  <div key={ef.id} className={`batch-file-item ${uploadedFileName === ef.name ? 'batch-file-active' : ''}`}>
+                    <span className="batch-file-icon">{ef.ext === 'py' ? '🐍' : ef.ext === 'java' ? '☕' : '📄'}</span>
+                    <span className="batch-file-name">{ef.name.split('/').pop()}</span>
+                    <span className="batch-file-size">{ef.lang}</span>
+                    {ef.section && (
+                      <span className="batch-file-section">
+                        📋 {sections.find(s => s.id?.toString() === ef.section || s.name === ef.section)?.name || ef.section}
+                      </span>
+                    )}
+                    {ef.analyzed && (
+                      <span className={`severity-badge ${ef.result && ef.result.clone_percentage > 50 ? 'high' : ef.result && ef.result.clone_percentage > 25 ? 'medium' : 'low'}`}>
+                        {ef.result ? `${ef.result.clone_percentage}%` : 'Done'}
+                      </span>
+                    )}
+                    <button className="action-btn secondary batch-file-btn" onClick={() => handleSelectExtractedFile(ef)}>
+                      <span className="btn-icon">👁️</span>
+                      View
+                    </button>
+                    <button className="action-btn primary batch-file-btn" onClick={() => handleAnalyzeExtractedFile(ef)}>
+                      <span className="btn-icon">🔍</span>
+                      {ef.analyzed ? 'Re-scan' : 'Scan'}
+                    </button>
                   </div>
                 ))}
               </div>
@@ -594,7 +700,11 @@ function CodeAnalyzer() {
                         </div>
                       ))}
                     </div>
-                    <button className="action-btn primary refactoring-link-btn" onClick={() => navigate('/refactoring')}>
+                    <button className="action-btn primary refactoring-link-btn" onClick={() => {
+                      localStorage.setItem('refactoringCode', code);
+                      localStorage.setItem('refactoringLanguage', language);
+                      navigate('/refactoring');
+                    }}>
                       <span className="btn-icon">🔄</span>
                       Open in Refactoring Tool
                     </button>
@@ -619,7 +729,11 @@ function CodeAnalyzer() {
                     </div>
                   ))}
                 </div>
-                <button className="action-btn primary refactoring-link-btn" onClick={() => navigate('/refactoring')}>
+                <button className="action-btn primary refactoring-link-btn" onClick={() => {
+                  localStorage.setItem('refactoringCode', code);
+                  localStorage.setItem('refactoringLanguage', language);
+                  navigate('/refactoring');
+                }}>
                   <span className="btn-icon">🔄</span>
                   View Detailed Refactoring
                 </button>

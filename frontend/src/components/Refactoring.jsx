@@ -105,8 +105,22 @@ for threshold, label in sorted(THRESHOLDS.items()):
 const MOCK_QUALITY_SCORES = { before: 42, after: 87 };
 
 function Refactoring() {
-  const [language, setLanguage] = useState('python');
-  const [code, setCode] = useState('');
+  const [language, setLanguage] = useState(() => {
+    const refactoringLanguage = localStorage.getItem('refactoringLanguage');
+    if (refactoringLanguage) {
+      localStorage.removeItem('refactoringLanguage');
+      return refactoringLanguage;
+    }
+    return 'python';
+  });
+  const [code, setCode] = useState(() => {
+    const refactoringCode = localStorage.getItem('refactoringCode');
+    if (refactoringCode) {
+      localStorage.removeItem('refactoringCode');
+      return refactoringCode;
+    }
+    return '';
+  });
   const [analyzed, setAnalyzed] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const navigate = useNavigate();
