@@ -124,6 +124,19 @@ function CodeAnalyzer() {
     setUploadedFileName('');
   }
 
+  function getSectionName(sectionId) {
+    if (!sectionId) return '';
+    const s = sections.find(sec => sec.id?.toString() === sectionId || sec.name === sectionId);
+    return s ? s.name : sectionId;
+  }
+
+  function getExtractedFileSeverityClass(ef) {
+    if (!ef.result) return 'low';
+    if (ef.result.clone_percentage > 50) return 'high';
+    if (ef.result.clone_percentage > 25) return 'medium';
+    return 'low';
+  }
+
   function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -143,7 +156,7 @@ function CodeAnalyzer() {
       if (selectedSection) {
         const ext = file.name.split('.').pop().toLowerCase();
         setExtractedFiles(prev => [...prev, {
-          id: Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11),
+          id: crypto.randomUUID(),
           name: file.name,
           content: event.target.result,
           ext,
@@ -184,7 +197,7 @@ function CodeAnalyzer() {
         if (['py', 'java', 'txt'].includes(ext)) {
           const content = await zipEntry.async('text');
           newExtractedFiles.push({
-            id: Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11),
+            id: crypto.randomUUID(),
             name: fileName,
             content,
             ext,
@@ -209,7 +222,7 @@ function CodeAnalyzer() {
         id: Date.now(),
         type: 'upload',
         icon: '📤',
-        description: `Uploaded batch: ${file.name} - ${newExtractedFiles.length} files extracted${selectedSection ? ` (Section: ${sections.find(s => s.id?.toString() === selectedSection || s.name === selectedSection)?.name || selectedSection})` : ''}`,
+        description: `Uploaded batch: ${file.name} - ${newExtractedFiles.length} files extracted${selectedSection ? ` (Section: ${getSectionName(selectedSection)})` : ''}`,
         time: new Date().toISOString(),
         status: 'success'
       });
@@ -297,12 +310,13 @@ function CodeAnalyzer() {
         // Check for high clone and add to batch suggestions
         if (data.clone_percentage > 30) {
           setBatchSuggestions(prev => {
-            const filtered = prev.filter(s => s.description && !s.description.startsWith(ef.name));
+            const filtered = prev.filter(s => s.fileId !== ef.id);
             return [...filtered, {
               type: 'High Clone %',
               description: `${ef.name}${matchedStudent ? ` (${matchedStudent.name})` : ''}: ${data.clone_percentage}% clone detected`,
               severity: data.clone_percentage > 50 ? 'high' : 'medium',
               files: 1,
+              fileId: ef.id,
             }];
           });
         }
@@ -568,11 +582,11 @@ function CodeAnalyzer() {
                     <span className="batch-file-size">{ef.lang}</span>
                     {ef.section && (
                       <span className="batch-file-section">
-                        📋 {sections.find(s => s.id?.toString() === ef.section || s.name === ef.section)?.name || ef.section}
+                        📋 {getSectionName(ef.section)}
                       </span>
                     )}
                     {ef.analyzed && (
-                      <span className={`severity-badge ${ef.result && ef.result.clone_percentage > 50 ? 'high' : ef.result && ef.result.clone_percentage > 25 ? 'medium' : 'low'}`}>
+                      <span className={`severity-badge ${getExtractedFileSeverityClass(ef)}`}>
                         {ef.result ? `${ef.result.clone_percentage}%` : 'Done'}
                       </span>
                     )}
