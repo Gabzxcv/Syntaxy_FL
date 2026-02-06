@@ -82,7 +82,7 @@ function Students() {
     if (!newStudentName.trim() || !newStudentEmail.trim() || !addStudentSection) return;
     const sectionId = parseInt(addStudentSection);
     const newStudent = {
-      id: Date.now(),
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now() + '_' + Math.random().toString(36).slice(2, 9),
       name: newStudentName.trim(),
       email: newStudentEmail.trim(),
       submissions: 0,

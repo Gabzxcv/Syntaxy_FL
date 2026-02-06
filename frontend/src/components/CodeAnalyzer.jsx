@@ -124,7 +124,7 @@ function CodeAnalyzer() {
 
     // Generate mock refactoring suggestions for batch upload
     setBatchSuggestions([
-      { type: 'Extract Method', description: 'Duplicate logging pattern found across 3 files', severity: 'high', files: 2 },
+      { type: 'Extract Method', description: 'Duplicate logging pattern found across 3 files', severity: 'high', files: 3 },
       { type: 'Replace Magic Numbers', description: 'Numeric literals used without named constants', severity: 'medium', files: 4 },
       { type: 'Simplify Conditionals', description: 'Nested if-else chains can be simplified', severity: 'low', files: 1 },
     ]);
@@ -157,6 +157,24 @@ function CodeAnalyzer() {
     } catch (error) {
       setAnalyzeResult({ text: `Error: ${error.message}`, className: 'error' });
     }
+  }
+
+  function getClonePercentageClass(pct) {
+    if (pct > 50) return 'high';
+    if (pct > 25) return 'medium';
+    return 'low';
+  }
+
+  function getComplexityClass(val) {
+    if (val > 20) return 'high';
+    if (val > 10) return 'medium';
+    return 'low';
+  }
+
+  function getMaintainabilityClass(val) {
+    if (val >= 60) return 'good';
+    if (val >= 30) return 'medium';
+    return 'high';
   }
 
   return (
@@ -360,7 +378,7 @@ function CodeAnalyzer() {
                     <div className="metric-label">Clone Percentage</div>
                     <div className="metric-bar-container">
                       <div
-                        className={`metric-bar-fill ${analysisData.clone_percentage > 50 ? 'high' : analysisData.clone_percentage > 25 ? 'medium' : 'low'}`}
+                        className={`metric-bar-fill ${getClonePercentageClass(analysisData.clone_percentage)}`}
                         style={{ width: `${Math.min(analysisData.clone_percentage, 100)}%` }}
                       />
                     </div>
@@ -371,7 +389,7 @@ function CodeAnalyzer() {
                     <div className="metric-label">Cyclomatic Complexity</div>
                     <div className="metric-bar-container">
                       <div
-                        className={`metric-bar-fill ${analysisData.cyclomatic_complexity > 20 ? 'high' : analysisData.cyclomatic_complexity > 10 ? 'medium' : 'low'}`}
+                        className={`metric-bar-fill ${getComplexityClass(analysisData.cyclomatic_complexity)}`}
                         style={{ width: `${Math.min(analysisData.cyclomatic_complexity * 2, 100)}%` }}
                       />
                     </div>
@@ -382,7 +400,7 @@ function CodeAnalyzer() {
                     <div className="metric-label">Maintainability Index</div>
                     <div className="metric-bar-container">
                       <div
-                        className={`metric-bar-fill ${analysisData.maintainability_index >= 60 ? 'good' : analysisData.maintainability_index >= 30 ? 'medium' : 'high'}`}
+                        className={`metric-bar-fill ${getMaintainabilityClass(analysisData.maintainability_index)}`}
                         style={{ width: `${Math.min(analysisData.maintainability_index, 100)}%` }}
                       />
                     </div>
