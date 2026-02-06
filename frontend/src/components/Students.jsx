@@ -44,6 +44,12 @@ function Students() {
   const [selectedRegisteredStudent, setSelectedRegisteredStudent] = useState('');
   const [studentResults, setStudentResults] = useState(null);
 
+  // Get user info from localStorage for sidebar
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User', role: 'instructor' };
+
+  const isStudent = user.role === 'student';
+
   useEffect(() => {
     localStorage.setItem('savedSections', JSON.stringify(sections));
   }, [sections]);
@@ -57,7 +63,7 @@ function Students() {
   // Fetch registered student accounts for the picker
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token && user.role !== 'student') {
+    if (token && !isStudent) {
       fetch(`${API}/auth/registered-students`, {
         headers: { Authorization: `Bearer ${token}` },
       })
@@ -69,13 +75,7 @@ function Students() {
           }
         });
     }
-  }, []);
-
-  // Get user info from localStorage for sidebar
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User', role: 'instructor' };
-
-  const isStudent = user.role === 'student';
+  }, [isStudent]);
 
   // For students: filter sections to only those containing them (by email match)
   const visibleSections = isStudent
