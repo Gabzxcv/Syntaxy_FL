@@ -33,3 +33,8 @@
   background: linear-gradient(135deg, #dc3545, #c82333) !important;
   margin-top: 20px;
 }
+
+.btn-secondary {
+  background: linear-gradient(135deg, #6c757d, #5a6268) !important;
+  margin-top: 8px;
+}

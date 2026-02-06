@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './CodeAnalyzer.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -38,6 +39,9 @@ function CodeAnalyzer() {
   const [code, setCode] = useState(PYTHON_SAMPLE);
   const [quickResult, setQuickResult] = useState({ text: '', className: '' });
   const [analyzeResult, setAnalyzeResult] = useState({ text: '', className: '' });
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const fileInputRef = useRef(null);
+  const navigate = useNavigate();
 
   async function testHealth() {
     setQuickResult({ text: 'Testing...', className: 'result loading' });
@@ -63,6 +67,23 @@ function CodeAnalyzer() {
 
   function loadSample() {
     setCode(language === 'python' ? PYTHON_SAMPLE : JAVA_SAMPLE);
+    setUploadedFileName('');
+  }
+
+  function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCode(event.target.result);
+      setUploadedFileName(file.name);
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext === 'py') setLanguage('python');
+      else if (ext === 'java') setLanguage('java');
+    };
+    reader.readAsText(file);
   }
 
   async function analyze() {
@@ -123,7 +144,11 @@ function CodeAnalyzer() {
 
   return (
     <div className="analyzer-container">
-      <h1>Code Clone Detector API Test</h1>
+      <div className="analyzer-nav">
+        <button className="nav-btn" onClick={() => navigate('/dashboard')}>Dashboard</button>
+      </div>
+
+      <h1>Code Clone Detector</h1>
 
       <div className="section">
         <h2>Quick Tests</h2>
@@ -137,17 +162,32 @@ function CodeAnalyzer() {
       <div className="section">
         <h2>Analyze Code</h2>
 
-        <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-          <option value="python">Python</option>
-          <option value="java">Java</option>
-        </select>
+        <div className="analyzer-controls">
+          <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <option value="python">Python</option>
+            <option value="java">Java</option>
+          </select>
 
-        <button onClick={loadSample}>Load Sample Code</button>
+          <button onClick={loadSample}>Load Sample Code</button>
+
+          <button onClick={() => fileInputRef.current.click()}>Upload File</button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            accept=".py,.java,.txt"
+            onChange={handleFileUpload}
+          />
+        </div>
+
+        {uploadedFileName && (
+          <div className="uploaded-file-info">Loaded file: {uploadedFileName}</div>
+        )}
 
         <textarea
           value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Paste your code here..."
+          onChange={(e) => { setCode(e.target.value); setUploadedFileName(''); }}
+          placeholder="Paste your code here or upload a file..."
         />
 
         <button onClick={analyze}>Analyze Code</button>

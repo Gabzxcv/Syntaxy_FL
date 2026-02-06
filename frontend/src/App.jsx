@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CodeAnalyzer from './components/CodeAnalyzer';
+import Students from './components/Students';
 import './App.css';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/analyzer" element={<CodeAnalyzer />} />
+          <Route path="/students" element={<Students />} />
         </Routes>
       </div>
     </BrowserRouter>

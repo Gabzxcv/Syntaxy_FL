@@ -73,6 +73,9 @@ function Dashboard() {
         <button className="btn" onClick={() => navigate('/analyzer')}>
           Go to Code Analyzer
         </button>
+        <button className="btn btn-secondary" onClick={() => navigate('/students')}>
+          View Students
+        </button>
         <button className="btn btn-logout" onClick={handleLogout}>
           Logout
         </button>

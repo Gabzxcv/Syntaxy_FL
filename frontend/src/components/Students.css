@@ -1,0 +1,74 @@
+.students-container {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 700px;
+  max-width: 95%;
+  overflow: hidden;
+}
+
+.students-header {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: #fff;
+  padding: 30px;
+  text-align: center;
+}
+
+.students-header h1 {
+  font-size: 22px;
+  margin-bottom: 5px;
+}
+
+.students-header p {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.students-nav {
+  padding: 15px 30px 0;
+  display: flex;
+  gap: 10px;
+}
+
+.students-nav .nav-btn {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.students-nav .nav-btn:hover {
+  opacity: 0.9;
+}
+
+.students-table-wrapper {
+  padding: 20px 30px 30px;
+}
+
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.students-table th,
+.students-table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.students-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #555;
+}
+
+.students-table tbody tr:hover {
+  background: #f0f7ff;
+}
