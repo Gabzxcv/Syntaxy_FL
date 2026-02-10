@@ -24,11 +24,11 @@ function getFileType(fileName) {
 
 function getFileIcon(type) {
   switch (type) {
-    case 'zip': return '';
-    case 'java': return '';
-    case 'python': return '';
-    case 'text': return '';
-    default: return '';
+    case 'zip': return 'ZIP';
+    case 'java': return 'JV';
+    case 'python': return 'PY';
+    case 'text': return 'TXT';
+    default: return 'F';
   }
 }
 
