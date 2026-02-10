@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Logo from './Logo';
 import './Students.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -162,7 +163,7 @@ function Students() {
       {/* Side Panel */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1 className="sidebar-logo">Dashboard</h1>
+          <Logo />
         </div>
         
         <nav className="sidebar-nav">
