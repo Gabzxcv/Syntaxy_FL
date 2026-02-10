@@ -24,6 +24,14 @@ function Dashboard() {
   });
   const navigate = useNavigate();
 
+  const handleMarkAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const handleNotificationClick = (id) => {
+    setNotifications(prev => prev.map(x => x.id === id ? { ...x, read: true } : x));
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
@@ -205,14 +213,14 @@ function Dashboard() {
               <div className="notification-dropdown">
                 <div className="notification-dropdown-header">
                   <span className="notification-dropdown-title">Notifications</span>
-                  <button className="notification-mark-read" onClick={() => setNotifications(prev => prev.map(n => ({...n, read: true})))}>Mark all read</button>
+                  <button className="notification-mark-read" onClick={handleMarkAllRead}>Mark all read</button>
                 </div>
                 <div className="notification-list">
                   {notifications.length === 0 ? (
                     <div className="notification-empty">No notifications</div>
                   ) : (
                     notifications.map(n => (
-                      <div key={n.id} className={`notification-item ${n.read ? 'read' : 'unread'}`} onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read: true} : x))}>
+                      <div key={n.id} className={`notification-item ${n.read ? 'read' : 'unread'}`} onClick={() => handleNotificationClick(n.id)}>
                         <div className="notification-text">{n.text}</div>
                         <div className="notification-time">{n.time}</div>
                       </div>
