@@ -36,6 +36,40 @@ const JAVA_SAMPLE = `public class GradeCalculator {
     }
 }`;
 
+function highlightCode(code, language) {
+  if (!code) return '';
+
+  const pythonKeywords = ['def', 'class', 'if', 'elif', 'else', 'for', 'while', 'return', 'import', 'from', 'as', 'try', 'except', 'finally', 'with', 'yield', 'lambda', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'print', 'self', 'raise', 'del', 'global', 'nonlocal', 'assert'];
+  const javaKeywords = ['public', 'private', 'protected', 'static', 'final', 'class', 'interface', 'extends', 'implements', 'void', 'int', 'double', 'float', 'boolean', 'String', 'char', 'long', 'short', 'byte', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'new', 'this', 'super', 'try', 'catch', 'finally', 'throw', 'throws', 'import', 'package', 'null', 'true', 'false', 'abstract', 'synchronized'];
+
+  const keywords = language === 'python' ? pythonKeywords : javaKeywords;
+
+  // Escape HTML
+  let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Highlight strings (single and double quotes)
+  html = html.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="syntax-string">$&</span>');
+
+  // Highlight comments
+  if (language === 'python') {
+    html = html.replace(/(#.*)$/gm, '<span class="syntax-comment">$1</span>');
+  } else {
+    html = html.replace(/(\/\/.*)$/gm, '<span class="syntax-comment">$1</span>');
+  }
+
+  // Highlight numbers
+  html = html.replace(/\b(\d+\.?\d*)\b/g, '<span class="syntax-number">$1</span>');
+
+  // Highlight keywords (word boundary match)
+  const keywordPattern = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
+  html = html.replace(keywordPattern, '<span class="syntax-keyword">$1</span>');
+
+  // Highlight function calls
+  html = html.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="syntax-function">$1</span>');
+
+  return html;
+}
+
 function CodeAnalyzer() {
   const [language, setLanguage] = useState(() => {
     const scanName = localStorage.getItem('scanFileName');
@@ -609,15 +643,23 @@ function CodeAnalyzer() {
                 <span className="editor-label">Code Editor</span>
                 <span className="editor-lang">{language === 'python' ? 'Python' : 'Java'}</span>
               </div>
-              <textarea
-                className="code-editor"
-                value={code}
-                onChange={(e) => { 
-                  setCode(e.target.value); 
-                  setUploadedFileName(''); 
-                }}
-                placeholder="Paste your code here or upload a file..."
-              />
+              <div className="editor-body">
+                <pre
+                  className="code-highlight"
+                  aria-hidden="true"
+                  dangerouslySetInnerHTML={{ __html: highlightCode(code, language) + '\n' }}
+                />
+                <textarea
+                  className="code-editor"
+                  value={code}
+                  onChange={(e) => { 
+                    setCode(e.target.value); 
+                    setUploadedFileName(''); 
+                  }}
+                  placeholder="Paste your code here or upload a file..."
+                  spellCheck="false"
+                />
+              </div>
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={analyze}>

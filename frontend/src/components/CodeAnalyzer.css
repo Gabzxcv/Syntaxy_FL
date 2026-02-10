@@ -448,22 +448,71 @@
   border-radius: 12px;
 }
 
+.editor-body {
+  position: relative;
+  min-height: 300px;
+  background: #0f1219;
+}
+
+.code-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 20px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #e5e7eb;
+  pointer-events: none;
+  overflow: auto;
+}
+
 .code-editor {
+  position: relative;
   width: 100%;
   min-height: 300px;
   padding: 20px;
-  background: #0f1219;
+  background: transparent;
   border: none;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  color: #e5e7eb;
+  color: transparent;
+  caret-color: #e5e7eb;
   resize: vertical;
   outline: none;
+  z-index: 1;
 }
 
 .code-editor::placeholder {
   color: #9ca3af;
+}
+
+/* Syntax highlighting colors - VS Code Dark+ theme */
+.syntax-keyword {
+  color: #c586c0;
+}
+
+.syntax-string {
+  color: #ce9178;
+}
+
+.syntax-comment {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.syntax-number {
+  color: #b5cea8;
+}
+
+.syntax-function {
+  color: #dcdcaa;
 }
 
 /* ===== ANALYZE BUTTON ===== */
