@@ -63,7 +63,7 @@ function Dashboard() {
         .catch(() => {});
 
       // Fetch history count
-      fetch(`${API}/auth/history`, {
+      fetch(`${API}/auth/activity`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => res.ok ? res.json() : null)

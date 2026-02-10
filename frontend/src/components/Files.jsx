@@ -5,6 +5,14 @@ import './Files.css';
 
 const API = 'http://localhost:5000/api/v1';
 
+function formatDate(dateString) {
+  return new Date(dateString).toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
+}
+
 function getFileType(fileName) {
   const ext = fileName.split('.').pop().toLowerCase();
   if (ext === 'zip') return 'zip';
@@ -83,11 +91,7 @@ function Files() {
             name: f.name,
             size: f.size,
             type: f.file_type,
-            date: new Date(f.created_at).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            }),
+            date: formatDate(f.created_at),
             preview: f.content ? f.content.split('\n').slice(0, 5).join('\n') : null,
             fullContent: f.content || null,
           }));
@@ -172,11 +176,7 @@ function Files() {
                   name: data.file.name,
                   size: data.file.size,
                   type: data.file.file_type,
-                  date: new Date(data.file.created_at).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric', 
-                    year: 'numeric' 
-                  }),
+                  date: formatDate(data.file.created_at),
                   preview: content.split('\n').slice(0, 5).join('\n'),
                   fullContent: content,
                 };
@@ -218,11 +218,7 @@ function Files() {
                 name: data.file.name,
                 size: data.file.size,
                 type: data.file.file_type,
-                date: new Date(data.file.created_at).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric', 
-                  year: 'numeric' 
-                }),
+                date: formatDate(data.file.created_at),
                 preview: null,
                 fullContent: null,
               };

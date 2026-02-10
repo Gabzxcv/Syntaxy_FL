@@ -49,6 +49,22 @@ function computeStats(data, now) {
   return { totalActivities, thisWeek, today };
 }
 
+function formatHistoryEntry(h) {
+  let icon = '📋';
+  if (h.entry_type === 'analysis') icon = '🔍';
+  else if (h.entry_type === 'upload') icon = '📤';
+  else if (h.entry_type === 'refactoring') icon = '🔄';
+  
+  return {
+    id: h.id,
+    type: h.entry_type,
+    icon: icon,
+    description: h.description,
+    time: h.created_at,
+    status: h.status || 'success',
+  };
+}
+
 function History() {
   const [filter, setFilter] = useState('all');
   const [showHelp, setShowHelp] = useState(false);
@@ -102,21 +118,7 @@ function History() {
       .then((data) => {
         if (data && data.history && data.history.length > 0) {
           // Convert backend history to frontend format
-          const formattedHistory = data.history.map((h) => {
-            let icon = '📋';
-            if (h.entry_type === 'analysis') icon = '🔍';
-            else if (h.entry_type === 'upload') icon = '📤';
-            else if (h.entry_type === 'refactoring') icon = '🔄';
-            
-            return {
-              id: h.id,
-              type: h.entry_type,
-              icon: icon,
-              description: h.description,
-              time: h.created_at,
-              status: h.status || 'success',
-            };
-          });
+          const formattedHistory = data.history.map(formatHistoryEntry);
           setHistoryData(formattedHistory);
           localStorage.setItem(historyKey, JSON.stringify(formattedHistory));
         } else {
@@ -181,21 +183,7 @@ function History() {
         })
         .then((data) => {
           if (data && data.history && data.history.length > 0) {
-            const formattedHistory = data.history.map((h) => {
-              let icon = '📋';
-              if (h.entry_type === 'analysis') icon = '🔍';
-              else if (h.entry_type === 'upload') icon = '📤';
-              else if (h.entry_type === 'refactoring') icon = '🔄';
-              
-              return {
-                id: h.id,
-                type: h.entry_type,
-                icon: icon,
-                description: h.description,
-                time: h.created_at,
-                status: h.status || 'success',
-              };
-            });
+            const formattedHistory = data.history.map(formatHistoryEntry);
             setHistoryData(formattedHistory);
             localStorage.setItem(historyKey, JSON.stringify(formattedHistory));
           }
