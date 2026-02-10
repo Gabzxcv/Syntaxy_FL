@@ -499,3 +499,86 @@ def list_registered_students():
         return jsonify({'users': [u.to_dict() for u in students]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/change-password', methods=['PUT'])
+@jwt_required()
+def change_password():
+    """Change current user's password"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = db.session.get(User, current_user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        data = request.get_json()
+        if not data or not data.get('current_password') or not data.get('new_password'):
+            return jsonify({'error': 'Current password and new password are required'}), 400
+
+        if not user.check_password(data['current_password']):
+            return jsonify({'error': 'Current password is incorrect'}), 401
+
+        if len(data['new_password']) < 6:
+            return jsonify({'error': 'New password must be at least 6 characters'}), 400
+
+        user.set_password(data['new_password'])
+        db.session.commit()
+        return jsonify({'message': 'Password changed successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Password change failed', 'details': str(e)}), 500
+
+
+@bp.route('/admin/users/<user_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_user(user_id):
+    """Admin: delete a user account"""
+    try:
+        current_user_id = get_jwt_identity()
+        admin = db.session.get(User, current_user_id)
+        if not admin or admin.role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+
+        if user_id == current_user_id:
+            return jsonify({'error': 'Cannot delete your own account'}), 400
+
+        target = db.session.get(User, user_id)
+        if not target:
+            return jsonify({'error': 'User not found'}), 404
+
+        db.session.delete(target)
+        db.session.commit()
+        return jsonify({'message': f'User {target.username} deleted'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/admin/users/<user_id>/role', methods=['PUT'])
+@jwt_required()
+def admin_change_role(user_id):
+    """Admin: change a user's role"""
+    try:
+        current_user_id = get_jwt_identity()
+        admin = db.session.get(User, current_user_id)
+        if not admin or admin.role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        if not data or not data.get('role'):
+            return jsonify({'error': 'Role is required'}), 400
+
+        new_role = data['role'].strip().lower()
+        if new_role not in ('student', 'instructor', 'admin'):
+            return jsonify({'error': 'Invalid role'}), 400
+
+        target = db.session.get(User, user_id)
+        if not target:
+            return jsonify({'error': 'User not found'}), 404
+
+        target.role = new_role
+        db.session.commit()
+        return jsonify({'message': f'Role updated to {new_role}', 'user': target.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500

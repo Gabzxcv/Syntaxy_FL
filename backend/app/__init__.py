@@ -57,9 +57,10 @@ def create_app():
 
 
 def _seed_admin(db, bcrypt):
-    """Create the default admin account if it doesn't exist."""
+    """Create or update the default admin account (admin / admin123)."""
     from app.models import User
-    if not User.query.filter_by(username='admin').first():
+    admin = User.query.filter_by(username='admin').first()
+    if not admin:
         admin = User(
             username='admin',
             email='admin@codeclonedetector.local',
@@ -68,7 +69,11 @@ def _seed_admin(db, bcrypt):
         )
         admin.set_password('admin123')
         db.session.add(admin)
-        db.session.commit()
+    else:
+        # Always ensure admin password is reset to admin123 on startup
+        admin.set_password('admin123')
+        admin.role = 'admin'
+    db.session.commit()
 
 
 def _migrate_db(db):

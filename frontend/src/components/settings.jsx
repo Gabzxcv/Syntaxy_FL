@@ -16,6 +16,16 @@ function Settings() {
   const [editEmail, setEditEmail] = useState(user.email || '');
   const [accountSaving, setAccountSaving] = useState(false);
 
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+
+  const [profilePicture, setProfilePicture] = useState(() =>
+    localStorage.getItem('profilePicture_' + user.id) || ''
+  );
+
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('appSettings');
     if (saved) {
@@ -187,14 +197,14 @@ function Settings() {
 
               <div className="setting-item">
                 <div className="setting-info">
-                  <div className="setting-label">Dark Mode</div>
-                  <div className="setting-description">Enable dark theme</div>
+                  <div className="setting-label">Light Mode</div>
+                  <div className="setting-description">Switch to light theme</div>
                 </div>
                 <label className="toggle-switch">
                   <input
                     type="checkbox"
-                    checked={settings.darkMode}
-                    onChange={(e) => handleSettingChange('darkMode', e.target.checked)}
+                    checked={!settings.darkMode}
+                    onChange={(e) => handleSettingChange('darkMode', !e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
                 </label>
@@ -261,6 +271,57 @@ function Settings() {
             <h3 className="section-title">Account Information</h3>
             
             <div className="account-info-card">
+              <div className="account-row" style={{ flexDirection: 'column', alignItems: 'center', gap: '8px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div
+                  style={{
+                    width: '80px',
+                    height: '80px',
+                    borderRadius: '50%',
+                    background: profilePicture ? 'none' : '#6C63FF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '32px',
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {profilePicture ? (
+                    <img src={profilePicture} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    (user.full_name || user.username).charAt(0).toUpperCase()
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  id="profile-pic-input"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    if (file.size > 2 * 1024 * 1024) {
+                      alert('Image must be under 2MB.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      const base64 = reader.result;
+                      setProfilePicture(base64);
+                      localStorage.setItem('profilePicture_' + user.id, base64);
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+                <button
+                  className="action-btn secondary"
+                  style={{ padding: '4px 12px', fontSize: '13px' }}
+                  onClick={() => document.getElementById('profile-pic-input').click()}
+                >
+                  Change Photo
+                </button>
+              </div>
               <div className="account-row">
                 <span className="account-label">Username:</span>
                 <span className="account-value">{user.username}</span>
@@ -322,6 +383,92 @@ function Settings() {
               >
                 <span className="btn-icon"></span>
                 {accountSaving ? 'Saving...' : 'Save Account'}
+              </button>
+            </div>
+          </section>
+
+          {/* Change Password */}
+          <section className="settings-section">
+            <h3 className="section-title">Change Password</h3>
+
+            <div className="account-info-card">
+              {passwordMessage && (
+                <div style={{ marginBottom: '12px', color: passwordMessage.startsWith('Error') ? '#ff6b6b' : '#51cf66', fontSize: '14px' }}>
+                  {passwordMessage}
+                </div>
+              )}
+              <div className="account-row">
+                <span className="account-label">Current Password:</span>
+                <input
+                  type="password"
+                  className="setting-input"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
+                />
+              </div>
+              <div className="account-row">
+                <span className="account-label">New Password:</span>
+                <input
+                  type="password"
+                  className="setting-input"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                />
+              </div>
+              <div className="account-row">
+                <span className="account-label">Confirm New Password:</span>
+                <input
+                  type="password"
+                  className="setting-input"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                />
+              </div>
+              <button
+                className="action-btn primary"
+                style={{ marginTop: '12px' }}
+                disabled={passwordChanging}
+                onClick={async () => {
+                  setPasswordMessage('');
+                  if (newPassword !== confirmPassword) {
+                    setPasswordMessage('Error: New passwords do not match.');
+                    return;
+                  }
+                  if (newPassword.length < 6) {
+                    setPasswordMessage('Error: Password must be at least 6 characters.');
+                    return;
+                  }
+                  setPasswordChanging(true);
+                  try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch(`${API}/auth/change-password`, {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`,
+                      },
+                      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+                    });
+                    if (res.ok) {
+                      setPasswordMessage('Password changed successfully!');
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                    } else {
+                      const data = await res.json().catch(() => ({}));
+                      setPasswordMessage('Error: ' + (data.error || 'Failed to change password'));
+                    }
+                  } catch {
+                    setPasswordMessage('Error: Unable to connect to server.');
+                  } finally {
+                    setPasswordChanging(false);
+                  }
+                }}
+              >
+                {passwordChanging ? 'Changing...' : 'Change Password'}
               </button>
             </div>
           </section>
