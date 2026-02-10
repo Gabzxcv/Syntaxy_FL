@@ -42,6 +42,8 @@ function Students() {
   const savedSections = localStorage.getItem('savedSections');
   const [sections, setSections] = useState(savedSections ? JSON.parse(savedSections) : DEFAULT_SECTIONS);
   const [activeSection, setActiveSection] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState(null);
   const [newSectionName, setNewSectionName] = useState('');
   const [showAddSection, setShowAddSection] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -154,9 +156,18 @@ function Students() {
     ));
   }
 
+  const filteredBySearch = (students) => {
+    if (!searchQuery) return students;
+    const searchLower = searchQuery.toLowerCase();
+    return students.filter(st => 
+      st.name.toLowerCase().includes(searchLower) || 
+      st.email.toLowerCase().includes(searchLower)
+    );
+  };
+
   const displayedStudents = activeSection
-    ? (visibleSections.find(s => s.id === activeSection)?.students || []).map(st => ({ ...st, sectionId: activeSection }))
-    : visibleSections.flatMap(s => s.students.map(st => ({ ...st, sectionId: s.id })));
+    ? filteredBySearch(visibleSections.find(s => s.id === activeSection)?.students || []).map(st => ({ ...st, sectionId: activeSection }))
+    : filteredBySearch(visibleSections.flatMap(s => s.students.map(st => ({ ...st, sectionId: s.id }))));
 
   return (
     <div className="students-layout">
@@ -261,6 +272,32 @@ function Students() {
             </div>
           </div>
 
+          {/* Search Bar */}
+          <div className="student-search-bar" style={{ marginBottom: '24px' }}>
+            <div style={{ position: 'relative' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}>
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search students by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px 12px 44px',
+                  background: '#1e2538',
+                  border: '2px solid #374151',
+                  borderRadius: '10px',
+                  color: '#e5e7eb',
+                  fontSize: '14px',
+                  fontFamily: "'DM Sans', sans-serif",
+                  outline: 'none',
+                }}
+              />
+            </div>
+          </div>
+
           {/* Student Results (for student role) */}
           {isStudent && studentResults && (
             <section className="students-section" style={{ marginBottom: '24px' }}>
@@ -349,6 +386,78 @@ function Students() {
           </section>
 
           {/* Students Table Section */}
+          {!isStudent && activeSection === null && !searchQuery ? (
+            /* Separate tables per section */
+            visibleSections.map(section => (
+              <section className="students-section" key={section.id}>
+                <div className="section-header">
+                  <h3 className="section-title">{section.name}</h3>
+                  <button className="action-btn primary" onClick={() => { setAddStudentSection(section.id); setShowAddStudent(true); }}>
+                    <span className="btn-icon"></span>
+                    Add Student
+                  </button>
+                </div>
+
+                <div className="table-container">
+                  <table className="students-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Submissions</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {section.students.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                            No students in this section yet
+                          </td>
+                        </tr>
+                      ) : (
+                        section.students.map((student) => {
+                          const studentWithSection = { ...student, sectionId: section.id };
+                          return (
+                            <tr key={student.id}>
+                              <td>
+                                <span className="student-id">#{typeof student.id === 'string' ? student.id.slice(0, 6) : student.id}</span>
+                              </td>
+                              <td>
+                                <div className="student-name-cell">
+                                  <div className="student-avatar-small">
+                                    {student.name.charAt(0)}
+                                  </div>
+                                  <span className="student-name">{student.name}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <span className="student-email">{student.email}</span>
+                              </td>
+                              <td>
+                                <span className="submission-badge">{student.submissions}</span>
+                              </td>
+                              <td>
+                                <div className="action-buttons">
+                                  <button className="icon-btn view" onClick={() => setSelectedStudent(studentWithSection)}>
+                                    <span></span>
+                                  </button>
+                                  <button className="icon-btn delete" onClick={() => deleteStudent(section.id, student.id)}>
+                                    <span></span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))
+          ) : (
           <section className="students-section">
             <div className="section-header">
               <h3 className="section-title">
@@ -444,7 +553,7 @@ function Students() {
                         {!isStudent && (
                           <td>
                             <div className="action-buttons">
-                              <button className="icon-btn view">
+                              <button className="icon-btn view" onClick={() => setSelectedStudent(student)}>
                                 <span></span>
                               </button>
                               <button className="icon-btn delete" onClick={() => deleteStudent(student.sectionId, student.id)}>
@@ -460,8 +569,52 @@ function Students() {
               </table>
             </div>
           </section>
+          )}
         </div>
       </main>
+
+      {selectedStudent && (
+        <div className="help-modal-overlay" onClick={() => setSelectedStudent(null)}>
+          <div className="help-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="help-modal-header">
+              <h3>Student Profile</h3>
+              <button className="help-close-btn" onClick={() => setSelectedStudent(null)}>✕</button>
+            </div>
+            <div className="help-modal-body">
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <div style={{ 
+                  width: '64px', height: '64px', borderRadius: '50%', 
+                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '24px', fontWeight: '700', color: '#fff', margin: '0 auto 12px'
+                }}>
+                  {selectedStudent.name.charAt(0).toUpperCase()}
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: '#f3f4f6' }}>{selectedStudent.name}</div>
+                <div style={{ fontSize: '14px', color: '#9ca3af' }}>{selectedStudent.email}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#252a3a', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af' }}>Section</span>
+                  <span style={{ color: '#f3f4f6', fontWeight: '600' }}>{visibleSections.find(s => s.id === selectedStudent.sectionId)?.name || 'N/A'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#252a3a', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af' }}>Submissions</span>
+                  <span style={{ color: '#f3f4f6', fontWeight: '600' }}>{selectedStudent.submissions}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#252a3a', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af' }}>Student ID</span>
+                  <span style={{ color: '#f3f4f6', fontWeight: '600' }}>#{typeof selectedStudent.id === 'string' ? selectedStudent.id.slice(0, 8) : selectedStudent.id}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#252a3a', borderRadius: '8px' }}>
+                  <span style={{ color: '#9ca3af' }}>Status</span>
+                  <span style={{ color: '#4ade80', fontWeight: '600' }}>Active</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showHelp && (
         <div className="help-modal-overlay" onClick={() => setShowHelp(false)}>
