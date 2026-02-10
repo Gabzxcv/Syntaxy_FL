@@ -56,6 +56,12 @@ function Files() {
   const [previewFile, setPreviewFile] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedSection, setSelectedSection] = useState('');
+  const [filterSection, setFilterSection] = useState('all');
+  const [sections] = useState(() => {
+    const savedSections = localStorage.getItem('savedSections');
+    return savedSections ? JSON.parse(savedSections) : [];
+  });
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
@@ -128,7 +134,8 @@ function Files() {
   const filteredFiles = files.filter((f) => {
     const matchesSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = filterType === 'all' || f.type === filterType;
-    return matchesSearch && matchesType;
+    const matchesSection = filterSection === 'all' || (f.section && f.section === filterSection);
+    return matchesSearch && matchesType && matchesSection;
   });
 
   const totalSize = files.reduce((sum, f) => sum + f.size, 0);
@@ -162,6 +169,7 @@ function Files() {
               size: file.size,
               file_type: type,
               content: content,
+              section: selectedSection || '',
             }),
           })
             .then((res) => {
@@ -179,6 +187,7 @@ function Files() {
                   date: formatDate(data.file.created_at),
                   preview: content.split('\n').slice(0, 5).join('\n'),
                   fullContent: content,
+                  section: selectedSection || '',
                 };
                 setFiles((prev) => [newFile, ...prev]);
                 
@@ -205,6 +214,7 @@ function Files() {
             size: file.size,
             file_type: type,
             content: '',
+            section: selectedSection || '',
           }),
         })
           .then((res) => {
@@ -221,6 +231,7 @@ function Files() {
                 date: formatDate(data.file.created_at),
                 preview: null,
                 fullContent: null,
+                section: selectedSection || '',
               };
               setFiles((prev) => [newFile, ...prev]);
               
@@ -425,6 +436,21 @@ function Files() {
               Drag & drop files here, or click to browse
             </div>
             <div className="drop-zone-hint">Supports .zip, .txt, .java, .py files</div>
+            {sections.length > 0 && (
+              <div className="section-upload-selector">
+                <select
+                  className="filter-select"
+                  value={selectedSection}
+                  onChange={(e) => setSelectedSection(e.target.value)}
+                  style={{ marginBottom: '12px', minWidth: '200px' }}
+                >
+                  <option value="">All Sections (No Section)</option>
+                  {sections.map((s) => (
+                    <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <button
               className="upload-btn"
               onClick={() => fileInputRef.current.click()}
@@ -464,6 +490,18 @@ function Files() {
               <option value="python">Python</option>
               <option value="text">Text</option>
             </select>
+            {sections.length > 0 && (
+              <select
+                className="filter-select"
+                value={filterSection}
+                onChange={(e) => setFilterSection(e.target.value)}
+              >
+                <option value="all">All Sections</option>
+                {sections.map((s) => (
+                  <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* File List */}
@@ -487,6 +525,9 @@ function Files() {
                   <span className={`file-type-badge badge-${file.type}`}>
                     {getTypeLabel(file.type)}
                   </span>
+                  {file.section && (
+                    <span className="file-section-badge">{file.section}</span>
+                  )}
                   <div className="file-actions">
                     <button
                       className="action-icon-btn"

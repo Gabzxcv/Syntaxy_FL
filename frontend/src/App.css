@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  background: linear-gradient(135deg, #0a0d14, #111827, #1a1f36);
   padding: 20px;
 }
 
@@ -18,7 +18,7 @@
   z-index: 1000;
 }
 .help-modal {
-  background: #fff;
+  background: #1a1f2e;
   border-radius: 16px;
   width: 560px;
   max-width: 90vw;
@@ -32,13 +32,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #374151;
 }
 .help-modal-header h3 {
   font-family: 'Outfit', sans-serif;
   font-size: 20px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0;
 }
 .help-close-btn {
@@ -46,13 +46,13 @@
   border: none;
   font-size: 20px;
   cursor: pointer;
-  color: #6b7280;
+  color: #9ca3af;
   padding: 4px 8px;
   border-radius: 6px;
 }
 .help-close-btn:hover {
-  background: #f3f4f6;
-  color: #1a1f36;
+  background: #252a3a;
+  color: #f3f4f6;
 }
 .help-modal-body {
   padding: 24px;
@@ -60,7 +60,7 @@
 .help-section {
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #374151;
 }
 .help-section:last-child {
   margin-bottom: 0;
@@ -70,12 +70,12 @@
 .help-section h4 {
   font-size: 15px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 8px 0;
 }
 .help-section p {
   font-size: 14px;
-  color: #6b7280;
+  color: #9ca3af;
   line-height: 1.6;
   margin: 0;
 }
