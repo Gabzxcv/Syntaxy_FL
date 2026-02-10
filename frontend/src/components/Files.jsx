@@ -251,7 +251,7 @@ function Files() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        activity_type: type,
+        type: type,
         description: description,
       }),
     }).catch((err) => console.error('Error adding to history:', err));
@@ -532,6 +532,7 @@ function Files() {
               ))
             )}
           </div>
+        </div>
         </>
         )}
       </div>

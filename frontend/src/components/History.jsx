@@ -86,7 +86,7 @@ function History() {
       return;
     }
 
-    fetch(`${API}/auth/history`, {
+    fetch(`${API}/auth/activity`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -104,17 +104,17 @@ function History() {
           // Convert backend history to frontend format
           const formattedHistory = data.history.map((h) => {
             let icon = '📋';
-            if (h.activity_type === 'analysis') icon = '🔍';
-            else if (h.activity_type === 'upload') icon = '📤';
-            else if (h.activity_type === 'refactoring') icon = '🔄';
+            if (h.entry_type === 'analysis') icon = '🔍';
+            else if (h.entry_type === 'upload') icon = '📤';
+            else if (h.entry_type === 'refactoring') icon = '🔄';
             
             return {
               id: h.id,
-              type: h.activity_type,
+              type: h.entry_type,
               icon: icon,
               description: h.description,
               time: h.created_at,
-              status: 'success',
+              status: h.status || 'success',
             };
           });
           setHistoryData(formattedHistory);
@@ -161,13 +161,18 @@ function History() {
     return computeStats(historyData, ts);
   });
 
+  // Update stats when history changes
+  useEffect(() => {
+    setStats(computeStats(historyData, Date.now()));
+  }, [historyData]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
       // Refresh history from backend
-      fetch(`${API}/auth/history`, {
+      fetch(`${API}/auth/activity`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => {
@@ -178,17 +183,17 @@ function History() {
           if (data && data.history && data.history.length > 0) {
             const formattedHistory = data.history.map((h) => {
               let icon = '📋';
-              if (h.activity_type === 'analysis') icon = '🔍';
-              else if (h.activity_type === 'upload') icon = '📤';
-              else if (h.activity_type === 'refactoring') icon = '🔄';
+              if (h.entry_type === 'analysis') icon = '🔍';
+              else if (h.entry_type === 'upload') icon = '📤';
+              else if (h.entry_type === 'refactoring') icon = '🔄';
               
               return {
                 id: h.id,
-                type: h.activity_type,
+                type: h.entry_type,
                 icon: icon,
                 description: h.description,
                 time: h.created_at,
-                status: 'success',
+                status: h.status || 'success',
               };
             });
             setHistoryData(formattedHistory);
@@ -260,12 +265,18 @@ function History() {
       </aside>
 
       <main className="main-content">
-        <header className="history-header">
-          <div className="header-left">
-            <h2 className="page-title">Activity History</h2>
-            <p className="page-subtitle">Review your past analyses, uploads, and refactoring activities</p>
+        {loading ? (
+          <div className="loading-container">
+            <div className="loading-spinner">Loading history...</div>
           </div>
-        </header>
+        ) : (
+          <>
+            <header className="history-header">
+              <div className="header-left">
+                <h2 className="page-title">Activity History</h2>
+                <p className="page-subtitle">Review your past analyses, uploads, and refactoring activities</p>
+              </div>
+            </header>
 
         <div className="history-content">
           {/* Stats Cards */}
@@ -317,8 +328,10 @@ function History() {
                 </div>
               </div>
             ))}
+            </div>
           </div>
-        </div>
+        </>
+        )}
       </main>
 
       {showHelp && (
