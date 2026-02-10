@@ -527,10 +527,19 @@
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1024px) {
   .sidebar {
+    width: 64px;
+  }
+
+  .sidebar:hover {
     width: 220px;
   }
 
   .main-content {
+    margin-left: 64px;
+  }
+
+  .sidebar:hover + main,
+  .sidebar:hover + .main-content {
     margin-left: 220px;
   }
 
@@ -545,10 +554,19 @@
 
 @media (max-width: 768px) {
   .sidebar {
+    width: 64px;
+  }
+
+  .sidebar:hover {
     width: 200px;
   }
 
   .main-content {
+    margin-left: 64px;
+  }
+
+  .sidebar:hover + main,
+  .sidebar:hover + .main-content {
     margin-left: 200px;
   }
 
