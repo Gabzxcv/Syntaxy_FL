@@ -43,31 +43,47 @@ function highlightCode(code, language) {
   const javaKeywords = ['public', 'private', 'protected', 'static', 'final', 'class', 'interface', 'extends', 'implements', 'void', 'int', 'double', 'float', 'boolean', 'String', 'char', 'long', 'short', 'byte', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'new', 'this', 'super', 'try', 'catch', 'finally', 'throw', 'throws', 'import', 'package', 'null', 'true', 'false', 'abstract', 'synchronized'];
 
   const keywords = language === 'python' ? pythonKeywords : javaKeywords;
-
-  // Escape HTML
-  let html = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-  // Highlight strings (single and double quotes)
-  html = html.replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="syntax-string">$&</span>');
-
-  // Highlight comments
-  if (language === 'python') {
-    html = html.replace(/(#.*)$/gm, '<span class="syntax-comment">$1</span>');
-  } else {
-    html = html.replace(/(\/\/.*)$/gm, '<span class="syntax-comment">$1</span>');
-  }
-
-  // Highlight numbers
-  html = html.replace(/\b(\d+\.?\d*)\b/g, '<span class="syntax-number">$1</span>');
-
-  // Highlight keywords (word boundary match)
   const keywordPattern = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
-  html = html.replace(keywordPattern, '<span class="syntax-keyword">$1</span>');
 
-  // Highlight function calls
-  html = html.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '<span class="syntax-function">$1</span>');
+  // Process line by line, token by token
+  return code.split('\n').map(line => {
+    let esc = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const trimmed = esc.trimStart();
 
-  return html;
+    // Full-line comments
+    if (language === 'python' && trimmed.startsWith('#'))
+      return '<span class="syntax-comment">' + esc + '</span>';
+    if (language !== 'python' && trimmed.startsWith('//'))
+      return '<span class="syntax-comment">' + esc + '</span>';
+
+    // Split into string tokens and code tokens to avoid highlighting inside strings
+    const parts = [];
+    let rest = esc;
+    const strRe = /(["'])(?:(?=(\\?))\2.)*?\1/;
+    while (rest) {
+      const m = rest.match(strRe);
+      if (!m) { parts.push({ t: 'c', v: rest }); break; }
+      if (m.index > 0) parts.push({ t: 'c', v: rest.slice(0, m.index) });
+      parts.push({ t: 's', v: m[0] });
+      rest = rest.slice(m.index + m[0].length);
+    }
+
+    return parts.map(p => {
+      if (p.t === 's') return '<span class="syntax-string">' + p.v + '</span>';
+      let s = p.v;
+      // Keywords first (before numbers to avoid matching inside keyword spans)
+      s = s.replace(keywordPattern, '\x01KW\x02$1\x01/KW\x02');
+      // Numbers
+      s = s.replace(/\b(\d+\.?\d*)\b/g, '\x01NM\x02$1\x01/NM\x02');
+      // Function calls
+      s = s.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '\x01FN\x02$1\x01/FN\x02');
+      // Replace markers with actual span tags
+      s = s.replace(/\x01KW\x02/g, '<span class="syntax-keyword">').replace(/\x01\/KW\x02/g, '</span>');
+      s = s.replace(/\x01NM\x02/g, '<span class="syntax-number">').replace(/\x01\/NM\x02/g, '</span>');
+      s = s.replace(/\x01FN\x02/g, '<span class="syntax-function">').replace(/\x01\/FN\x02/g, '</span>');
+      return s;
+    }).join('');
+  }).join('\n');
 }
 
 function CodeAnalyzer() {
