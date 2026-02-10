@@ -14,10 +14,10 @@ import React from 'react';
 const Logo = ({ className = '', style = {} }) => {
   // CUSTOMIZE YOUR LOGO PATH HERE:
   const logoPath = '/logo.png'; // Replace with your logo path, e.g., '/logo.png'
-  const logoAlt = 'Code Clone Detector Logo';
+  const logoAlt = 'Syntaxy Logo';
   
   // Optional: Use text logo instead of image by setting useTextLogo to true
-  const useTextLogo = true;
+  const useTextLogo = false;
   const textLogo = 'Dashboard';
 
   return (
@@ -29,7 +29,7 @@ const Logo = ({ className = '', style = {} }) => {
           src={logoPath} 
           alt={logoAlt} 
           className="logo-image"
-          style={{ maxWidth: '100%', height: 'auto' }}
+          style={{ maxWidth: '160px', height: 'auto' }}
         />
       )}
     </div>

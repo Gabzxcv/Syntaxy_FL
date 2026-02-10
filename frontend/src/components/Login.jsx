@@ -85,8 +85,9 @@ function Login() {
   return (
     <div className="auth-container">
       <div className="auth-header">
-        <h1>Code Clone Detector</h1>
-        <p>Detect duplicate code &amp; improve quality</p>
+        <img src="/logo.png" alt="Syntaxy Logo" style={{ width: '80px', height: '80px', marginBottom: '16px', borderRadius: '12px' }} />
+        <h1>Syntaxy</h1>
+        <p>Code Analysis Platform</p>
       </div>
 
       <div className="tabs">
