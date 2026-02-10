@@ -222,7 +222,7 @@ function CodeAnalyzer() {
       historyEntries.unshift({
         id: Date.now(),
         type: 'upload',
-        icon: '📤',
+        icon: '',
         description: `Uploaded batch: ${file.name} - ${newExtractedFiles.length} files extracted${selectedSection ? ` (Section: ${getSectionName(selectedSection)})` : ''}`,
         time: new Date().toISOString(),
         status: 'success'
@@ -236,7 +236,7 @@ function CodeAnalyzer() {
       historyEntries.unshift({
         id: Date.now(),
         type: 'upload',
-        icon: '📤',
+        icon: '',
         description: `Upload failed: ${file.name} - ${err.message}`,
         time: new Date().toISOString(),
         status: 'warning'
@@ -328,7 +328,7 @@ function CodeAnalyzer() {
         historyEntries.unshift({
           id: Date.now(),
           type: 'analysis',
-          icon: '🔍',
+          icon: '',
           description: `Analyzed ${ef.lang} file: ${ef.name} - ${data.clone_percentage}% clone detected`,
           time: new Date().toISOString(),
           status: data.clone_percentage > 30 ? 'warning' : 'success'
@@ -370,7 +370,7 @@ function CodeAnalyzer() {
         historyEntries.unshift({
           id: Date.now(),
           type: 'analysis',
-          icon: '🔍',
+          icon: '',
           description: `Analyzed ${language} code - ${data.clone_percentage}% clone detected`,
           time: new Date().toISOString(),
           status: data.clone_percentage > 30 ? 'warning' : 'success'
@@ -412,38 +412,38 @@ function CodeAnalyzer() {
         
         <nav className="sidebar-nav">
           <button className="nav-item" onClick={() => navigate('/dashboard')}>
-            <span className="nav-icon">📊</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
             Dashboard
           </button>
           <button className="nav-item active">
-            <span className="nav-icon">⚙️</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
             Compiler Area
           </button>
           <button className="nav-item" onClick={() => navigate('/files')}>
-            <span className="nav-icon">📁</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
           <button className="nav-item" onClick={() => navigate('/students')}>
-            <span className="nav-icon">📈</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
             Analysis Results
           </button>
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
-            <span className="nav-icon">🔄</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
             Refactoring
           </button>
           <button className="nav-item" onClick={() => navigate('/history')}>
-            <span className="nav-icon">📜</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
             History
           </button>
           <button className="nav-item" onClick={() => navigate('/settings')}>
-            <span className="nav-icon">⚙️</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
           </button>
         </nav>
 
         <div className="sidebar-footer">
           <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
-            <span className="nav-icon">❓</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
             Help
           </button>
           <div className="user-profile">
@@ -465,8 +465,8 @@ function CodeAnalyzer() {
       <main className="main-content">
         <header className="analyzer-header">
           <div className="header-left">
-            <h2 className="page-title">Code Clone Detector</h2>
-            <p className="page-subtitle">Analyze your code for duplicates and get refactoring suggestions</p>
+            <h2 className="page-title">Code Analyzer</h2>
+            <p className="page-subtitle">Analyze code for duplicates and get refactoring suggestions</p>
           </div>
         </header>
 
@@ -476,11 +476,11 @@ function CodeAnalyzer() {
             <h3 className="section-title">Quick Tests</h3>
             <div className="quick-test-buttons">
               <button className="test-btn" onClick={testHealth}>
-                <span className="btn-icon">🏥</span>
+                <span className="btn-icon">+</span>
                 Health Check
               </button>
               <button className="test-btn" onClick={testLanguages}>
-                <span className="btn-icon">💻</span>
+                <span className="btn-icon"></span>
                 Get Languages
               </button>
             </div>
@@ -525,16 +525,16 @@ function CodeAnalyzer() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                <span className="btn-icon">📝</span>
+                <span className="btn-icon"></span>
                 Load Sample
               </button>
 
               <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
-                <span className="btn-icon">📤</span>
+                <span className="btn-icon"></span>
                 Upload File
               </button>
               <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
-                <span className="btn-icon">📦</span>
+                <span className="btn-icon"></span>
                 Upload Zip
               </button>
               <input
@@ -562,7 +562,7 @@ function CodeAnalyzer() {
 
             {batchFiles.length > 0 && (
               <div className="batch-files-list">
-                <h4 className="batch-title">📦 Batch Files ({batchFiles.length})</h4>
+                <h4 className="batch-title">Batch Files ({batchFiles.length})</h4>
                 {batchFiles.map((f, i) => (
                   <div key={i} className="batch-file-item">
                     <span className="batch-file-name">{f.name}</span>
@@ -575,15 +575,15 @@ function CodeAnalyzer() {
 
             {extractedFiles.length > 0 && (
               <div className="batch-files-list">
-                <h4 className="batch-title">📄 Extracted Files ({extractedFiles.length}) — Select a file to scan individually</h4>
+                <h4 className="batch-title">Extracted Files ({extractedFiles.length}) — Select a file to scan individually</h4>
                 {extractedFiles.map((ef) => (
                   <div key={ef.id} className={`batch-file-item ${uploadedFileName === ef.name ? 'batch-file-active' : ''}`}>
-                    <span className="batch-file-icon">{ef.ext === 'py' ? '🐍' : ef.ext === 'java' ? '☕' : '📄'}</span>
+                    <span className="batch-file-icon">{ef.ext === 'py' ? 'PY' : ef.ext === 'java' ? 'JV' : 'TXT'}</span>
                     <span className="batch-file-name">{ef.name.split('/').pop()}</span>
                     <span className="batch-file-size">{ef.lang}</span>
                     {ef.section && (
                       <span className="batch-file-section">
-                        📋 {getSectionName(ef.section)}
+                        {getSectionName(ef.section)}
                       </span>
                     )}
                     {ef.analyzed && (
@@ -592,11 +592,11 @@ function CodeAnalyzer() {
                       </span>
                     )}
                     <button className="action-btn secondary batch-file-btn" onClick={() => handleSelectExtractedFile(ef)}>
-                      <span className="btn-icon">👁️</span>
+                      <span className="btn-icon"></span>
                       View
                     </button>
                     <button className="action-btn primary batch-file-btn" onClick={() => handleAnalyzeExtractedFile(ef)}>
-                      <span className="btn-icon">🔍</span>
+                      <span className="btn-icon"></span>
                       {ef.analyzed ? 'Re-scan' : 'Scan'}
                     </button>
                   </div>
@@ -621,7 +621,7 @@ function CodeAnalyzer() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={analyze}>
-              <span className="btn-icon">🔍</span>
+              <span className="btn-icon"></span>
               Analyze Code
             </button>
 
@@ -683,7 +683,7 @@ function CodeAnalyzer() {
                 {/* Clones Detected */}
                 {analysisData.clones && analysisData.clones.length > 0 && (
                   <div className="clones-section">
-                    <h4 className="subsection-title">🔍 Clones Detected ({analysisData.clones.length})</h4>
+                    <h4 className="subsection-title">Clones Detected ({analysisData.clones.length})</h4>
                     <div className="clones-list">
                       {analysisData.clones.map((clone, i) => (
                         <div key={i} className="clone-card">
@@ -705,7 +705,7 @@ function CodeAnalyzer() {
                 {/* Refactoring Suggestions */}
                 {analysisData.refactoring_suggestions && analysisData.refactoring_suggestions.length > 0 && (
                   <div className="suggestions-section">
-                    <h4 className="subsection-title">💡 Refactoring Suggestions</h4>
+                    <h4 className="subsection-title">Refactoring Suggestions</h4>
                     <div className="suggestion-cards">
                       {analysisData.refactoring_suggestions.map((sugg, i) => (
                         <div key={i} className="analyzer-suggestion-card">
@@ -720,7 +720,7 @@ function CodeAnalyzer() {
                       localStorage.setItem('refactoringLanguage', language);
                       navigate('/refactoring');
                     }}>
-                      <span className="btn-icon">🔄</span>
+                      <span className="btn-icon"></span>
                       Open in Refactoring Tool
                     </button>
                   </div>
@@ -731,7 +731,7 @@ function CodeAnalyzer() {
             {/* Batch Upload Refactoring Suggestions */}
             {batchSuggestions.length > 0 && (
               <div className="batch-suggestions">
-                <h4 className="subsection-title">🔄 Batch Refactoring Suggestions</h4>
+                <h4 className="subsection-title">Batch Refactoring Suggestions</h4>
                 <div className="batch-suggestion-cards">
                   {batchSuggestions.map((s, i) => (
                     <div key={i} className={`batch-suggestion-card severity-${s.severity}`}>
@@ -749,7 +749,7 @@ function CodeAnalyzer() {
                   localStorage.setItem('refactoringLanguage', language);
                   navigate('/refactoring');
                 }}>
-                  <span className="btn-icon">🔄</span>
+                  <span className="btn-icon"></span>
                   View Detailed Refactoring
                 </button>
               </div>
@@ -767,27 +767,27 @@ function CodeAnalyzer() {
             </div>
             <div className="help-modal-body">
               <div className="help-section">
-                <h4>🔍 Code Analyzer</h4>
+                <h4>Code Analyzer</h4>
                 <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
               </div>
               <div className="help-section">
-                <h4>📁 Files</h4>
+                <h4>Files</h4>
                 <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
               </div>
               <div className="help-section">
-                <h4>📈 Analysis Results</h4>
+                <h4>Analysis Results</h4>
                 <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
               </div>
               <div className="help-section">
-                <h4>🔄 Refactoring</h4>
+                <h4>Refactoring</h4>
                 <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
               </div>
               <div className="help-section">
-                <h4>📜 History</h4>
+                <h4>History</h4>
                 <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
               </div>
               <div className="help-section">
-                <h4>⚙️ Settings</h4>
+                <h4>Settings</h4>
                 <p>Configure dark mode, notification preferences, and update your account information.</p>
               </div>
             </div>
