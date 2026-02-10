@@ -501,6 +501,33 @@
   color: #9ca3af;
 }
 
+.batch-file-active {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.batch-file-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.batch-file-section {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.batch-file-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
 /* ===== RESULT BOX ===== */
 .result-box {
   background: #f9fafb;

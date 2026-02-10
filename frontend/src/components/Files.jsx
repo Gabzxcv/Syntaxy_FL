@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Logo from './Logo';
 import './Files.css';
 
-const MOCK_FILES = [
-  { id: 1, name: 'assignment1.zip', size: 2621440, type: 'zip', date: 'Jan 15, 2026' },
-  { id: 2, name: 'solution.java', size: 4300, type: 'java', date: 'Jan 14, 2026' },
-  { id: 3, name: 'utils.py', size: 1843, type: 'python', date: 'Jan 13, 2026' },
-  { id: 4, name: 'readme.txt', size: 512, type: 'text', date: 'Jan 12, 2026' },
-  { id: 5, name: 'project.zip', size: 5347737, type: 'zip', date: 'Jan 11, 2026' },
-  { id: 6, name: 'Main.java', size: 3788, type: 'java', date: 'Jan 10, 2026' },
-  { id: 7, name: 'test_helper.py', size: 2150, type: 'python', date: 'Jan 9, 2026' },
-];
+const API = 'http://localhost:5000/api/v1';
+
+function formatDate(dateString) {
+  return new Date(dateString).toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric' 
+  });
+}
 
 function getFileType(fileName) {
   const ext = fileName.split('.').pop().toLowerCase();
@@ -48,17 +49,62 @@ function formatSize(bytes) {
 }
 
 function Files() {
-  const [files, setFiles] = useState(MOCK_FILES);
+  const [files, setFiles] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [dragOver, setDragOver] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [loading, setLoading] = useState(true);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+
+  // Load files from backend on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    fetch(`${API}/auth/files`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.status === 401 || res.status === 422) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+          return null;
+        }
+        if (!res.ok) throw new Error('Failed to fetch files');
+        return res.json();
+      })
+      .then((data) => {
+        if (data && data.files) {
+          // Convert backend files to frontend format
+          const formattedFiles = data.files.map((f) => ({
+            id: f.id,
+            name: f.name,
+            size: f.size,
+            type: f.file_type,
+            date: formatDate(f.created_at),
+            preview: f.content ? f.content.split('\n').slice(0, 5).join('\n') : null,
+            fullContent: f.content || null,
+          }));
+          setFiles(formattedFiles);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading files:', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [navigate]);
 
   useEffect(() => {
     if (localStorage.getItem('darkMode') === 'true') {
@@ -90,32 +136,121 @@ function Files() {
 
   function handleFileUpload(selectedFiles) {
     if (!selectedFiles || selectedFiles.length === 0) return;
-    const newFiles = [];
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
     Array.from(selectedFiles).forEach((file) => {
       const type = getFileType(file.name);
-      const newFile = {
-        id: Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 11),
-        name: file.name,
-        size: file.size,
-        type,
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      };
-
+      
       if (type !== 'zip') {
         const reader = new FileReader();
         reader.onload = (e) => {
           const content = e.target.result;
-          const preview = content.split('\n').slice(0, 5).join('\n');
-          newFile.preview = preview;
-          newFile.fullContent = content;
-          setFiles((prev) => prev.map((f) => (f.id === newFile.id ? { ...f, preview, fullContent: content } : f)));
+          
+          // Save to backend
+          fetch(`${API}/auth/files`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              name: file.name,
+              size: file.size,
+              file_type: type,
+              content: content,
+            }),
+          })
+            .then((res) => {
+              if (!res.ok) throw new Error('Failed to upload file');
+              return res.json();
+            })
+            .then((data) => {
+              if (data && data.file) {
+                // Add to local state
+                const newFile = {
+                  id: data.file.id,
+                  name: data.file.name,
+                  size: data.file.size,
+                  type: data.file.file_type,
+                  date: formatDate(data.file.created_at),
+                  preview: content.split('\n').slice(0, 5).join('\n'),
+                  fullContent: content,
+                };
+                setFiles((prev) => [newFile, ...prev]);
+                
+                // Add to history
+                addToHistory('upload', `Uploaded file: ${file.name} - 1 file processed`);
+              }
+            })
+            .catch((err) => {
+              console.error('Error uploading file:', err);
+              alert('Failed to upload file. Please try again.');
+            });
         };
         reader.readAsText(file);
+      } else {
+        // For zip files, just save metadata
+        fetch(`${API}/auth/files`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: file.name,
+            size: file.size,
+            file_type: type,
+            content: '',
+          }),
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error('Failed to upload file');
+            return res.json();
+          })
+          .then((data) => {
+            if (data && data.file) {
+              const newFile = {
+                id: data.file.id,
+                name: data.file.name,
+                size: data.file.size,
+                type: data.file.file_type,
+                date: formatDate(data.file.created_at),
+                preview: null,
+                fullContent: null,
+              };
+              setFiles((prev) => [newFile, ...prev]);
+              
+              // Add to history
+              addToHistory('upload', `Uploaded file: ${file.name} - 1 file processed`);
+            }
+          })
+          .catch((err) => {
+            console.error('Error uploading file:', err);
+            alert('Failed to upload file. Please try again.');
+          });
       }
-
-      newFiles.push(newFile);
     });
-    setFiles((prev) => [...newFiles, ...prev]);
+  }
+
+  function addToHistory(type, description) {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch(`${API}/auth/activity`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        type: type,
+        description: description,
+      }),
+    }).catch((err) => console.error('Error adding to history:', err));
   }
 
   function handleInputChange(e) {
@@ -139,8 +274,25 @@ function Files() {
   }
 
   function handleDelete(id) {
-    setFiles((prev) => prev.filter((f) => f.id !== id));
-    if (previewFile && previewFile.id === id) setPreviewFile(null);
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    fetch(`${API}/auth/files/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to delete file');
+        setFiles((prev) => prev.filter((f) => f.id !== id));
+        if (previewFile && previewFile.id === id) setPreviewFile(null);
+      })
+      .catch((err) => {
+        console.error('Error deleting file:', err);
+        alert('Failed to delete file. Please try again.');
+      });
   }
 
   function handleView(file) {
@@ -164,6 +316,10 @@ function Files() {
     if (content) {
       localStorage.setItem('scanFileContent', content);
       localStorage.setItem('scanFileName', file.name);
+      
+      // Add to history
+      addToHistory('analysis', `Scanning ${file.name} for code clones`);
+      
       navigate('/analyzer');
     }
   }
@@ -172,7 +328,7 @@ function Files() {
     <div className="files-layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1 className="sidebar-logo">Dashboard</h1>
+          <Logo />
         </div>
         <nav className="sidebar-nav">
           <button className="nav-item" onClick={() => navigate('/dashboard')}>
@@ -218,12 +374,18 @@ function Files() {
       </aside>
 
       <div className="main-content">
-        <div className="files-header">
-          <div className="header-left">
-            <h2 className="page-title">Files</h2>
-            <p className="page-subtitle">Manage and organize your uploaded files</p>
+        {loading ? (
+          <div className="loading-container">
+            <div className="loading-spinner">Loading files...</div>
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="files-header">
+              <div className="header-left">
+                <h2 className="page-title">Files</h2>
+                <p className="page-subtitle">Manage and organize your uploaded files</p>
+              </div>
+            </div>
 
         <div className="files-content">
           {/* Stats Cards */}
@@ -367,6 +529,8 @@ function Files() {
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {showHelp && (
