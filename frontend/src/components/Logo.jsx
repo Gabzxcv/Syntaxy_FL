@@ -13,7 +13,7 @@ import React from 'react';
 
 const Logo = ({ className = '', style = {} }) => {
   // CUSTOMIZE YOUR LOGO PATH HERE:
-  const logoPath = '/vite.svg'; // Replace with your logo path, e.g., '/logo.png'
+  const logoPath = '/logo.png'; // Replace with your logo path, e.g., '/logo.png'
   const logoAlt = 'Code Clone Detector Logo';
   
   // Optional: Use text logo instead of image by setting useTextLogo to true
