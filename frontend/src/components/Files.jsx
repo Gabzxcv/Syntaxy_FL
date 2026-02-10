@@ -67,6 +67,7 @@ function Files() {
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+  const isStudent = user.role === 'student';
 
   // Load files from backend on mount
   useEffect(() => {
@@ -393,8 +394,8 @@ function Files() {
           <>
             <div className="files-header">
               <div className="header-left">
-                <h2 className="page-title">Files</h2>
-                <p className="page-subtitle">Manage and organize your uploaded files</p>
+                <h2 className="page-title">{isStudent ? 'My Files' : 'File Manager'}</h2>
+                <p className="page-subtitle">{isStudent ? 'View and manage your uploaded submissions' : 'Upload, organize, and scan your code files'}</p>
               </div>
             </div>
 

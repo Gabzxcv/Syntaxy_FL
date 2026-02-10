@@ -68,6 +68,7 @@ function History() {
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+  const isStudent = user.role === 'student';
 
   const userId = user.id || user.username || 'default';
   const historyKey = `activityHistory_${userId}`;
@@ -256,8 +257,8 @@ function History() {
           <>
             <header className="history-header">
               <div className="header-left">
-                <h2 className="page-title">Activity History</h2>
-                <p className="page-subtitle">Review your past analyses, uploads, and refactoring activities</p>
+                <h2 className="page-title">{isStudent ? 'My Activity' : 'Activity History'}</h2>
+                <p className="page-subtitle">{isStudent ? 'Track your recent submissions and analyses' : 'Review your past analyses, uploads, and refactoring activities'}</p>
               </div>
             </header>
 

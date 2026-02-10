@@ -149,12 +149,10 @@ function Dashboard() {
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
-          {user.role !== 'student' && (
-            <button className="nav-item" onClick={() => navigate('/students')}>
+          <button className="nav-item" onClick={() => navigate('/students')}>
               <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
-              Analysis Results
+              {user.role === 'student' ? 'My Results' : 'Analysis Results'}
             </button>
-          )}
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
             Refactoring
@@ -199,8 +197,8 @@ function Dashboard() {
       <main className="main-content">
         <header className="dashboard-header">
           <div className="header-left">
-            <h2 className="page-title">Overview</h2>
-            <p className="page-subtitle">Monitor your projects and analysis metrics</p>
+            <h2 className="page-title">{user.role === 'student' ? 'My Dashboard' : 'Overview'}</h2>
+            <p className="page-subtitle">{user.role === 'student' ? 'Track your submissions and analysis results' : 'Monitor your projects and analysis metrics'}</p>
           </div>
           <div className="header-right" style={{ position: 'relative' }}>
             <button className="notification-btn" onClick={() => setShowNotifications(!showNotifications)}>

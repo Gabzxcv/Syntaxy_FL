@@ -221,10 +221,10 @@ function Students() {
       <main className="main-content">
         <header className="students-header">
           <div className="header-left">
-            <h2 className="page-title">{isStudent ? 'My Results' : 'Analysis Results'}</h2>
+            <h2 className="page-title">{isStudent ? 'My Submissions' : 'Analysis Results'}</h2>
             <p className="page-subtitle">
               {isStudent
-                ? 'View your assigned section and submission results'
+                ? 'View your submission history and analysis results'
                 : 'View results by section and manage student submissions'}
             </p>
           </div>

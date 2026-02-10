@@ -500,6 +500,24 @@
   color: #6b7280;
 }
 
+/* ===== FILE SECTION BADGE ===== */
+.file-section-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.section-upload-selector {
+  margin-top: 8px;
+}
+
 /* ===== FILE ACTIONS ===== */
 .file-actions {
   display: flex;

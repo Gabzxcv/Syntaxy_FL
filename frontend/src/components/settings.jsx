@@ -9,6 +9,7 @@ function Settings() {
   const navigate = useNavigate();
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+  const isStudent = user.role === 'student';
 
   const [showHelp, setShowHelp] = useState(false);
   const [editFullName, setEditFullName] = useState(user.full_name || '');
@@ -143,8 +144,8 @@ function Settings() {
       <main className="main-content">
         <header className="settings-header">
           <div className="header-left">
-            <h2 className="page-title">Settings</h2>
-            <p className="page-subtitle">Manage your preferences and application settings</p>
+            <h2 className="page-title">{isStudent ? 'My Account' : 'Settings'}</h2>
+            <p className="page-subtitle">{isStudent ? 'Manage your account and preferences' : 'Manage your preferences and application settings'}</p>
           </div>
         </header>
 
