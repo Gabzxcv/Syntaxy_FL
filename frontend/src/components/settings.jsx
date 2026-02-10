@@ -137,7 +137,11 @@ function Settings() {
           </button>
           <div className="user-profile">
             <div className="user-avatar">
-              {(user.full_name || user.username).charAt(0).toUpperCase()}
+              {profilePicture ? (
+                <img src={profilePicture} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                (user.full_name || user.username).charAt(0).toUpperCase()
+              )}
             </div>
             <div className="user-info-sidebar">
               <div className="user-name">{user.full_name || user.username}</div>

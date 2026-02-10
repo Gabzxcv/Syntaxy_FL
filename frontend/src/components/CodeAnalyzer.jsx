@@ -106,6 +106,7 @@ function CodeAnalyzer() {
   // Get user info from localStorage for sidebar
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+  const profilePic = user ? localStorage.getItem('profilePicture_' + user.id) : null;
 
   useEffect(() => {
     // Clean up scan data after initializing from it
@@ -482,7 +483,11 @@ function CodeAnalyzer() {
           </button>
           <div className="user-profile">
             <div className="user-avatar">
-              {(user.full_name || user.username).charAt(0).toUpperCase()}
+              {profilePic ? (
+                <img src={profilePic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                (user.full_name || user.username).charAt(0).toUpperCase()
+              )}
             </div>
             <div className="user-info-sidebar">
               <div className="user-name">{user.full_name || user.username}</div>

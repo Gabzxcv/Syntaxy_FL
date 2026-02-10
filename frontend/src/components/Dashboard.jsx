@@ -22,6 +22,7 @@ function Dashboard() {
     totalHistory: 0,
     activeProjects: 0,
   });
+  const profilePic = user ? localStorage.getItem('profilePicture_' + user.id) : null;
   const navigate = useNavigate();
 
   const handleMarkAllRead = () => {
@@ -180,7 +181,11 @@ function Dashboard() {
           </button>
           <div className="user-profile">
             <div className="user-avatar">
-              {(user.full_name || user.username).charAt(0).toUpperCase()}
+              {profilePic ? (
+                <img src={profilePic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                (user.full_name || user.username).charAt(0).toUpperCase()
+              )}
             </div>
             <div className="user-info-sidebar">
               <div className="user-name">{user.full_name || user.username}</div>
@@ -239,7 +244,7 @@ function Dashboard() {
           {/* Stats Grid */}
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon"></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Total Analyses</div>
                 <div className="stat-value">{user.total_analyses || 0}</div>
@@ -247,7 +252,7 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon"></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Total Files</div>
                 <div className="stat-value">{stats.totalFiles}</div>
@@ -255,7 +260,7 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon"></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Activities</div>
                 <div className="stat-value">{stats.totalHistory}</div>
@@ -263,7 +268,7 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon"></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Active Projects</div>
                 <div className="stat-value">{stats.activeProjects}</div>
@@ -276,7 +281,7 @@ function Dashboard() {
             <h4 className="section-title">Quick Actions</h4>
             <div className="action-buttons">
               <button className="action-card" onClick={() => navigate('/analyzer')}>
-                <div className="action-icon"></div>
+                <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
                 <div className="action-content">
                   <div className="action-title">Code Analyzer</div>
                   <div className="action-desc">Analyze your code for duplicates</div>
@@ -286,7 +291,7 @@ function Dashboard() {
               
               {user.role === 'student' ? (
                 <button className="action-card" onClick={() => navigate('/files')}>
-                  <div className="action-icon"></div>
+                  <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                   <div className="action-content">
                     <div className="action-title">My Submissions</div>
                     <div className="action-desc">View your submitted files</div>
@@ -295,7 +300,7 @@ function Dashboard() {
                 </button>
               ) : (
                 <button className="action-card" onClick={() => navigate('/students')}>
-                  <div className="action-icon"></div>
+                  <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                   <div className="action-content">
                     <div className="action-title">View Students</div>
                     <div className="action-desc">Manage student submissions</div>
@@ -305,7 +310,7 @@ function Dashboard() {
               )}
               
               <button className="action-card">
-                <div className="action-icon"></div>
+                <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
                 <div className="action-content">
                   <div className="action-title">Reports</div>
                   <div className="action-desc">View analysis reports</div>
@@ -315,7 +320,7 @@ function Dashboard() {
 
               {user.role === 'admin' && (
                 <button className="action-card" onClick={() => navigate('/settings')}>
-                  <div className="action-icon"></div>
+                  <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
                   <div className="action-content">
                     <div className="action-title">Admin Panel</div>
                     <div className="action-desc">Manage users and system settings</div>
