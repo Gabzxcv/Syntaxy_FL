@@ -168,38 +168,38 @@ function Students() {
         
         <nav className="sidebar-nav">
           <button className="nav-item" onClick={() => navigate('/dashboard')}>
-            <span className="nav-icon">📊</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
             Dashboard
           </button>
           <button className="nav-item" onClick={() => navigate('/analyzer')}>
-            <span className="nav-icon">⚙️</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
             Compiler Area
           </button>
           <button className="nav-item" onClick={() => navigate('/files')}>
-            <span className="nav-icon">📁</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
           <button className="nav-item active">
-            <span className="nav-icon">📈</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
             {isStudent ? 'My Results' : 'Analysis Results'}
           </button>
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
-            <span className="nav-icon">🔄</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
             Refactoring
           </button>
           <button className="nav-item" onClick={() => navigate('/history')}>
-            <span className="nav-icon">📜</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
             History
           </button>
           <button className="nav-item" onClick={() => navigate('/settings')}>
-            <span className="nav-icon">⚙️</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
           </button>
         </nav>
 
         <div className="sidebar-footer">
           <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
-            <span className="nav-icon">❓</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
             Help
           </button>
           <div className="user-profile">
@@ -235,7 +235,6 @@ function Students() {
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-                📂
               </div>
               <div className="stat-info">
                 <div className="stat-label">{isStudent ? 'My Sections' : 'Sections'}</div>
@@ -245,7 +244,6 @@ function Students() {
 
             <div className="stat-card">
               <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-                👥
               </div>
               <div className="stat-info">
                 <div className="stat-label">{isStudent ? 'Classmates' : 'Total Students'}</div>
@@ -255,7 +253,6 @@ function Students() {
             
             <div className="stat-card">
               <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
-                📝
               </div>
               <div className="stat-info">
                 <div className="stat-label">Total Submissions</div>
@@ -268,7 +265,7 @@ function Students() {
           {isStudent && studentResults && (
             <section className="students-section" style={{ marginBottom: '24px' }}>
               <div className="section-header">
-                <h3 className="section-title">📊 My Analysis Results</h3>
+                <h3 className="section-title">My Analysis Results</h3>
               </div>
               <div className="table-container">
                 <table className="students-table">
@@ -288,7 +285,7 @@ function Students() {
                         <td><span className={`submission-badge ${r.clonePercentage > 30 ? 'warning' : ''}`}>{r.clonePercentage}%</span></td>
                         <td>{r.complexity || 'N/A'}</td>
                         <td><span className={`submission-badge ${r.clonePercentage > 30 ? 'warning' : 'success'}`}>
-                          {r.clonePercentage > 30 ? '⚠ Review' : '✓ Good'}
+                          {r.clonePercentage > 30 ? 'Review' : 'Good'}
                         </span></td>
                         <td>{r.date || 'N/A'}</td>
                       </tr>
@@ -305,7 +302,7 @@ function Students() {
               <h3 className="section-title">{isStudent ? 'My Sections' : 'Sections'}</h3>
               {!isStudent && (
                 <button className="action-btn primary" onClick={() => setShowAddSection(!showAddSection)}>
-                  <span className="btn-icon">➕</span>
+                  <span className="btn-icon"></span>
                   Add Section
                 </button>
               )}
@@ -361,7 +358,7 @@ function Students() {
               </h3>
               {!isStudent && (
                 <button className="action-btn primary" onClick={() => setShowAddStudent(!showAddStudent)}>
-                  <span className="btn-icon">👤</span>
+                  <span className="btn-icon"></span>
                   Add Student
                 </button>
               )}
@@ -448,10 +445,10 @@ function Students() {
                           <td>
                             <div className="action-buttons">
                               <button className="icon-btn view">
-                                <span>👁️</span>
+                                <span></span>
                               </button>
                               <button className="icon-btn delete" onClick={() => deleteStudent(student.sectionId, student.id)}>
-                                <span>🗑️</span>
+                                <span></span>
                               </button>
                             </div>
                           </td>
@@ -475,27 +472,27 @@ function Students() {
             </div>
             <div className="help-modal-body">
               <div className="help-section">
-                <h4>🔍 Code Analyzer</h4>
+                <h4>Code Analyzer</h4>
                 <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
               </div>
               <div className="help-section">
-                <h4>📁 Files</h4>
+                <h4>Files</h4>
                 <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
               </div>
               <div className="help-section">
-                <h4>📈 Analysis Results</h4>
+                <h4>Analysis Results</h4>
                 <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
               </div>
               <div className="help-section">
-                <h4>🔄 Refactoring</h4>
+                <h4>Refactoring</h4>
                 <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
               </div>
               <div className="help-section">
-                <h4>📜 History</h4>
+                <h4>History</h4>
                 <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
               </div>
               <div className="help-section">
-                <h4>⚙️ Settings</h4>
+                <h4>Settings</h4>
                 <p>Configure dark mode, notification preferences, and update your account information.</p>
               </div>
             </div>

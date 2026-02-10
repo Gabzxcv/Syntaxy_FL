@@ -6,16 +6,16 @@ import './History.css';
 const API = 'http://localhost:5000/api/v1';
 
 const DEFAULT_HISTORY_DATA = [
-  { id: 1, type: 'analysis', icon: '🔍', description: 'Analyzed Python code - 15.3% clone detected', time: '2024-12-01T10:00:00Z', status: 'success' },
-  { id: 2, type: 'upload', icon: '📤', description: 'Uploaded batch: project_files.zip - 5 files processed', time: '2024-12-01T09:00:00Z', status: 'success' },
-  { id: 3, type: 'refactoring', icon: '🔄', description: 'Refactored Java code - 3 code smells fixed', time: '2024-12-01T07:00:00Z', status: 'success' },
-  { id: 4, type: 'analysis', icon: '🔍', description: 'Analyzed JavaScript code - 42.7% clone detected', time: '2024-11-30T12:00:00Z', status: 'warning' },
-  { id: 5, type: 'upload', icon: '📤', description: 'Uploaded file: utils.py - 1 file processed', time: '2024-11-30T08:00:00Z', status: 'success' },
-  { id: 6, type: 'analysis', icon: '🔍', description: 'Analyzed C++ code - 8.1% clone detected', time: '2024-11-29T14:00:00Z', status: 'success' },
-  { id: 7, type: 'refactoring', icon: '🔄', description: 'Refactored Python code - 5 duplicates removed', time: '2024-11-28T16:00:00Z', status: 'info' },
-  { id: 8, type: 'upload', icon: '📤', description: 'Uploaded batch: homework_set3.zip - 12 files processed', time: '2024-11-27T11:00:00Z', status: 'success' },
-  { id: 9, type: 'analysis', icon: '🔍', description: 'Analyzed Java code - 27.5% clone detected', time: '2024-11-26T09:00:00Z', status: 'warning' },
-  { id: 10, type: 'refactoring', icon: '🔄', description: 'Refactored JavaScript code - 2 functions consolidated', time: '2024-11-20T10:00:00Z', status: 'info' },
+  { id: 1, type: 'analysis', icon: '', description: 'Analyzed Python code - 15.3% clone detected', time: '2024-12-01T10:00:00Z', status: 'success' },
+  { id: 2, type: 'upload', icon: '', description: 'Uploaded batch: project_files.zip - 5 files processed', time: '2024-12-01T09:00:00Z', status: 'success' },
+  { id: 3, type: 'refactoring', icon: '', description: 'Refactored Java code - 3 code smells fixed', time: '2024-12-01T07:00:00Z', status: 'success' },
+  { id: 4, type: 'analysis', icon: '', description: 'Analyzed JavaScript code - 42.7% clone detected', time: '2024-11-30T12:00:00Z', status: 'warning' },
+  { id: 5, type: 'upload', icon: '', description: 'Uploaded file: utils.py - 1 file processed', time: '2024-11-30T08:00:00Z', status: 'success' },
+  { id: 6, type: 'analysis', icon: '', description: 'Analyzed C++ code - 8.1% clone detected', time: '2024-11-29T14:00:00Z', status: 'success' },
+  { id: 7, type: 'refactoring', icon: '', description: 'Refactored Python code - 5 duplicates removed', time: '2024-11-28T16:00:00Z', status: 'info' },
+  { id: 8, type: 'upload', icon: '', description: 'Uploaded batch: homework_set3.zip - 12 files processed', time: '2024-11-27T11:00:00Z', status: 'success' },
+  { id: 9, type: 'analysis', icon: '', description: 'Analyzed Java code - 27.5% clone detected', time: '2024-11-26T09:00:00Z', status: 'warning' },
+  { id: 10, type: 'refactoring', icon: '', description: 'Refactored JavaScript code - 2 functions consolidated', time: '2024-11-20T10:00:00Z', status: 'info' },
 ];
 
 function formatRelativeTime(isoString) {
@@ -50,15 +50,10 @@ function computeStats(data, now) {
 }
 
 function formatHistoryEntry(h) {
-  let icon = '📋';
-  if (h.entry_type === 'analysis') icon = '🔍';
-  else if (h.entry_type === 'upload') icon = '📤';
-  else if (h.entry_type === 'refactoring') icon = '🔄';
-  
   return {
     id: h.id,
     type: h.entry_type,
-    icon: icon,
+    icon: '',
     description: h.description,
     time: h.created_at,
     status: h.status || 'success',
@@ -211,30 +206,30 @@ function History() {
         </div>
         <nav className="sidebar-nav">
           <button className="nav-item" onClick={() => navigate('/dashboard')}>
-            <span className="nav-icon">📊</span> Dashboard
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span> Dashboard
           </button>
           <button className="nav-item" onClick={() => navigate('/analyzer')}>
-            <span className="nav-icon">⚙️</span> Compiler Area
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span> Compiler Area
           </button>
           <button className="nav-item" onClick={() => navigate('/files')}>
-            <span className="nav-icon">📁</span> Files
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span> Files
           </button>
           <button className="nav-item" onClick={() => navigate('/students')}>
-            <span className="nav-icon">📈</span> Analysis Results
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Analysis Results
           </button>
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
-            <span className="nav-icon">🔄</span> Refactoring
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span> Refactoring
           </button>
           <button className="nav-item active">
-            <span className="nav-icon">📜</span> History
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> History
           </button>
           <button className="nav-item" onClick={() => navigate('/settings')}>
-            <span className="nav-icon">⚙️</span> Settings
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span> Settings
           </button>
         </nav>
         <div className="sidebar-footer">
           <button className="nav-item help-btn" onClick={() => setShowHelp(true)}>
-            <span className="nav-icon">❓</span>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
             Help
           </button>
           <div className="user-profile">
@@ -270,21 +265,21 @@ function History() {
           {/* Stats Cards */}
           <div className="history-stats">
             <div className="stat-card">
-              <div className="stat-icon">📋</div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{totalActivities}</div>
                 <div className="stat-label">Total Activities</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">📅</div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{thisWeek}</div>
                 <div className="stat-label">This Week</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">⏰</div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{today}</div>
                 <div className="stat-label">Today</div>
@@ -310,7 +305,7 @@ function History() {
                   <div className="timeline-meta">
                     <span className="timeline-time">{formatRelativeTime(item.time)}</span>
                     <span className={`timeline-status ${item.status}`}>
-                      {item.status === 'success' ? '✓ Success' : item.status === 'warning' ? '⚠ Warning' : 'ℹ Info'}
+                      {item.status === 'success' ? 'Success' : item.status === 'warning' ? 'Warning' : 'Info'}
                     </span>
                   </div>
                 </div>
@@ -331,27 +326,27 @@ function History() {
             </div>
             <div className="help-modal-body">
               <div className="help-section">
-                <h4>🔍 Code Analyzer</h4>
+                <h4>Code Analyzer</h4>
                 <p>Upload or paste code to detect duplicates. Supports Python and Java. Use the Analyze button to get clone detection results with visual metrics.</p>
               </div>
               <div className="help-section">
-                <h4>📁 Files</h4>
+                <h4>Files</h4>
                 <p>Upload and manage your code files (.zip, .txt, .java, .py). You can scan any uploaded file for code clones directly from the Files page.</p>
               </div>
               <div className="help-section">
-                <h4>📈 Analysis Results</h4>
+                <h4>Analysis Results</h4>
                 <p>View and manage students organized by sections. Add students to sections and track their submissions.</p>
               </div>
               <div className="help-section">
-                <h4>🔄 Refactoring</h4>
+                <h4>Refactoring</h4>
                 <p>Get refactoring suggestions for your code. Detect code smells and see before/after comparisons.</p>
               </div>
               <div className="help-section">
-                <h4>📜 History</h4>
+                <h4>History</h4>
                 <p>Track all your activities including analyses, uploads, and refactoring operations in real-time.</p>
               </div>
               <div className="help-section">
-                <h4>⚙️ Settings</h4>
+                <h4>Settings</h4>
                 <p>Configure dark mode, notification preferences, and update your account information.</p>
               </div>
             </div>
