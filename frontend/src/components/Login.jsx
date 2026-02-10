@@ -85,7 +85,7 @@ function Login() {
   return (
     <div className="auth-container">
       <div className="auth-header">
-        <img src="/logo.png" alt="Syntaxy Logo" style={{ width: '80px', height: '80px', marginBottom: '16px', borderRadius: '12px' }} />
+        <img src="/logo.png" alt="Syntaxy Logo" style={{ width: '100px', height: '100px', marginBottom: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.15)', padding: '8px' }} />
         <h1>Syntaxy</h1>
         <p>Code Analysis Platform</p>
       </div>
