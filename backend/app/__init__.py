@@ -66,7 +66,7 @@ def _seed_admin(db, bcrypt):
             full_name='Administrator',
             role='admin'
         )
-        admin.set_password('admin')
+        admin.set_password('admin123')
         db.session.add(admin)
         db.session.commit()
 
