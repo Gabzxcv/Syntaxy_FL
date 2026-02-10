@@ -7,6 +7,7 @@ import Refactoring from './components/Refactoring';
 import History from './components/History';
 import Files from './components/Files';
 import Settings from './components/settings';
+import Admin from './components/Admin';
 import './App.css';
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
           <Route path="/history" element={<History />} />
           <Route path="/files" element={<Files />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </div>
     </BrowserRouter>
