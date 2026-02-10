@@ -10,7 +10,7 @@
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  background: #ffffff !important;
+  background: #0f1219 !important;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -166,13 +166,13 @@
   margin-left: 260px;
   min-height: 100vh;
   width: 100%;
-  background: #ffffff !important;
+  background: #0f1219 !important;
 }
 
 .students-header {
-  background: #fff;
+  background: #1a1f2e;
   padding: 24px 40px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #2d3348;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -190,20 +190,20 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 4px 0;
   letter-spacing: -0.5px;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: #9ca3af;
   margin: 0;
 }
 
 .students-content {
   padding: 32px 40px;
-  background: #ffffff;
+  background: #0f1219;
   animation: fadeIn 0.4s ease;
 }
 
@@ -227,8 +227,8 @@
 }
 
 .stat-card {
-  background: #fff;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 16px;
   padding: 24px;
   display: flex;
@@ -261,7 +261,7 @@
 .stat-label {
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
@@ -271,13 +271,13 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
 }
 
 /* ===== STUDENTS SECTION ===== */
 .students-section {
-  background: #fff;
-  border: 2px solid #e5e7eb;
+  background: #1a1f2e;
+  border: 2px solid #374151;
   border-radius: 16px;
   padding: 28px;
   animation: slideUp 0.4s ease;
@@ -285,8 +285,8 @@
 
 /* ===== SECTIONS FILTER ===== */
 .sections-filter {
-  background: #fff;
-  border: 2px solid #e5e7eb;
+  background: #1a1f2e;
+  border: 2px solid #374151;
   border-radius: 16px;
   padding: 28px;
   margin-bottom: 24px;
@@ -307,13 +307,13 @@
 
 .section-tab {
   padding: 10px 20px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -335,8 +335,8 @@
 
 .section-delete-btn {
   padding: 10px 12px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-left: none;
   border-radius: 0 10px 10px 0;
   font-size: 12px;
@@ -360,13 +360,13 @@
 .section-input {
   flex: 1;
   padding: 12px 16px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #252a3a;
+  border: 2px solid #374151;
   border-radius: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1f36;
+  color: #e5e7eb;
   transition: all 0.2s ease;
 }
 
@@ -390,13 +390,13 @@
 }
 
 .action-btn.secondary {
-  background: #f9fafb;
-  color: #1a1f36;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  color: #e5e7eb;
+  border: 2px solid #374151;
 }
 
 .action-btn.secondary:hover {
-  background: #f3f4f6;
+  background: #252a3a;
   border-color: #6366f1;
   color: #6366f1;
 }
@@ -423,7 +423,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: 20px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0;
   letter-spacing: -0.3px;
 }
@@ -468,11 +468,11 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  background: #fff;
+  background: #1a1f2e;
 }
 
 .students-table thead {
-  background: #f9fafb;
+  background: #1e2538;
   border-bottom: 2px solid #e5e7eb;
 }
 
@@ -480,19 +480,19 @@
   text-align: left;
   padding: 16px 20px;
   font-weight: 700;
-  color: #6b7280;
+  color: #9ca3af;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .students-table tbody tr {
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #2d3348;
   transition: all 0.2s ease;
 }
 
 .students-table tbody tr:hover {
-  background: #f9fafb;
+  background: #252a3a;
 }
 
 .students-table tbody tr:last-child {
@@ -501,14 +501,14 @@
 
 .students-table td {
   padding: 16px 20px;
-  color: #374151;
+  color: #e5e7eb;
 }
 
 /* Table Cell Styles */
 .student-id {
   font-family: 'Monaco', 'Menlo', monospace;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   font-size: 13px;
 }
 
@@ -534,11 +534,11 @@
 
 .student-name {
   font-weight: 600;
-  color: #1a1f36;
+  color: #f3f4f6;
 }
 
 .student-email {
-  color: #6b7280;
+  color: #9ca3af;
   font-size: 13px;
 }
 

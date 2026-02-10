@@ -10,7 +10,7 @@
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  background: #ffffff !important;
+  background: #0f1219 !important;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -166,13 +166,13 @@
   margin-left: 260px;
   min-height: 100vh;
   width: 100%;
-  background: #ffffff !important;
+  background: #0f1219 !important;
 }
 
 .files-header {
-  background: #fff;
+  background: #1a1f2e;
   padding: 24px 40px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #2d3348;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -190,20 +190,20 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 4px 0;
   letter-spacing: -0.5px;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: #9ca3af;
   margin: 0;
 }
 
 .files-content {
   padding: 32px 40px;
-  background: #ffffff;
+  background: #0f1219;
   animation: fadeIn 0.4s ease;
 }
 
@@ -231,8 +231,8 @@
   align-items: center;
   gap: 16px;
   padding: 24px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: #1e2538;
+  border: 1px solid #374151;
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
@@ -250,7 +250,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(99, 102, 241, 0.15);
   border-radius: 14px;
   flex-shrink: 0;
 }
@@ -264,32 +264,32 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   line-height: 1.2;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #6b7280;
+  color: #9ca3af;
   font-weight: 500;
   margin-top: 2px;
 }
 
 /* ===== DROP ZONE ===== */
 .drop-zone {
-  border: 2px dashed #d1d5db;
+  border: 2px dashed #374151;
   border-radius: 16px;
   padding: 48px 32px;
   text-align: center;
   margin-bottom: 32px;
-  background: #f9fafb;
+  background: #1e2538;
   transition: all 0.2s ease;
   cursor: pointer;
 }
 
 .drop-zone:hover {
   border-color: #6366f1;
-  background: rgba(99, 102, 241, 0.04);
+  background: rgba(99, 102, 241, 0.08);
 }
 
 .drop-zone.drag-over {
@@ -306,13 +306,13 @@
 .drop-zone-text {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin-bottom: 4px;
 }
 
 .drop-zone-hint {
   font-size: 13px;
-  color: #9ca3af;
+  color: #6b7280;
   margin-bottom: 20px;
 }
 
@@ -352,8 +352,8 @@
   align-items: center;
   gap: 10px;
   padding: 0 16px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 12px;
   transition: all 0.2s ease;
 }
@@ -375,7 +375,7 @@
   background: transparent;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
-  color: #1a1f36;
+  color: #e5e7eb;
   outline: none;
 }
 
@@ -385,13 +385,13 @@
 
 .filter-select {
   padding: 12px 16px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 12px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1f36;
+  color: #e5e7eb;
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 140px;
@@ -419,8 +419,8 @@
   align-items: center;
   gap: 16px;
   padding: 16px 20px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: #1e2538;
+  border: 1px solid #374151;
   border-radius: 12px;
   transition: all 0.2s ease;
   flex-wrap: wrap;
@@ -438,7 +438,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f4f6;
+  background: #252a3a;
   border-radius: 10px;
   flex-shrink: 0;
 }
@@ -451,7 +451,7 @@
 .file-name {
   font-weight: 600;
   font-size: 15px;
-  color: #1a1f36;
+  color: #f3f4f6;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -546,16 +546,16 @@
   width: 100%;
   margin-top: 8px;
   padding: 16px;
-  background: #f9fafb;
+  background: #0f1219;
   border-radius: 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #374151;
 }
 
 .file-preview pre {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 13px;
   line-height: 1.6;
-  color: #374151;
+  color: #e5e7eb;
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
@@ -574,7 +574,7 @@
 
 .empty-text {
   font-size: 16px;
-  color: #9ca3af;
+  color: #6b7280;
   font-weight: 500;
 }
 

@@ -10,7 +10,7 @@
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  background: #ffffff !important;
+  background: #0f1219 !important;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -166,13 +166,13 @@
   margin-left: 260px;
   min-height: 100vh;
   width: 100%;
-  background: #ffffff !important;
+  background: #0f1219 !important;
 }
 
 .refactoring-header {
-  background: #fff;
+  background: #1a1f2e;
   padding: 24px 40px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #2d3348;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -190,20 +190,20 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 4px 0;
   letter-spacing: -0.5px;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: #9ca3af;
   margin: 0;
 }
 
 .refactoring-content {
   padding: 32px 40px;
-  background: #ffffff;
+  background: #0f1219;
   animation: fadeIn 0.4s ease;
 }
 
@@ -231,8 +231,8 @@
   align-items: center;
   gap: 16px;
   padding: 20px 24px;
-  background: #fff;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 16px;
   transition: all 0.2s ease;
 }
@@ -274,13 +274,13 @@
   font-family: 'Outfit', sans-serif;
   font-size: 24px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   letter-spacing: -0.5px;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #6b7280;
+  color: #9ca3af;
   font-weight: 500;
 }
 
@@ -288,7 +288,7 @@
 .refactoring-section {
   margin-bottom: 40px;
   padding-bottom: 32px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #374151;
 }
 
 .refactoring-section:last-child {
@@ -299,7 +299,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: 20px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 20px 0;
   letter-spacing: -0.3px;
 }
@@ -322,20 +322,20 @@
 .control-label {
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .language-select {
   padding: 12px 16px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1f36;
+  color: #e5e7eb;
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 140px;
@@ -366,13 +366,13 @@
 }
 
 .action-btn.secondary {
-  background: #f9fafb;
-  color: #1a1f36;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  color: #e5e7eb;
+  border: 2px solid #374151;
 }
 
 .action-btn.secondary:hover {
-  background: #f3f4f6;
+  background: #252a3a;
   border-color: #6366f1;
   color: #6366f1;
 }
@@ -394,8 +394,8 @@
 
 /* ===== CODE EDITOR ===== */
 .code-editor-container {
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 20px;
@@ -412,14 +412,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
+  background: #252a3a;
+  border-bottom: 1px solid #374151;
 }
 
 .editor-label {
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -437,12 +437,12 @@
   width: 100%;
   min-height: 300px;
   padding: 20px;
-  background: #ffffff;
+  background: #0f1219;
   border: none;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  color: #1a1f36;
+  color: #e5e7eb;
   resize: vertical;
   outline: none;
 }
@@ -485,8 +485,8 @@
 
 .smell-card {
   padding: 16px 20px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 12px;
   transition: all 0.2s ease;
 }
@@ -517,7 +517,7 @@
 .smell-name {
   font-weight: 700;
   font-size: 15px;
-  color: #1a1f36;
+  color: #f3f4f6;
 }
 
 .severity-badge {
@@ -553,7 +553,7 @@
 
 .smell-description {
   font-size: 13px;
-  color: #6b7280;
+  color: #9ca3af;
   line-height: 1.5;
 }
 
@@ -570,8 +570,8 @@
 }
 
 .suggestion-card {
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 16px;
   overflow: hidden;
   transition: all 0.2s ease;
@@ -587,8 +587,8 @@
   align-items: center;
   gap: 12px;
   padding: 14px 20px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
+  background: #252a3a;
+  border-bottom: 1px solid #374151;
 }
 
 .suggestion-number {
@@ -609,7 +609,7 @@
 .suggestion-title {
   font-weight: 600;
   font-size: 14px;
-  color: #1a1f36;
+  color: #f3f4f6;
 }
 
 .code-comparison {
@@ -643,14 +643,14 @@
 }
 
 .code-block.original {
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid #374151;
 }
 
 .code-block pre {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 12px;
   line-height: 1.6;
-  color: #374151;
+  color: #e5e7eb;
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
@@ -668,7 +668,7 @@
   gap: 12px;
   margin-top: 24px;
   padding-top: 24px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid #374151;
 }
 
 .score-bars {
@@ -686,7 +686,7 @@
 .score-label {
   font-size: 14px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   width: 60px;
   flex-shrink: 0;
 }
@@ -694,7 +694,7 @@
 .score-bar-track {
   flex: 1;
   height: 24px;
-  background: #f3f4f6;
+  background: #252a3a;
   border-radius: 12px;
   overflow: hidden;
 }

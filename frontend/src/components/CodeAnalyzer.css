@@ -10,7 +10,7 @@
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  background: #ffffff !important;
+  background: #0f1219 !important;
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -166,13 +166,13 @@
   margin-left: 260px;
   min-height: 100vh;
   width: 100%;
-  background: #ffffff !important;
+  background: #0f1219 !important;
 }
 
 .analyzer-header {
-  background: #fff;
+  background: #1a1f2e;
   padding: 24px 40px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #2d3348;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -190,20 +190,20 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 4px 0;
   letter-spacing: -0.5px;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #6b7280;
+  color: #9ca3af;
   margin: 0;
 }
 
 .analyzer-content {
   padding: 32px 40px;
-  background: #ffffff;
+  background: #0f1219;
   animation: fadeIn 0.4s ease;
 }
 
@@ -233,7 +233,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: 20px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 20px 0;
   letter-spacing: -0.3px;
 }
@@ -289,20 +289,20 @@
 .control-label {
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .language-select {
   padding: 12px 16px;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 10px;
   font-family: 'DM Sans', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #1a1f36;
+  color: #e5e7eb;
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 140px;
@@ -333,13 +333,13 @@
 }
 
 .action-btn.secondary {
-  background: #f9fafb;
-  color: #1a1f36;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  color: #e5e7eb;
+  border: 2px solid #374151;
 }
 
 .action-btn.secondary:hover {
-  background: #f3f4f6;
+  background: #252a3a;
   border-color: #6366f1;
   color: #6366f1;
 }
@@ -387,8 +387,8 @@
 
 /* ===== CODE EDITOR ===== */
 .code-editor-container {
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 20px;
@@ -405,14 +405,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #e5e7eb;
+  background: #252a3a;
+  border-bottom: 1px solid #374151;
 }
 
 .editor-label {
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -430,12 +430,12 @@
   width: 100%;
   min-height: 300px;
   padding: 20px;
-  background: #ffffff;
+  background: #0f1219;
   border: none;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  color: #1a1f36;
+  color: #e5e7eb;
   resize: vertical;
   outline: none;
 }
@@ -454,8 +454,8 @@
 
 /* ===== BATCH FILES ===== */
 .batch-files-list {
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
+  background: #1e2538;
+  border: 2px solid #374151;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 16px;
@@ -465,7 +465,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: 15px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin: 0 0 12px 0;
 }
 
@@ -474,10 +474,10 @@
   align-items: center;
   gap: 16px;
   padding: 10px 12px;
-  background: #fff;
+  background: #252a3a;
   border-radius: 8px;
   margin-bottom: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #374151;
 }
 
 .batch-file-item:last-child {
@@ -487,18 +487,18 @@
 .batch-file-name {
   font-weight: 600;
   font-size: 14px;
-  color: #1a1f36;
+  color: #f3f4f6;
   flex: 1;
 }
 
 .batch-file-size {
   font-size: 13px;
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .batch-file-time {
   font-size: 12px;
-  color: #9ca3af;
+  color: #6b7280;
 }
 
 .batch-file-active {
@@ -530,11 +530,11 @@
 
 /* ===== RESULT BOX ===== */
 .result-box {
-  background: #f9fafb;
+  background: #1e2538;
   border-radius: 16px;
   padding: 20px;
   margin-top: 20px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid #374151;
   animation: slideUp 0.3s ease;
 }
 
@@ -576,7 +576,7 @@
 .result-title {
   font-size: 15px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -585,7 +585,7 @@
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 13px;
   line-height: 1.6;
-  color: #374151;
+  color: #e5e7eb;
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
@@ -614,8 +614,8 @@
 
 /* ===== VISUAL ANALYSIS RESULTS ===== */
 .analysis-visual-results {
-  background: #fff;
-  border: 2px solid #e5e7eb;
+  background: #1a1f2e;
+  border: 2px solid #374151;
   border-radius: 16px;
   padding: 24px;
   margin-top: 20px;
@@ -625,8 +625,8 @@
 .result-time {
   font-size: 13px;
   font-weight: 600;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: #9ca3af;
+  background: #252a3a;
   padding: 4px 12px;
   border-radius: 12px;
 }
@@ -640,16 +640,16 @@
 }
 
 .metric-card {
-  background: #f9fafb;
+  background: #1e2538;
   border-radius: 12px;
   padding: 20px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #374151;
 }
 
 .metric-label {
   font-size: 13px;
   font-weight: 700;
-  color: #6b7280;
+  color: #9ca3af;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 12px;
@@ -657,7 +657,7 @@
 
 .metric-bar-container {
   height: 28px;
-  background: #f3f4f6;
+  background: #252a3a;
   border-radius: 14px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -690,7 +690,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: 20px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   text-align: right;
 }
 
@@ -706,7 +706,7 @@
   font-family: 'Outfit', sans-serif;
   font-size: 16px;
   font-weight: 700;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin-bottom: 16px;
 }
 
@@ -717,8 +717,8 @@
 }
 
 .clone-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: #1e2538;
+  border: 1px solid #374151;
   border-left: 4px solid #6366f1;
   border-radius: 10px;
   padding: 14px 18px;
@@ -734,7 +734,7 @@
 .clone-type {
   font-weight: 700;
   font-size: 14px;
-  color: #1a1f36;
+  color: #f3f4f6;
 }
 
 .clone-similarity {
@@ -756,8 +756,8 @@
 .clone-location {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: #9ca3af;
+  background: #252a3a;
   padding: 3px 10px;
   border-radius: 8px;
 }
@@ -771,8 +771,8 @@
 }
 
 .analyzer-suggestion-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: #1e2538;
+  border: 1px solid #374151;
   border-left: 4px solid #f59e0b;
   border-radius: 10px;
   padding: 14px 18px;
@@ -781,13 +781,13 @@
 .analyzer-suggestion-type {
   font-weight: 700;
   font-size: 14px;
-  color: #1a1f36;
+  color: #f3f4f6;
   margin-bottom: 6px;
 }
 
 .analyzer-suggestion-text {
   font-size: 13px;
-  color: #6b7280;
+  color: #9ca3af;
   line-height: 1.5;
 }
 
@@ -798,8 +798,8 @@
 
 /* Batch Suggestions */
 .batch-suggestions {
-  background: #fff;
-  border: 2px solid #e5e7eb;
+  background: #1a1f2e;
+  border: 2px solid #374151;
   border-radius: 16px;
   padding: 24px;
   margin-top: 20px;
@@ -814,8 +814,8 @@
 }
 
 .batch-suggestion-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: #1e2538;
+  border: 1px solid #374151;
   border-radius: 10px;
   padding: 14px 18px;
 }
@@ -842,7 +842,7 @@
 .batch-suggestion-type {
   font-weight: 700;
   font-size: 14px;
-  color: #1a1f36;
+  color: #f3f4f6;
 }
 
 .severity-badge {
@@ -871,7 +871,7 @@
 
 .batch-suggestion-desc {
   font-size: 13px;
-  color: #6b7280;
+  color: #9ca3af;
   line-height: 1.5;
   margin-bottom: 4px;
 }
