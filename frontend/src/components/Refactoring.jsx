@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Logo from './Logo';
 import './Refactoring.css';
 
 const PYTHON_SMELLY = `def process_data(data):
@@ -169,7 +170,7 @@ function Refactoring() {
       {/* Side Panel */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1 className="sidebar-logo">Dashboard</h1>
+          <Logo />
         </div>
 
         <nav className="sidebar-nav">

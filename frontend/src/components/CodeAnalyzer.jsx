@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JSZip from 'jszip';
+import Logo from './Logo';
 import './CodeAnalyzer.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -406,7 +407,7 @@ function CodeAnalyzer() {
       {/* Side Panel */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1 className="sidebar-logo">Dashboard</h1>
+          <Logo />
         </div>
         
         <nav className="sidebar-nav">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Logo from './Logo';
 import './Dashboard.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -10,6 +11,11 @@ function Dashboard() {
     try { return userStr ? JSON.parse(userStr) : null; } catch { return null; }
   });
   const [showHelp, setShowHelp] = useState(false);
+  const [stats, setStats] = useState({
+    totalFiles: 0,
+    totalHistory: 0,
+    activeProjects: 0,
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,29 +26,65 @@ function Dashboard() {
       return;
     }
 
-    fetch(`${API}/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (res.status === 401 || res.status === 422) {
-          // Token is actually invalid/expired — log out
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          navigate('/login');
-          return null;
-        }
-        if (!res.ok) return null; // server error — keep cached user
-        return res.json();
+    const fetchUserData = () => {
+      fetch(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .then((data) => {
-        if (data && data.user) {
-          setUser(data.user);
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
+        .then((res) => {
+          if (res.status === 401 || res.status === 422) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            navigate('/login');
+            return null;
+          }
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then((data) => {
+          if (data && data.user) {
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
+        })
+        .catch(() => {});
+    };
+
+    const fetchStats = () => {
+      // Fetch files count
+      fetch(`${API}/auth/files`, {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch(() => {
-        // Network error — keep cached user, don't log out
-      });
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data && data.files) {
+            setStats((prev) => ({ ...prev, totalFiles: data.files.length }));
+          }
+        })
+        .catch(() => {});
+
+      // Fetch history count
+      fetch(`${API}/auth/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data && data.history) {
+            setStats((prev) => ({ ...prev, totalHistory: data.history.length }));
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchUserData();
+    fetchStats();
+
+    // Poll for updates every 10 seconds
+    const interval = setInterval(() => {
+      fetchUserData();
+      fetchStats();
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [navigate]);
 
   useEffect(() => {
@@ -77,7 +119,7 @@ function Dashboard() {
       {/* Side Panel */}
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1 className="sidebar-logo">Dashboard</h1>
+          <Logo />
         </div>
         
         <nav className="sidebar-nav">
@@ -171,14 +213,18 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon">📅</div>
+              <div className="stat-icon">📁</div>
               <div className="stat-info">
-                <div className="stat-label">Member Since</div>
-                <div className="stat-value">
-                  {user.created_at 
-                    ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-                    : 'N/A'}
-                </div>
+                <div className="stat-label">Total Files</div>
+                <div className="stat-value">{stats.totalFiles}</div>
+              </div>
+            </div>
+            
+            <div className="stat-card">
+              <div className="stat-icon">📜</div>
+              <div className="stat-info">
+                <div className="stat-label">Activities</div>
+                <div className="stat-value">{stats.totalHistory}</div>
               </div>
             </div>
             
@@ -186,15 +232,7 @@ function Dashboard() {
               <div className="stat-icon">✅</div>
               <div className="stat-info">
                 <div className="stat-label">Active Projects</div>
-                <div className="stat-value">0</div>
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-icon">⚡</div>
-              <div className="stat-info">
-                <div className="stat-label">Recent Activity</div>
-                <div className="stat-value">Today</div>
+                <div className="stat-value">{stats.activeProjects}</div>
               </div>
             </div>
           </div>

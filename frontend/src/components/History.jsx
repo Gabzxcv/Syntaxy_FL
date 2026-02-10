@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Logo from './Logo';
 import './History.css';
+
+const API = 'http://localhost:5000/api/v1';
 
 const DEFAULT_HISTORY_DATA = [
   { id: 1, type: 'analysis', icon: '🔍', description: 'Analyzed Python code - 15.3% clone detected', time: '2024-12-01T10:00:00Z', status: 'success' },
@@ -49,6 +52,7 @@ function computeStats(data, now) {
 function History() {
   const [filter, setFilter] = useState('all');
   const [showHelp, setShowHelp] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const userStr = localStorage.getItem('user');
@@ -71,9 +75,63 @@ function History() {
         return parsed;
       } catch { /* ignore */ }
     }
-    localStorage.setItem(historyKey, JSON.stringify(DEFAULT_HISTORY_DATA));
     return DEFAULT_HISTORY_DATA;
   });
+
+  // Load history from backend on mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/login');
+      return;
+    }
+
+    fetch(`${API}/auth/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.status === 401 || res.status === 422) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+          return null;
+        }
+        if (!res.ok) throw new Error('Failed to fetch history');
+        return res.json();
+      })
+      .then((data) => {
+        if (data && data.history && data.history.length > 0) {
+          // Convert backend history to frontend format
+          const formattedHistory = data.history.map((h) => {
+            let icon = '📋';
+            if (h.activity_type === 'analysis') icon = '🔍';
+            else if (h.activity_type === 'upload') icon = '📤';
+            else if (h.activity_type === 'refactoring') icon = '🔄';
+            
+            return {
+              id: h.id,
+              type: h.activity_type,
+              icon: icon,
+              description: h.description,
+              time: h.created_at,
+              status: 'success',
+            };
+          });
+          setHistoryData(formattedHistory);
+          localStorage.setItem(historyKey, JSON.stringify(formattedHistory));
+        } else {
+          // Use default if no history from backend
+          localStorage.setItem(historyKey, JSON.stringify(DEFAULT_HISTORY_DATA));
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading history:', err);
+        // Keep using localStorage data
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [navigate, historyKey]);
 
   useEffect(() => {
     if (localStorage.getItem('darkMode') === 'true') {
@@ -84,7 +142,7 @@ function History() {
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
+      fetch(`${API}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
@@ -105,19 +163,50 @@ function History() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const stored = localStorage.getItem(historyKey);
-      let current = historyData;
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setHistoryData(parsed);
-          current = parsed;
-        } catch { /* ignore */ }
-      }
-      setStats(computeStats(current, Date.now()));
-    }, 2000);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      // Refresh history from backend
+      fetch(`${API}/auth/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then((data) => {
+          if (data && data.history && data.history.length > 0) {
+            const formattedHistory = data.history.map((h) => {
+              let icon = '📋';
+              if (h.activity_type === 'analysis') icon = '🔍';
+              else if (h.activity_type === 'upload') icon = '📤';
+              else if (h.activity_type === 'refactoring') icon = '🔄';
+              
+              return {
+                id: h.id,
+                type: h.activity_type,
+                icon: icon,
+                description: h.description,
+                time: h.created_at,
+                status: 'success',
+              };
+            });
+            setHistoryData(formattedHistory);
+            localStorage.setItem(historyKey, JSON.stringify(formattedHistory));
+          }
+        })
+        .catch(() => {
+          // Fallback to localStorage
+          const stored = localStorage.getItem(historyKey);
+          if (stored) {
+            try {
+              setHistoryData(JSON.parse(stored));
+            } catch { /* ignore */ }
+          }
+        });
+    }, 5000); // Refresh every 5 seconds
     return () => clearInterval(interval);
-  }, [historyKey, historyData]);
+  }, [historyKey]);
 
   const { totalActivities, thisWeek, today } = stats;
 
@@ -125,7 +214,7 @@ function History() {
     <div className="history-layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1 className="sidebar-logo">Dashboard</h1>
+          <Logo />
         </div>
         <nav className="sidebar-nav">
           <button className="nav-item" onClick={() => navigate('/dashboard')}>
