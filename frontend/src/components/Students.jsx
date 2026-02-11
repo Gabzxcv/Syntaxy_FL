@@ -113,6 +113,14 @@ function Students() {
     return null;
   }
 
+  // Reusable avatar renderer for student list rows
+  function renderStudentAvatar(student) {
+    const pic = getStudentProfilePic(student);
+    return pic
+      ? <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+      : student.name.charAt(0);
+  }
+
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
@@ -449,10 +457,7 @@ function Students() {
                               <td>
                                 <div className="student-name-cell">
                                   <div className="student-avatar-small">
-                                    {(() => {
-                                      const pic = getStudentProfilePic(student);
-                                      return pic ? <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : student.name.charAt(0);
-                                    })()}
+                                    {renderStudentAvatar(student)}
                                   </div>
                                   <span className="student-name">{student.name}</span>
                                 </div>
@@ -563,10 +568,7 @@ function Students() {
                         <td>
                           <div className="student-name-cell">
                             <div className="student-avatar-small">
-                              {(() => {
-                                const pic = getStudentProfilePic(student);
-                                return pic ? <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : student.name.charAt(0);
-                              })()}
+                              {renderStudentAvatar(student)}
                             </div>
                             <span className="student-name">{student.name}</span>
                           </div>
