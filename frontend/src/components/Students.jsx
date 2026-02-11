@@ -100,6 +100,19 @@ function Students() {
   const totalStudents = visibleSections.reduce((acc, s) => acc + s.students.length, 0);
   const totalSubmissions = visibleSections.reduce((acc, s) => acc + s.students.reduce((a, st) => a + st.submissions, 0), 0);
 
+  // Helper to get a student's profile picture from localStorage
+  function getStudentProfilePic(student) {
+    if (!student) return null;
+    // Try matching by registered student ID
+    const match = registeredStudents.find(rs => 
+      rs.email && student.email && rs.email.toLowerCase() === student.email.toLowerCase()
+    );
+    if (match) {
+      return localStorage.getItem('profilePicture_' + match.id);
+    }
+    return null;
+  }
+
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
@@ -436,7 +449,10 @@ function Students() {
                               <td>
                                 <div className="student-name-cell">
                                   <div className="student-avatar-small">
-                                    {student.name.charAt(0)}
+                                    {(() => {
+                                      const pic = getStudentProfilePic(student);
+                                      return pic ? <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : student.name.charAt(0);
+                                    })()}
                                   </div>
                                   <span className="student-name">{student.name}</span>
                                 </div>
@@ -547,7 +563,10 @@ function Students() {
                         <td>
                           <div className="student-name-cell">
                             <div className="student-avatar-small">
-                              {student.name.charAt(0)}
+                              {(() => {
+                                const pic = getStudentProfilePic(student);
+                                return pic ? <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : student.name.charAt(0);
+                              })()}
                             </div>
                             <span className="student-name">{student.name}</span>
                           </div>
@@ -591,12 +610,18 @@ function Students() {
             <div className="help-modal-body">
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                 <div style={{ 
-                  width: '64px', height: '64px', borderRadius: '50%', 
-                  background: 'var(--accent-color, #6366f1)', 
+                  width: '80px', height: '80px', borderRadius: '50%', 
+                  background: 'var(--accent-color, #334195)', 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '24px', fontWeight: '700', color: '#fff', margin: '0 auto 12px'
+                  fontSize: '28px', fontWeight: '700', color: '#fff', margin: '0 auto 12px',
+                  overflow: 'hidden'
                 }}>
-                  {selectedStudent.name.charAt(0).toUpperCase()}
+                  {(() => {
+                    const pic = getStudentProfilePic(selectedStudent);
+                    return pic 
+                      ? <img src={pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> 
+                      : selectedStudent.name.charAt(0).toUpperCase();
+                  })()}
                 </div>
                 <div style={{ fontSize: '18px', fontWeight: '700', color: '#f3f4f6' }}>{selectedStudent.name}</div>
                 <div style={{ fontSize: '14px', color: '#9ca3af' }}>{selectedStudent.email}</div>
