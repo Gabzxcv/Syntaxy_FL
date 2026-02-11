@@ -85,7 +85,7 @@
 .nav-item.active {
   background: rgba(99, 102, 241, 0.15);
   color: #fff;
-  border-left-color: #6366f1;
+  border-left-color: var(--accent-color, #6366f1);
 }
 
 .nav-icon {
@@ -118,7 +118,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -258,7 +258,7 @@
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #4f46e5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -319,7 +319,7 @@
 }
 
 .search-bar:focus-within {
-  border-color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -407,12 +407,12 @@
 }
 
 .role-select:hover {
-  border-color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
 }
 
 .role-select:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -496,8 +496,8 @@
 }
 
 .reset-color-btn:hover {
-  border-color: #6366f1;
-  color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
+  color: var(--accent-color, #6366f1);
 }
 
 /* ===== LOADING ===== */

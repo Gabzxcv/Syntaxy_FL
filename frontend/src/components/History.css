@@ -85,7 +85,7 @@
 .nav-item.active {
   background: rgba(99, 102, 241, 0.15);
   color: #fff;
-  border-left-color: #6366f1;
+  border-left-color: var(--accent-color, #6366f1);
 }
 
 .nav-icon {
@@ -118,7 +118,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -248,7 +248,7 @@
 }
 
 .stat-card:hover {
-  border-color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
 }
 
@@ -259,7 +259,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
   border-radius: 14px;
   flex-shrink: 0;
 }
@@ -307,12 +307,12 @@
 }
 
 .filter-btn:hover {
-  border-color: #6366f1;
-  color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
+  color: var(--accent-color, #6366f1);
 }
 
 .filter-btn.active {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
   color: #fff;
   border-color: transparent;
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
@@ -332,14 +332,14 @@
   padding: 20px;
   background: #1e2538;
   border: 2px solid #374151;
-  border-left: 5px solid #6366f1;
+  border-left: 5px solid var(--accent-color, #6366f1);
   border-radius: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .timeline-item:hover {
-  border-color: #6366f1;
+  border-color: var(--accent-color, #6366f1);
   box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
   transform: translateX(4px);
 }
@@ -404,7 +404,7 @@
 
 .timeline-status.info {
   background: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
+  color: var(--accent-color, #6366f1);
 }
 
 /* ===== RESPONSIVE ===== */

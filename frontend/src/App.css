@@ -299,7 +299,7 @@ body.dark-mode .nav-item:hover {
 }
 body.dark-mode .nav-item.active {
   background: #1e2538;
-  color: #6366f1;
+  color: var(--accent-color, #6366f1);
 }
 body.dark-mode .user-name {
   color: #e5e7eb;
