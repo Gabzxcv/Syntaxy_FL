@@ -439,6 +439,7 @@
 .editor-body {
   position: relative;
   min-height: 300px;
+  max-height: 500px;
   background: #0f1219;
   overflow: hidden;
 }
@@ -466,6 +467,7 @@
   position: relative;
   width: 100%;
   min-height: 300px;
+  max-height: 500px;
   padding: 20px;
   background: transparent !important;
   background-color: transparent !important;
@@ -479,6 +481,7 @@
   outline: none;
   z-index: 1;
   -webkit-text-fill-color: transparent;
+  overflow-y: auto;
 }
 
 .code-editor::placeholder {
