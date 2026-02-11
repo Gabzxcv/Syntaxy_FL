@@ -288,7 +288,6 @@ function Refactoring() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                <span className="btn-icon"></span>
                 Load Sample
               </button>
             </div>
@@ -307,7 +306,6 @@ function Refactoring() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={handleAnalyze}>
-              <span className="btn-icon"></span>
               Analyze &amp; Refactor
             </button>
           </section>
@@ -375,11 +373,9 @@ function Refactoring() {
               {/* Cross-page link */}
               <div className="cross-page-actions">
                 <button className="action-btn primary" onClick={() => navigate('/analyzer')}>
-                  <span className="btn-icon"></span>
                   Analyze More Code
                 </button>
                 <button className="action-btn secondary" onClick={() => navigate('/students')}>
-                  <span className="btn-icon"></span>
                   View Analysis Results
                 </button>
               </div>

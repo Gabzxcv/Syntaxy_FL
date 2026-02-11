@@ -35,3 +35,6 @@ htmlcov/
 *.db
 *.sqlite
 *.sqlite3
+
+# Runtime data
+theme.json

@@ -582,3 +582,46 @@ def admin_change_role(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/admin/theme', methods=['GET'])
+def get_theme():
+    """Get the global UI theme color (public endpoint)"""
+    try:
+        import json, os
+        theme_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'theme.json')
+        if os.path.exists(theme_file):
+            with open(theme_file, 'r') as f:
+                data = json.load(f)
+                return jsonify(data), 200
+        return jsonify({'accentColor': '#6366f1'}), 200
+    except Exception:
+        return jsonify({'accentColor': '#6366f1'}), 200
+
+
+@bp.route('/admin/theme', methods=['PUT'])
+@jwt_required()
+def set_theme():
+    """Admin: set the global UI theme color"""
+    try:
+        current_user_id = get_jwt_identity()
+        admin = db.session.get(User, current_user_id)
+        if not admin or admin.role != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+
+        data = request.get_json()
+        if not data or not data.get('accentColor'):
+            return jsonify({'error': 'accentColor is required'}), 400
+
+        import json, os, re
+        color = data['accentColor'].strip()
+        if not re.match(r'^#[0-9a-fA-F]{6}$', color):
+            return jsonify({'error': 'Invalid color format'}), 400
+
+        theme_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'theme.json')
+        with open(theme_file, 'w') as f:
+            json.dump({'accentColor': color}, f)
+
+        return jsonify({'message': 'Theme updated', 'accentColor': color}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

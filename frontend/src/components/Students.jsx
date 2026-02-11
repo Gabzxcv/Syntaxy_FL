@@ -350,7 +350,6 @@ function Students() {
               <h3 className="section-title">{isStudent ? 'My Sections' : 'Sections'}</h3>
               {!isStudent && (
                 <button className="action-btn primary" onClick={() => setShowAddSection(!showAddSection)}>
-                  <span className="btn-icon"></span>
                   Add Section
                 </button>
               )}
@@ -404,7 +403,6 @@ function Students() {
                 <div className="section-header">
                   <h3 className="section-title">{section.name}</h3>
                   <button className="action-btn primary" onClick={() => { setAddStudentSection(section.id); setShowAddStudent(true); }}>
-                    <span className="btn-icon"></span>
                     Add Student
                   </button>
                 </div>
@@ -478,7 +476,6 @@ function Students() {
               </h3>
               {!isStudent && (
                 <button className="action-btn primary" onClick={() => setShowAddStudent(!showAddStudent)}>
-                  <span className="btn-icon"></span>
                   Add Student
                 </button>
               )}

@@ -391,7 +391,6 @@ function Settings() {
                   }
                 }}
               >
-                <span className="btn-icon"></span>
                 {accountSaving ? 'Saving...' : 'Save Account'}
               </button>
             </div>
@@ -489,7 +488,6 @@ function Settings() {
               Cancel
             </button>
             <button className="action-btn primary" onClick={saveSettings}>
-              <span className="btn-icon"></span>
               Save Settings
             </button>
           </div>

@@ -111,12 +111,29 @@ function Admin() {
     setAccentColor(color);
     localStorage.setItem('uiAccentColor', color);
     document.documentElement.style.setProperty('--accent-color', color);
+    // Persist to backend for all users
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API}/auth/admin/theme`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accentColor: color }),
+      }).catch(() => {});
+    }
   }
 
   function handleResetAccent() {
     setAccentColor(DEFAULT_ACCENT);
     localStorage.setItem('uiAccentColor', DEFAULT_ACCENT);
     document.documentElement.style.setProperty('--accent-color', DEFAULT_ACCENT);
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API}/auth/admin/theme`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accentColor: DEFAULT_ACCENT }),
+      }).catch(() => {});
+    }
   }
 
   function handleLogout() {

@@ -541,7 +541,6 @@ function CodeAnalyzer() {
                 Health Check
               </button>
               <button className="test-btn" onClick={testLanguages}>
-                <span className="btn-icon"></span>
                 Get Languages
               </button>
             </div>
@@ -586,16 +585,13 @@ function CodeAnalyzer() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                <span className="btn-icon"></span>
                 Load Sample
               </button>
 
               <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
-                <span className="btn-icon"></span>
                 Upload File
               </button>
               <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
-                <span className="btn-icon"></span>
                 Upload Zip
               </button>
               <input
@@ -653,17 +649,77 @@ function CodeAnalyzer() {
                       </span>
                     )}
                     <button className="action-btn secondary batch-file-btn" onClick={() => handleSelectExtractedFile(ef)}>
-                      <span className="btn-icon"></span>
                       View
                     </button>
                     <button className="action-btn primary batch-file-btn" onClick={() => handleAnalyzeExtractedFile(ef)}>
-                      <span className="btn-icon"></span>
                       {ef.analyzed ? 'Re-scan' : 'Scan'}
                     </button>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* Per-Section Analytics */}
+            {(() => {
+              const analyzedWithSection = extractedFiles.filter(f => f.analyzed && f.section && f.result);
+              if (analyzedWithSection.length === 0) return null;
+              const sectionMap = {};
+              analyzedWithSection.forEach(f => {
+                const sName = getSectionName(f.section) || f.section;
+                if (!sectionMap[sName]) sectionMap[sName] = [];
+                sectionMap[sName].push(f);
+              });
+              return (
+                <div className="section-analytics">
+                  <h4 className="subsection-title">Section Analytics</h4>
+                  <div className="section-analytics-grid">
+                    {Object.entries(sectionMap).map(([sName, files]) => {
+                      const avgClone = (files.reduce((sum, f) => sum + (f.result.clone_percentage || 0), 0) / files.length).toFixed(1);
+                      const avgComplexity = (files.reduce((sum, f) => sum + (f.result.cyclomatic_complexity || 0), 0) / files.length).toFixed(1);
+                      const avgMaint = (files.reduce((sum, f) => sum + (f.result.maintainability_index || 0), 0) / files.length).toFixed(1);
+                      const highClone = files.filter(f => f.result.clone_percentage > 30).length;
+                      return (
+                        <div key={sName} className="section-analytics-card">
+                          <div className="section-analytics-header">{sName}</div>
+                          <div className="section-analytics-stats">
+                            <div className="section-stat">
+                              <span className="section-stat-label">Files</span>
+                              <span className="section-stat-value">{files.length}</span>
+                            </div>
+                            <div className="section-stat">
+                              <span className="section-stat-label">Avg Clone</span>
+                              <span className={`section-stat-value ${avgClone > 30 ? 'high' : avgClone > 15 ? 'medium' : 'low'}`}>{avgClone}%</span>
+                            </div>
+                            <div className="section-stat">
+                              <span className="section-stat-label">Avg Complexity</span>
+                              <span className="section-stat-value">{avgComplexity}</span>
+                            </div>
+                            <div className="section-stat">
+                              <span className="section-stat-label">Avg Maintainability</span>
+                              <span className="section-stat-value">{avgMaint}/100</span>
+                            </div>
+                            {highClone > 0 && (
+                              <div className="section-stat">
+                                <span className="section-stat-label">High Clone Files</span>
+                                <span className="section-stat-value high">{highClone}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="section-file-list">
+                            {files.map(f => (
+                              <div key={f.id} className="section-file-row">
+                                <span className="section-file-name">{f.name.split('/').pop()}</span>
+                                <span className={`severity-badge ${getExtractedFileSeverityClass(f)}`}>{f.result.clone_percentage}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="code-editor-container">
               <div className="editor-header">
@@ -690,7 +746,6 @@ function CodeAnalyzer() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={analyze}>
-              <span className="btn-icon"></span>
               Analyze Code
             </button>
 
@@ -789,7 +844,6 @@ function CodeAnalyzer() {
                       localStorage.setItem('refactoringLanguage', language);
                       navigate('/refactoring');
                     }}>
-                      <span className="btn-icon"></span>
                       Open in Refactoring Tool
                     </button>
                   </div>
@@ -818,7 +872,6 @@ function CodeAnalyzer() {
                   localStorage.setItem('refactoringLanguage', language);
                   navigate('/refactoring');
                 }}>
-                  <span className="btn-icon"></span>
                   View Detailed Refactoring
                 </button>
               </div>

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CodeAnalyzer from './components/CodeAnalyzer';
@@ -11,6 +12,18 @@ import Admin from './components/Admin';
 import './App.css';
 
 function App() {
+  useEffect(() => {
+    fetch('http://localhost:5000/api/v1/auth/admin/theme')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.accentColor) {
+          document.documentElement.style.setProperty('--accent-color', data.accentColor);
+          localStorage.setItem('uiAccentColor', data.accentColor);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <BrowserRouter>
       <div className="app-wrapper">
