@@ -7,6 +7,9 @@ from flask_jwt_extended import (
 )
 from app.models import db, User, Analysis, Section, Student, HistoryEntry, UploadedFile
 from datetime import datetime, timezone
+import json
+import os
+import re
 
 bp = Blueprint('auth', __name__)
 
@@ -588,7 +591,6 @@ def admin_change_role(user_id):
 def get_theme():
     """Get the global UI theme color (public endpoint)"""
     try:
-        import json, os
         theme_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'theme.json')
         if os.path.exists(theme_file):
             with open(theme_file, 'r') as f:
@@ -613,7 +615,6 @@ def set_theme():
         if not data or not data.get('accentColor'):
             return jsonify({'error': 'accentColor is required'}), 400
 
-        import json, os, re
         color = data['accentColor'].strip()
         if not re.match(r'^#[0-9a-fA-F]{6}$', color):
             return jsonify({'error': 'Invalid color format'}), 400

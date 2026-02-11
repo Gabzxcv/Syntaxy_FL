@@ -11,9 +11,11 @@ import Settings from './components/settings';
 import Admin from './components/Admin';
 import './App.css';
 
+const API = 'http://localhost:5000/api/v1';
+
 function App() {
   useEffect(() => {
-    fetch('http://localhost:5000/api/v1/auth/admin/theme')
+    fetch(`${API}/auth/admin/theme`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && data.accentColor) {
