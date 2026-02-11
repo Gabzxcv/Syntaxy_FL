@@ -16,6 +16,12 @@ function Admin() {
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('uiAccentColor') || DEFAULT_ACCENT;
   });
+  const [newSectionName, setNewSectionName] = useState('');
+  const [assignInstructor, setAssignInstructor] = useState('');
+  const [adminSections, setAdminSections] = useState(() => {
+    const saved = localStorage.getItem('savedSections');
+    return saved ? JSON.parse(saved) : [];
+  });
   const navigate = useNavigate();
   const profilePic = user ? localStorage.getItem('profilePicture_' + user.id) : null;
 
@@ -134,6 +140,29 @@ function Admin() {
         body: JSON.stringify({ accentColor: DEFAULT_ACCENT }),
       }).catch(() => {});
     }
+  }
+
+  function handleCreateSection() {
+    if (!newSectionName.trim()) return;
+    const newSection = {
+      id: Date.now().toString(),
+      name: newSectionName.trim(),
+      instructor: assignInstructor || null,
+      students: [],
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [...adminSections, newSection];
+    setAdminSections(updated);
+    localStorage.setItem('savedSections', JSON.stringify(updated));
+    setNewSectionName('');
+    setAssignInstructor('');
+  }
+
+  function handleDeleteSection(sectionId) {
+    if (!window.confirm('Are you sure you want to delete this section?')) return;
+    const updated = adminSections.filter(s => s.id !== sectionId);
+    setAdminSections(updated);
+    localStorage.setItem('savedSections', JSON.stringify(updated));
   }
 
   function handleLogout() {
@@ -363,7 +392,7 @@ function Admin() {
 
           {/* UI Theme Color */}
           <div className="admin-section">
-            <h4 className="section-title">UI Theme Color</h4>
+            <h4 className="section-title">🎨 UI Theme Color</h4>
             <div className="color-picker-section">
               <div className="color-swatch" style={{ backgroundColor: accentColor }} />
               <input
@@ -377,6 +406,78 @@ function Admin() {
                 Reset to Default
               </button>
             </div>
+          </div>
+
+          {/* Section Management */}
+          <div className="admin-section">
+            <h4 className="section-title">📚 Section Management</h4>
+            <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '16px' }}>
+              Create sections and assign them to instructors. Sections will be available for file uploads and batch analysis.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                className="search-input"
+                placeholder="New section name..."
+                value={newSectionName}
+                onChange={(e) => setNewSectionName(e.target.value)}
+                style={{ flex: 1, minWidth: '200px', padding: '10px 16px', background: '#1e2538', border: '2px solid #374151', borderRadius: '10px', color: '#e5e7eb', fontSize: '14px' }}
+              />
+              <select
+                className="role-select"
+                value={assignInstructor}
+                onChange={(e) => setAssignInstructor(e.target.value)}
+                style={{ minWidth: '200px' }}
+              >
+                <option value="">Assign to instructor...</option>
+                {users.filter(u => u.role === 'instructor').map(u => (
+                  <option key={u._id || u.id} value={u.username}>{u.full_name || u.username}</option>
+                ))}
+              </select>
+              <button
+                className="action-btn primary"
+                onClick={handleCreateSection}
+                style={{ padding: '10px 20px', background: 'var(--accent-color, #6366f1)', border: 'none', borderRadius: '10px', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+              >
+                ➕ Create Section
+              </button>
+            </div>
+
+            {adminSections.length === 0 ? (
+              <p style={{ color: '#6b7280', textAlign: 'center', padding: '20px' }}>No sections created yet</p>
+            ) : (
+              <div className="table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Section Name</th>
+                      <th>Assigned Instructor</th>
+                      <th>Students</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminSections.map((sec) => (
+                      <tr key={sec.id}>
+                        <td style={{ fontWeight: 600 }}>{sec.name}</td>
+                        <td>{sec.instructor || '—'}</td>
+                        <td>{(sec.students || []).length}</td>
+                        <td>{sec.createdAt ? new Date(sec.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                        <td>
+                          <button
+                            className="delete-btn"
+                            onClick={() => handleDeleteSection(sec.id)}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </main>
