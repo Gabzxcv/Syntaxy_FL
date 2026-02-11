@@ -467,12 +467,13 @@
   width: 100%;
   min-height: 300px;
   padding: 20px;
-  background: transparent;
+  background: transparent !important;
+  background-color: transparent !important;
   border: none;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  color: transparent;
+  color: transparent !important;
   caret-color: #e5e7eb;
   resize: none;
   outline: none;
@@ -482,6 +483,7 @@
 
 .code-editor::placeholder {
   color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
 }
 
 /* Syntax highlighting colors - VS Code Dark+ theme */

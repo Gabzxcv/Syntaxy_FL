@@ -165,8 +165,9 @@ body.dark-mode .code-editor-container {
   border-color: #374151;
 }
 body.dark-mode .code-editor {
-  background: #0f1419;
-  color: #e5e7eb;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
 }
 body.dark-mode .editor-header {
   background: #1e2538;
