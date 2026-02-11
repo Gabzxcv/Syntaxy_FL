@@ -83,9 +83,9 @@
 }
 
 .nav-item.active {
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(51, 65, 149, 0.15);
   color: #fff;
-  border-left-color: var(--accent-color, #6366f1);
+  border-left-color: var(--accent-color, #334195);
 }
 
 .nav-icon {
@@ -118,7 +118,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #334195), #647aa3);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -333,7 +333,7 @@
 }
 
 input:checked + .toggle-slider {
-  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #334195), #647aa3);
 }
 
 input:checked + .toggle-slider:before {
@@ -363,14 +363,14 @@ input:disabled + .toggle-slider {
 
 .setting-select:hover,
 .setting-input:hover {
-  border-color: var(--accent-color, #6366f1);
+  border-color: var(--accent-color, #334195);
 }
 
 .setting-select:focus,
 .setting-input:focus {
   outline: none;
-  border-color: var(--accent-color, #6366f1);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  border-color: var(--accent-color, #334195);
+  box-shadow: 0 0 0 3px rgba(51, 65, 149, 0.1);
 }
 
 /* ===== ACCOUNT INFO CARD ===== */
@@ -412,7 +412,7 @@ input:disabled + .toggle-slider {
   display: inline-flex;
   align-items: center;
   padding: 6px 16px;
-  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #334195), #647aa3);
   color: #fff;
   border-radius: 20px;
   font-size: 13px;
@@ -449,19 +449,19 @@ input:disabled + .toggle-slider {
 
 .action-btn.secondary:hover {
   background: #252a3a;
-  border-color: var(--accent-color, #6366f1);
-  color: var(--accent-color, #6366f1);
+  border-color: var(--accent-color, #334195);
+  color: var(--accent-color, #334195);
 }
 
 .action-btn.primary {
-  background: linear-gradient(135deg, var(--accent-color, #6366f1), #8b5cf6);
+  background: linear-gradient(135deg, var(--accent-color, #334195), #647aa3);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  box-shadow: 0 2px 8px rgba(51, 65, 149, 0.2);
 }
 
 .action-btn.primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 4px 12px rgba(51, 65, 149, 0.3);
 }
 
 .btn-icon {

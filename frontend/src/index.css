@@ -1,5 +1,11 @@
 :root {
-  --accent-color: #6366f1;
+  --accent-color: #334195;
+  --electric-royal: #020887;
+  --french-blue: #334195;
+  --glaucous: #647aa3;
+  --cool-steel: #7d96aa;
+  --ash-grey: #95b2b0;
+  --tea-green: #c6ebbe;
 }
 
 * {

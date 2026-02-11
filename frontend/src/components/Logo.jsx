@@ -12,16 +12,14 @@ import React from 'react';
  */
 
 const Logo = ({ className = '', style = {} }) => {
-  // CUSTOMIZE YOUR LOGO PATH HERE:
-  const logoPath = '/logo.png'; // Replace with your logo path, e.g., '/logo.png'
+  const logoPath = '/logo.png';
   const logoAlt = 'Syntaxy Logo';
   
-  // Optional: Use text logo instead of image by setting useTextLogo to true
   const useTextLogo = false;
-  const textLogo = 'Dashboard';
+  const textLogo = 'Syntaxy';
 
   return (
-    <div className={`logo-container ${className}`} style={style}>
+    <div className={`logo-container ${className}`} style={{ display: 'flex', justifyContent: 'center', padding: '8px 0', background: 'transparent', border: 'none', ...style }}>
       {useTextLogo ? (
         <h1 className="sidebar-logo">{textLogo}</h1>
       ) : (
@@ -29,7 +27,7 @@ const Logo = ({ className = '', style = {} }) => {
           src={logoPath} 
           alt={logoAlt} 
           className="logo-image"
-          style={{ maxWidth: '160px', height: 'auto' }}
+          style={{ width: '200px', maxWidth: '100%', height: 'auto', display: 'block', filter: 'drop-shadow(0 2px 8px rgba(51, 65, 149, 0.4))' }}
         />
       )}
     </div>

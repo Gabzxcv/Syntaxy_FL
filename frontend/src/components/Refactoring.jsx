@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Refactoring.css';
@@ -105,6 +105,43 @@ for threshold, label in sorted(THRESHOLDS.items()):
 
 const MOCK_QUALITY_SCORES = { before: 42, after: 87 };
 
+function highlightCode(code, language) {
+  if (!code) return '';
+  const pythonKeywords = ['def', 'class', 'if', 'elif', 'else', 'for', 'while', 'return', 'import', 'from', 'as', 'try', 'except', 'finally', 'with', 'yield', 'lambda', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'print', 'self', 'raise', 'del', 'global', 'nonlocal', 'assert'];
+  const javaKeywords = ['public', 'private', 'protected', 'static', 'final', 'class', 'interface', 'extends', 'implements', 'void', 'int', 'double', 'float', 'boolean', 'String', 'char', 'long', 'short', 'byte', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'break', 'continue', 'return', 'new', 'this', 'super', 'try', 'catch', 'finally', 'throw', 'throws', 'import', 'package', 'null', 'true', 'false', 'abstract', 'synchronized'];
+  const keywords = language === 'python' ? pythonKeywords : javaKeywords;
+  const keywordPattern = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
+  return code.split('\n').map(line => {
+    let esc = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const trimmed = esc.trimStart();
+    if (language === 'python' && trimmed.startsWith('#'))
+      return '<span class="syntax-comment">' + esc + '</span>';
+    if (language !== 'python' && trimmed.startsWith('//'))
+      return '<span class="syntax-comment">' + esc + '</span>';
+    const parts = [];
+    let rest = esc;
+    const strRe = /(["'])(?:(?=(\\?))\2.)*?\1/;
+    while (rest) {
+      const m = rest.match(strRe);
+      if (!m) { parts.push({ t: 'c', v: rest }); break; }
+      if (m.index > 0) parts.push({ t: 'c', v: rest.slice(0, m.index) });
+      parts.push({ t: 's', v: m[0] });
+      rest = rest.slice(m.index + m[0].length);
+    }
+    return parts.map(p => {
+      if (p.t === 's') return '<span class="syntax-string">' + p.v + '</span>';
+      let s = p.v;
+      s = s.replace(keywordPattern, '\x01KW\x02$1\x01/KW\x02');
+      s = s.replace(/\b(\d+\.?\d*)\b/g, '\x01NM\x02$1\x01/NM\x02');
+      s = s.replace(/\b([a-zA-Z_]\w*)\s*(?=\()/g, '\x01FN\x02$1\x01/FN\x02');
+      s = s.replace(/\x01KW\x02/g, '<span class="syntax-keyword">').replace(/\x01\/KW\x02/g, '</span>');
+      s = s.replace(/\x01NM\x02/g, '<span class="syntax-number">').replace(/\x01\/NM\x02/g, '</span>');
+      s = s.replace(/\x01FN\x02/g, '<span class="syntax-function">').replace(/\x01\/FN\x02/g, '</span>');
+      return s;
+    }).join('');
+  }).join('\n');
+}
+
 function Refactoring() {
   const [language, setLanguage] = useState(() => {
     const refactoringLanguage = localStorage.getItem('refactoringLanguage');
@@ -124,6 +161,7 @@ function Refactoring() {
   });
   const [analyzed, setAnalyzed] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const highlightRef = useRef(null);
   const navigate = useNavigate();
 
   const userStr = localStorage.getItem('user');
@@ -297,12 +335,27 @@ function Refactoring() {
                 <span className="editor-label">Code Editor</span>
                 <span className="editor-lang">{language === 'python' ? 'Python' : 'Java'}</span>
               </div>
-              <textarea
-                className="code-editor"
-                value={code}
-                onChange={(e) => { setCode(e.target.value); setAnalyzed(false); }}
-                placeholder="Paste your code here to detect code smells..."
-              />
+              <div className="editor-body">
+                <pre
+                  ref={highlightRef}
+                  className="code-highlight"
+                  aria-hidden="true"
+                  dangerouslySetInnerHTML={{ __html: highlightCode(code, language) + '\n' }}
+                />
+                <textarea
+                  className="code-editor"
+                  value={code}
+                  onChange={(e) => { setCode(e.target.value); setAnalyzed(false); }}
+                  onScroll={(e) => {
+                    if (highlightRef.current) {
+                      highlightRef.current.scrollTop = e.target.scrollTop;
+                      highlightRef.current.scrollLeft = e.target.scrollLeft;
+                    }
+                  }}
+                  placeholder="Paste your code here to detect code smells..."
+                  spellCheck="false"
+                />
+              </div>
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={handleAnalyze}>
@@ -338,11 +391,11 @@ function Refactoring() {
                     <div className="code-comparison">
                       <div className="code-block original">
                         <div className="code-block-label">Original</div>
-                        <pre>{suggestion.original}</pre>
+                        <pre dangerouslySetInnerHTML={{ __html: highlightCode(suggestion.original, language) }} />
                       </div>
                       <div className="code-block refactored">
                         <div className="code-block-label">Refactored</div>
-                        <pre>{suggestion.refactored}</pre>
+                        <pre dangerouslySetInnerHTML={{ __html: highlightCode(suggestion.refactored, language) }} />
                       </div>
                     </div>
                   </div>

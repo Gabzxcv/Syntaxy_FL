@@ -413,8 +413,8 @@
 }
 
 .code-editor-container:focus-within {
-  border-color: var(--accent-color, #6366f1);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  border-color: var(--accent-color, #334195);
+  box-shadow: 0 0 0 3px rgba(51, 65, 149, 0.15);
 }
 
 .editor-header {
@@ -437,28 +437,85 @@
 .editor-lang {
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent-color, #6366f1);
-  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-color, #334195);
+  background: rgba(51, 65, 149, 0.1);
   padding: 4px 12px;
   border-radius: 12px;
 }
 
+.editor-body {
+  position: relative;
+  min-height: 300px;
+  max-height: 500px;
+  background: #0f1219;
+  overflow: hidden;
+}
+
+.code-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 20px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: #e5e7eb;
+  pointer-events: none;
+  overflow-y: auto;
+  z-index: 0;
+}
+
 .code-editor {
+  position: relative;
   width: 100%;
   min-height: 300px;
+  max-height: 500px;
   padding: 20px;
-  background: #0f1219;
+  background: transparent !important;
+  background-color: transparent !important;
   border: none;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 14px;
   line-height: 1.6;
-  color: #e5e7eb;
-  resize: vertical;
+  color: transparent !important;
+  caret-color: #e5e7eb;
+  resize: none;
   outline: none;
+  z-index: 1;
+  -webkit-text-fill-color: transparent;
+  overflow-y: auto;
 }
 
 .code-editor::placeholder {
   color: #9ca3af;
+  -webkit-text-fill-color: #9ca3af;
+}
+
+/* Syntax highlighting colors - VS Code Dark+ theme */
+.syntax-keyword {
+  color: #c586c0;
+}
+
+.syntax-string {
+  color: #ce9178;
+}
+
+.syntax-comment {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.syntax-number {
+  color: #b5cea8;
+}
+
+.syntax-function {
+  color: #dcdcaa;
 }
 
 /* ===== ANALYZE BUTTON ===== */
