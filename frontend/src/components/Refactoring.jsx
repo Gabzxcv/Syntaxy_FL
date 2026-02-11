@@ -248,21 +248,21 @@ function Refactoring() {
           {/* Stats Cards */}
           <section className="stats-cards">
             <div className="stat-card">
-              <div className="stat-icon smell-icon"></div>
+              <div className="stat-icon smell-icon">🐛 </div>
               <div className="stat-info">
                 <div className="stat-value">{smellCount}</div>
                 <div className="stat-label">Code Smells Found</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon suggestion-icon"></div>
+              <div className="stat-icon suggestion-icon">💡 </div>
               <div className="stat-info">
                 <div className="stat-value">{suggestionCount}</div>
                 <div className="stat-label">Suggestions Generated</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon score-icon"></div>
+              <div className="stat-icon score-icon">⭐ </div>
               <div className="stat-info">
                 <div className="stat-value">{analyzed ? `${scoreBefore} → ${scoreAfter}` : '—'}</div>
                 <div className="stat-label">Quality Score</div>
@@ -288,7 +288,7 @@ function Refactoring() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                Load Sample
+                📋 Load Sample
               </button>
             </div>
 
@@ -306,7 +306,7 @@ function Refactoring() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={handleAnalyze}>
-              Analyze &amp; Refactor
+              🔬 Analyze &amp; Refactor
             </button>
           </section>
 
@@ -373,10 +373,10 @@ function Refactoring() {
               {/* Cross-page link */}
               <div className="cross-page-actions">
                 <button className="action-btn primary" onClick={() => navigate('/analyzer')}>
-                  Analyze More Code
+                  🔍 Analyze More Code
                 </button>
                 <button className="action-btn secondary" onClick={() => navigate('/students')}>
-                  View Analysis Results
+                  👥 View Analysis Results
                 </button>
               </div>
             </section>

@@ -440,6 +440,7 @@
   position: relative;
   min-height: 300px;
   background: #0f1219;
+  overflow: hidden;
 }
 
 .code-highlight {
@@ -457,7 +458,8 @@
   word-wrap: break-word;
   color: #e5e7eb;
   pointer-events: none;
-  overflow: auto;
+  overflow-y: auto;
+  z-index: 0;
 }
 
 .code-editor {
@@ -472,9 +474,10 @@
   line-height: 1.6;
   color: transparent;
   caret-color: #e5e7eb;
-  resize: vertical;
+  resize: none;
   outline: none;
   z-index: 1;
+  -webkit-text-fill-color: transparent;
 }
 
 .code-editor::placeholder {

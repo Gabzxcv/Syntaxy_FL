@@ -117,6 +117,7 @@ function CodeAnalyzer() {
   const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef(null);
   const zipInputRef = useRef(null);
+  const highlightRef = useRef(null);
   const navigate = useNavigate();
 
   // Get user info from localStorage for sidebar
@@ -538,10 +539,10 @@ function CodeAnalyzer() {
             <div className="quick-test-buttons">
               <button className="test-btn" onClick={testHealth}>
                 <span className="btn-icon">+</span>
-                Health Check
+                ❤️ Health Check
               </button>
               <button className="test-btn" onClick={testLanguages}>
-                Get Languages
+                🌐 Get Languages
               </button>
             </div>
             {quickResult.text && (
@@ -585,14 +586,14 @@ function CodeAnalyzer() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                Load Sample
+                📋 Load Sample
               </button>
 
               <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
-                Upload File
+                📤 Upload File
               </button>
               <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
-                Upload Zip
+                📦 Upload Zip
               </button>
               <input
                 type="file"
@@ -649,10 +650,10 @@ function CodeAnalyzer() {
                       </span>
                     )}
                     <button className="action-btn secondary batch-file-btn" onClick={() => handleSelectExtractedFile(ef)}>
-                      View
+                      👁️ View
                     </button>
                     <button className="action-btn primary batch-file-btn" onClick={() => handleAnalyzeExtractedFile(ef)}>
-                      {ef.analyzed ? 'Re-scan' : 'Scan'}
+                      {ef.analyzed ? '🔍 Re-scan' : '🔍 Scan'}
                     </button>
                   </div>
                 ))}
@@ -728,6 +729,7 @@ function CodeAnalyzer() {
               </div>
               <div className="editor-body">
                 <pre
+                  ref={highlightRef}
                   className="code-highlight"
                   aria-hidden="true"
                   dangerouslySetInnerHTML={{ __html: highlightCode(code, language) + '\n' }}
@@ -739,6 +741,12 @@ function CodeAnalyzer() {
                     setCode(e.target.value); 
                     setUploadedFileName(''); 
                   }}
+                  onScroll={(e) => {
+                    if (highlightRef.current) {
+                      highlightRef.current.scrollTop = e.target.scrollTop;
+                      highlightRef.current.scrollLeft = e.target.scrollLeft;
+                    }
+                  }}
                   placeholder="Paste your code here or upload a file..."
                   spellCheck="false"
                 />
@@ -746,7 +754,7 @@ function CodeAnalyzer() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={analyze}>
-              Analyze Code
+              🔬 Analyze Code
             </button>
 
             {analyzeResult.className === 'loading' && (
@@ -872,7 +880,7 @@ function CodeAnalyzer() {
                   localStorage.setItem('refactoringLanguage', language);
                   navigate('/refactoring');
                 }}>
-                  View Detailed Refactoring
+                  🔧 View Detailed Refactoring
                 </button>
               </div>
             )}

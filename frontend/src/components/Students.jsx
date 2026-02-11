@@ -256,7 +256,7 @@ function Students() {
           {/* Statistics Cards */}
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <div className="stat-icon">📚 
               </div>
               <div className="stat-info">
                 <div className="stat-label">{isStudent ? 'My Sections' : 'Sections'}</div>
@@ -265,7 +265,7 @@ function Students() {
             </div>
 
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>👥 
               </div>
               <div className="stat-info">
                 <div className="stat-label">{isStudent ? 'Classmates' : 'Total Students'}</div>
@@ -274,7 +274,7 @@ function Students() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+              <div className="stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>📄 
               </div>
               <div className="stat-info">
                 <div className="stat-label">Total Submissions</div>
@@ -350,7 +350,7 @@ function Students() {
               <h3 className="section-title">{isStudent ? 'My Sections' : 'Sections'}</h3>
               {!isStudent && (
                 <button className="action-btn primary" onClick={() => setShowAddSection(!showAddSection)}>
-                  Add Section
+                   ➕ Add Section
                 </button>
               )}
             </div>
@@ -403,7 +403,7 @@ function Students() {
                 <div className="section-header">
                   <h3 className="section-title">{section.name}</h3>
                   <button className="action-btn primary" onClick={() => { setAddStudentSection(section.id); setShowAddStudent(true); }}>
-                    Add Student
+                    ➕ Add Student
                   </button>
                 </div>
 
@@ -592,7 +592,7 @@ function Students() {
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                 <div style={{ 
                   width: '64px', height: '64px', borderRadius: '50%', 
-                  background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', 
+                  background: 'var(--accent-color, #6366f1)', 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '24px', fontWeight: '700', color: '#fff', margin: '0 auto 12px'
                 }}>

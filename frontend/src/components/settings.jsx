@@ -172,7 +172,7 @@ function Settings() {
         <div className="settings-content">
           {/* General Settings */}
           <section className="settings-section">
-            <h3 className="section-title">General Settings</h3>
+            <h3 className="section-title">⚙️ General Settings</h3>
             
             <div className="settings-grid">
               <div className="setting-item">
@@ -239,7 +239,7 @@ function Settings() {
 
           {/* Code Analysis Settings */}
           <section className="settings-section">
-            <h3 className="section-title">Code Analysis Settings</h3>
+            <h3 className="section-title">🔬 Code Analysis Settings</h3>
             
             <div className="settings-grid">
               <div className="setting-item-full">
@@ -278,7 +278,7 @@ function Settings() {
 
           {/* Account Settings */}
           <section className="settings-section">
-            <h3 className="section-title">Account Information</h3>
+            <h3 className="section-title">👤 Account Information</h3>
             
             <div className="account-info-card">
               <div className="account-row" style={{ flexDirection: 'column', alignItems: 'center', gap: '8px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -398,7 +398,7 @@ function Settings() {
 
           {/* Change Password */}
           <section className="settings-section">
-            <h3 className="section-title">Change Password</h3>
+            <h3 className="section-title">🔒 Change Password</h3>
 
             <div className="account-info-card">
               {passwordMessage && (
@@ -485,10 +485,10 @@ function Settings() {
           {/* Save Button */}
           <div className="settings-actions">
             <button className="action-btn secondary" onClick={() => navigate('/dashboard')}>
-              Cancel
+              ↩️ Cancel
             </button>
             <button className="action-btn primary" onClick={saveSettings}>
-              Save Settings
+              💾 Save Settings
             </button>
           </div>
         </div>
