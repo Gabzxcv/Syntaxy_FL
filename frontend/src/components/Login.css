@@ -1,14 +1,14 @@
 .auth-container {
-  background: #1a1f2e;
+  background: #ffffff;
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   width: 420px;
   max-width: 95%;
   overflow: hidden;
 }
 
 .auth-header {
-  background: linear-gradient(135deg, var(--accent-color, #334195), #4f46e5);
+  background: linear-gradient(135deg, #C84B31, #9E8569);
   color: #fff;
   padding: 30px;
   text-align: center;
@@ -21,12 +21,12 @@
 
 .auth-header p {
   font-size: 14px;
-  opacity: 0.85;
+  opacity: 0.95;
 }
 
 .tabs {
   display: flex;
-  border-bottom: 2px solid #2d3348;
+  border-bottom: 2px solid #e5e5e5;
 }
 
 .tab {
@@ -36,26 +36,26 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
-  color: #8b8fa3;
-  background: #252a3a;
+  color: #6b6b6b;
+  background: #f8f8f8;
   border: none;
   transition: all 0.3s;
 }
 
 .tab:hover {
-  color: #e5e7eb;
-  background: #2d3348;
+  color: #2c2c2c;
+  background: #eeeeee;
 }
 
 .tab.active {
-  color: var(--accent-color, #334195);
-  background: #1a1f2e;
-  border-bottom: 3px solid var(--accent-color, #334195);
+  color: #C84B31;
+  background: #ffffff;
+  border-bottom: 3px solid #C84B31;
 }
 
 .form-container {
   padding: 30px;
-  background: #1a1f2e;
+  background: #ffffff;
 }
 
 .form-group {
@@ -67,61 +67,64 @@
   margin-bottom: 6px;
   font-weight: 600;
   font-size: 13px;
-  color: #9ca3af;
+  color: #6b6b6b;
 }
 
 .form-group input {
   width: 100%;
   padding: 11px 14px;
-  border: 2px solid #374151;
+  border: 2px solid #e5e5e5;
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.3s;
   outline: none;
-  background: #252a3a;
-  color: #e5e7eb;
+  background: #fafafa;
+  color: #2c2c2c;
 }
 
 .form-group input:focus {
-  border-color: var(--accent-color, #334195);
+  border-color: #C84B31;
+  background: #ffffff;
 }
 
 .form-select {
   width: 100%;
   padding: 11px 14px;
-  border: 2px solid #374151;
+  border: 2px solid #e5e5e5;
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.3s;
   outline: none;
-  background: #252a3a;
-  color: #e5e7eb;
+  background: #fafafa;
+  color: #2c2c2c;
   -webkit-appearance: none;
 }
 .form-select:focus {
-  border-color: var(--accent-color, #334195);
+  border-color: #C84B31;
+  background: #ffffff;
 }
 .form-select option {
-  background: #252a3a;
-  color: #e5e7eb;
+  background: #ffffff;
+  color: #2c2c2c;
 }
 
 .btn {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, var(--accent-color, #334195), #4f46e5);
+  background: linear-gradient(135deg, #C84B31, #9E8569);
   color: #fff;
   border: none;
   border-radius: 8px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.3s;
+  transition: opacity 0.3s, transform 0.2s;
   margin-top: 8px;
 }
 
 .btn:hover {
   opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 .btn:disabled {
@@ -137,13 +140,13 @@
 }
 
 .message.success {
-  background: #1a2e1a;
-  color: #4ade80;
-  border: 1px solid #166534;
+  background: rgba(79, 121, 66, 0.1);
+  color: #4F7942;
+  border: 1px solid rgba(79, 121, 66, 0.3);
 }
 
 .message.error {
-  background: #2e1a1a;
-  color: #f87171;
-  border: 1px solid #991b1b;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
