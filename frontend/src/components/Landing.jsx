@@ -8,7 +8,14 @@ function Landing() {
     <div className="landing-page">
       {/* ===== NAV ===== */}
       <nav className="landing-nav">
-        <div className="landing-nav-logo">Syntaxy</div>
+        <div className="landing-nav-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <img src="/logo.png" alt="Syntaxy" className="landing-nav-logo-img" />
+          <span className="landing-nav-logo">Syntaxy</span>
+        </div>
+        <div className="landing-nav-links">
+          <button className="nav-link" onClick={() => document.querySelector('.landing-features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
+          <button className="nav-link" onClick={() => document.querySelector('.landing-how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</button>
+        </div>
         <div className="landing-nav-actions">
           <button className="nav-sign-in" onClick={() => navigate('/login')}>
             Sign In
@@ -54,6 +61,9 @@ function Landing() {
                 document.querySelector('.landing-features')?.scrollIntoView({ behavior: 'smooth' });
               }}>
                 See Features
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width: 16, height: 16}}>
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
               </button>
             </div>
           </div>
@@ -210,6 +220,55 @@ function Landing() {
         </div>
       </section>
 
+      {/* ===== HOW IT WORKS ===== */}
+      <section className="landing-how-it-works">
+        <div className="how-inner">
+          <div className="features-header">
+            <span className="features-label">How It Works</span>
+            <h2 className="features-title">Three steps to cleaner code</h2>
+            <p className="features-desc">
+              Get actionable insights in minutes, not hours.
+            </p>
+          </div>
+
+          <div className="steps-grid">
+            <div className="step-card">
+              <div className="step-number">1</div>
+              <h3 className="step-title">Upload Your Code</h3>
+              <p className="step-desc">
+                Paste code directly, upload files, or submit a ZIP archive. Syntaxy supports Python and Java with more languages coming soon.
+              </p>
+            </div>
+            <div className="step-connector">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
+            </div>
+            <div className="step-card">
+              <div className="step-number">2</div>
+              <h3 className="step-title">Analyze</h3>
+              <p className="step-desc">
+                Our engine parses your code into an AST, compares structures, and identifies clones with similarity scores and visual metrics.
+              </p>
+            </div>
+            <div className="step-connector">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
+            </div>
+            <div className="step-card">
+              <div className="step-number">3</div>
+              <h3 className="step-title">Refactor &amp; Track</h3>
+              <p className="step-desc">
+                Review suggestions, apply refactoring, and track improvements over time. All your analysis history is saved automatically.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ===== STATS ===== */}
       <section className="landing-stats">
         <div className="stats-inner">
@@ -235,10 +294,31 @@ function Landing() {
         </div>
       </section>
 
+      {/* ===== CTA ===== */}
+      <section className="landing-cta">
+        <div className="cta-inner">
+          <div className="cta-glow" />
+          <h2 className="cta-title">Ready to clean up your codebase?</h2>
+          <p className="cta-desc">
+            Start detecting clones, get refactoring suggestions, and track your progress — all for free.
+          </p>
+          <button className="hero-cta" onClick={() => navigate('/login')}>
+            Get Started Now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </section>
+
       {/* ===== FOOTER ===== */}
       <footer className="landing-footer">
         <div className="footer-inner">
-          <span className="footer-brand">Syntaxy</span>
+          <div className="footer-brand-wrap">
+            <img src="/logo.png" alt="Syntaxy" className="footer-logo-img" />
+            <span className="footer-brand">Syntaxy</span>
+          </div>
           <span className="footer-copy">&copy; {new Date().getFullYear()} Syntaxy. All rights reserved.</span>
         </div>
       </footer>
