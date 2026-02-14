@@ -113,7 +113,7 @@ function ChatDemo() {
     setMessages([]);
     setInput('');
   }, []);
-  const contacts = useRef(buildContacts()).current;
+  const [contacts] = useState(() => buildContacts());
 
   const openConversation = useCallback((contact) => {
     setActiveContact(contact);

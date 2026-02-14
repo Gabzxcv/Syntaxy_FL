@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from app.models import db, Analysis
 import time
 import uuid
 
@@ -49,8 +50,6 @@ def analyze_code():
         
         # Save to database if authenticated
         if current_user_id:
-            from app.models import db, Analysis
-            
             analysis = Analysis(
                 user_id=current_user_id,
                 language=language,
@@ -74,7 +73,6 @@ def analyze_code():
         
     except Exception as e:
         if current_user_id:
-            from app.models import db
             db.session.rollback()
         return jsonify({'error': 'Analysis failed', 'details': str(e)}), 500
 
