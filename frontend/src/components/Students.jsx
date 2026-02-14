@@ -363,7 +363,7 @@ function Students() {
                                 )}
                               </div>
                               <div className="student-detail">
-                                <span className="name">{student.name}</span>
+                                <span className="name" style={{ cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '2px' }} onClick={() => navigate(`/student-profile/${encodeURIComponent(student.email)}`)}>{student.name}</span>
                                 <span className="email">{student.email}</span>
                               </div>
                               <span className="badge badge-purple">{studentResults.length} result{studentResults.length !== 1 ? 's' : ''}</span>

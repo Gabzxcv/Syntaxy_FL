@@ -399,3 +399,63 @@ body.light-mode .bot-message {
   background: #f5f0e3 !important;
   color: #1a1a2e !important;
 }
+
+/* Light mode - SVG icon visibility */
+body.light-mode .section-title svg,
+body.light-mode .settings-content svg,
+body.light-mode .admin-content svg,
+body.light-mode .stat-card svg,
+body.light-mode .student-item svg,
+body.light-mode .timeline-icon svg,
+body.light-mode .empty-state svg,
+body.light-mode .filter-icon svg,
+body.light-mode .action-btn svg,
+body.light-mode .btn-sm svg,
+body.light-mode .help-close-btn svg {
+  color: #1a1a2e;
+}
+
+body.light-mode .stat-icon svg {
+  color: #ffffff;
+}
+
+body.light-mode .nav-icon svg {
+  color: inherit;
+}
+
+body.light-mode .section-card-title,
+body.light-mode .section-card-subtitle {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .student-detail .name {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .student-detail .email {
+  color: #555555 !important;
+}
+
+body.light-mode .empty-state p {
+  color: #555555 !important;
+}
+
+body.light-mode .form-row .setting-input,
+body.light-mode .form-row .setting-select {
+  color: #1a1a2e !important;
+}
+
+/* Light mode - role select and delete button */
+body.light-mode .role-select {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+  color: #1a1a2e !important;
+}
+
+body.light-mode .delete-btn {
+  color: #dc2626 !important;
+}
+
+body.light-mode .color-hex {
+  color: #1a1a2e !important;
+}

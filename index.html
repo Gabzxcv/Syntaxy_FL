@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Syntaxy – Code Analysis Platform</title>
   <meta name="description" content="Syntaxy scans your codebase for duplicated logic, surfaces refactoring opportunities, and tracks changes over time." />
+  <script>
+    // GitHub Pages: redirect to the built frontend app
+    window.location.href = 'frontend/dist/index.html';
+  </script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -38,18 +42,17 @@
   </style>
 </head>
 <body>
+  <noscript>
+    <div class="wrapper">
+      <h1>Welcome to <span>Syntaxy</span></h1>
+      <p>Please enable JavaScript to use the Syntaxy platform.</p>
+      <a class="btn" href="frontend/dist/index.html">Open App</a>
+    </div>
+  </noscript>
   <div class="wrapper">
     <h1>Welcome to <span>Syntaxy</span></h1>
-    <p>
-      Syntaxy is a code analysis platform that detects code clones, surfaces
-      refactoring opportunities, and tracks changes over time — helping
-      instructors and students write cleaner, more original code.
-    </p>
-    <a class="btn" href="frontend/index.html">Open App</a>
-    <p class="note">
-      This is the GitHub Pages entry point. The full app is built with React
-      and served from the <code>frontend/</code> directory.
-    </p>
+    <p>Redirecting to the app...</p>
+    <a class="btn" href="frontend/dist/index.html">Open App</a>
   </div>
 </body>
 </html>
