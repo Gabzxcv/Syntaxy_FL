@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import Landing from './components/Landing';
 import Login from './components/Login';
@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import CodeAnalyzer from './components/CodeAnalyzer';
 import Students from './components/Students';
 import AnalysisResults from './components/AnalysisResults';
+import StudentProfile from './components/StudentProfile';
 import Refactoring from './components/Refactoring';
 import History from './components/History';
 import Files from './components/Files';
@@ -37,7 +38,7 @@ function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <div className="app-wrapper">
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -47,6 +48,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/analyzer" element={<CodeAnalyzer />} />
           <Route path="/students" element={<Students />} />
+          <Route path="/student-profile/:email" element={<StudentProfile />} />
           <Route path="/analysis-results" element={<AnalysisResults />} />
           <Route path="/refactoring" element={<Refactoring />} />
           <Route path="/history" element={<History />} />
@@ -56,7 +58,7 @@ function App() {
         </Routes>
         <ChatDemo />
       </div>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
