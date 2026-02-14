@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './settings.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 function Settings() {
   const navigate = useNavigate();
@@ -69,7 +69,7 @@ function Settings() {
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
+      fetch(`${API}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
