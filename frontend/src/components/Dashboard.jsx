@@ -103,8 +103,8 @@ function Dashboard() {
   }, [navigate]);
 
   useEffect(() => {
-    if (localStorage.getItem('darkMode') === 'true') {
-      document.body.classList.add('dark-mode');
+    if (localStorage.getItem('lightMode') === 'true') {
+      document.body.classList.add('light-mode');
     }
   }, []);
 
@@ -150,10 +150,14 @@ function Dashboard() {
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
-          <button className="nav-item" onClick={() => navigate('/students')}>
+          <button className="nav-item" onClick={() => navigate('/analysis-results')}>
               <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
               {user.role === 'student' ? 'My Results' : 'Analysis Results'}
             </button>
+          <button className="nav-item" onClick={() => navigate('/students')}>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            Students
+          </button>
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
             Refactoring
@@ -165,6 +169,10 @@ function Dashboard() {
           <button className="nav-item" onClick={() => navigate('/settings')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
+          </button>
+          <button className="nav-item" onClick={() => navigate('/chat')}>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            Chat
           </button>
           {user.role === 'admin' && (
             <button className="nav-item" onClick={() => navigate('/admin')}>
@@ -237,14 +245,14 @@ function Dashboard() {
 
         <div className="dashboard-content">
           <div className="welcome-section">
-            <h3 className="welcome-title">Welcome back, {user.full_name || user.username}!</h3>
+            <h3 className="welcome-title">Welcome back{user.role ? `, ${user.role.charAt(0).toUpperCase() + user.role.slice(1)}` : ''} {user.full_name || user.username}!</h3>
             <p className="welcome-text">Here's what's happening with your projects today</p>
           </div>
 
           {/* Stats Grid */}
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon">📊 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Total Analyses</div>
                 <div className="stat-value">{user.total_analyses || 0}</div>
@@ -252,7 +260,7 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon">📁 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Total Files</div>
                 <div className="stat-value">{stats.totalFiles}</div>
@@ -260,7 +268,7 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon">⏰ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Activities</div>
                 <div className="stat-value">{stats.totalHistory}</div>
@@ -268,7 +276,7 @@ function Dashboard() {
             </div>
             
             <div className="stat-card">
-              <div className="stat-icon">✅ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Active Projects</div>
                 <div className="stat-value">{stats.activeProjects}</div>
@@ -281,55 +289,106 @@ function Dashboard() {
             <h4 className="section-title">Quick Actions</h4>
             <div className="action-buttons">
               <button className="action-card" onClick={() => navigate('/analyzer')}>
-                <div className="action-icon">🔍 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+                <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
                 <div className="action-content">
                   <div className="action-title">Code Analyzer</div>
                   <div className="action-desc">Analyze your code for duplicates</div>
                 </div>
-                <div className="action-arrow">→</div>
+                <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
               </button>
               
               {user.role === 'student' ? (
                 <button className="action-card" onClick={() => navigate('/files')}>
-                  <div className="action-icon">👥 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                  <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                   <div className="action-content">
                     <div className="action-title">My Submissions</div>
                     <div className="action-desc">View your submitted files</div>
                   </div>
-                  <div className="action-arrow">→</div>
+                  <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
                 </button>
               ) : (
                 <button className="action-card" onClick={() => navigate('/students')}>
-                  <div className="action-icon">👥 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+                  <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                   <div className="action-content">
                     <div className="action-title">View Students</div>
                     <div className="action-desc">Manage student submissions</div>
                   </div>
-                  <div className="action-arrow">→</div>
+                  <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
                 </button>
               )}
               
-              <button className="action-card">
-                <div className="action-icon">📄 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+              <button className="action-card" onClick={() => navigate('/history')}>
+                <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
                 <div className="action-content">
                   <div className="action-title">Reports</div>
                   <div className="action-desc">View analysis reports</div>
                 </div>
-                <div className="action-arrow">→</div>
+                <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
               </button>
 
               {user.role === 'admin' && (
-                <button className="action-card" onClick={() => navigate('/settings')}>
-                  <div className="action-icon">🛡️ <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                <button className="action-card" onClick={() => navigate('/admin')}>
+                  <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
                   <div className="action-content">
                     <div className="action-title">Admin Panel</div>
                     <div className="action-desc">Manage users and system settings</div>
                   </div>
-                  <div className="action-arrow">→</div>
+                  <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
                 </button>
               )}
             </div>
           </div>
+
+          {/* Analytics Charts - visible for instructors and admins */}
+          {(user.role === 'instructor' || user.role === 'admin') && (
+            <div className="account-section">
+              <h4 className="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Analytics Overview
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '16px' }}>
+                {/* Sections Chart */}
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
+                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Students per Section</h5>
+                  {(() => {
+                    try {
+                      const savedSections = JSON.parse(localStorage.getItem('savedSections') || '[]');
+                      if (savedSections.length === 0) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No sections yet</p>;
+                      const maxStudents = Math.max(...savedSections.map(s => (s.students || []).length), 1);
+                      return savedSections.map(sec => (
+                        <div key={sec.id || sec.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                          <span style={{ minWidth: '80px', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>{sec.name}</span>
+                          <div style={{ flex: 1, height: '24px', background: 'var(--bg-secondary)', borderRadius: '6px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${((sec.students || []).length / maxStudents) * 100}%`, background: 'var(--accent-color, #6366f1)', borderRadius: '6px', minWidth: (sec.students || []).length > 0 ? '20px' : '0', transition: 'width 0.3s ease' }} />
+                          </div>
+                          <span style={{ minWidth: '24px', fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>{(sec.students || []).length}</span>
+                        </div>
+                      ));
+                    } catch { return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Unable to load sections</p>; }
+                  })()}
+                </div>
+
+                {/* Activity Summary */}
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
+                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Recent Activity</h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{user.total_analyses || 0} total analyses completed</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{stats.totalFiles} files uploaded</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{stats.totalHistory} activities recorded</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Account Details */}
           <div className="account-section">
@@ -369,7 +428,7 @@ function Dashboard() {
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
             <div className="help-modal-header">
               <h3>Help & Documentation</h3>
-              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="help-modal-body">
               <div className="help-section">

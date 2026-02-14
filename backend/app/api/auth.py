@@ -504,6 +504,21 @@ def list_registered_students():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/registered-users', methods=['GET'])
+@jwt_required()
+def list_registered_users():
+    """List all registered users - available to instructors and admins"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = db.session.get(User, current_user_id)
+        if not user or user.role not in ('admin', 'instructor'):
+            return jsonify({'error': 'Instructor or admin access required'}), 403
+        all_users = User.query.limit(500).all()
+        return jsonify({'users': [u.to_dict() for u in all_users]}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/change-password', methods=['PUT'])
 @jwt_required()
 def change_password():

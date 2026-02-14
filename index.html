@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Syntaxy – Code Analysis Platform</title>
+  <meta name="description" content="Syntaxy scans your codebase for duplicated logic, surfaces refactoring opportunities, and tracks changes over time." />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0d14;
+      color: #e5e7eb;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2rem;
+    }
+    .wrapper { max-width: 520px; }
+    h1 { font-size: 2.4rem; font-weight: 700; margin-bottom: .5rem; letter-spacing: -.02em; }
+    h1 span { color: #6366f1; }
+    p { color: #9ca3af; font-size: 1.05rem; line-height: 1.6; margin-bottom: 1.5rem; }
+    .btn {
+      display: inline-block;
+      padding: .75rem 2rem;
+      background: #6366f1;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: background .2s, transform .15s;
+    }
+    .btn:hover { background: #4f46e5; transform: translateY(-2px); }
+    .note { margin-top: 2rem; font-size: .85rem; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <noscript>
+    <div class="wrapper">
+      <h1>Welcome to <span>Syntaxy</span></h1>
+      <p>Please enable JavaScript to use the Syntaxy platform.</p>
+    </div>
+  </noscript>
+  <div class="wrapper">
+    <h1>Welcome to <span>Syntaxy</span></h1>
+    <p>Redirecting to the app...</p>
+    <a class="btn" href="frontend/dist/index.html">Open App</a>
+    <p class="note">This page is for local development. For production, deploy using the GitHub Actions workflow which serves directly from the <code>frontend/dist</code> folder.</p>
+  </div>
+  <script>
+    // For local testing: redirect to the built frontend app
+    // In GitHub Pages deployment (via Actions), this file is not used — the built app is served directly
+    if (window.location.pathname === '/' || window.location.pathname.endsWith('/index.html')) {
+      var distUrl = 'frontend/dist/index.html';
+      var xhr = new XMLHttpRequest();
+      xhr.open('HEAD', distUrl, true);
+      xhr.onload = function() {
+        if (xhr.status === 200) window.location.href = distUrl;
+      };
+      xhr.onerror = function() { /* stay on this page */ };
+      xhr.send();
+    }
+  </script>
+</body>
+</html>

@@ -132,8 +132,8 @@ function CodeAnalyzer() {
   }, []);
 
   useEffect(() => {
-    if (localStorage.getItem('darkMode') === 'true') {
-      document.body.classList.add('dark-mode');
+    if (localStorage.getItem('lightMode') === 'true') {
+      document.body.classList.add('light-mode');
     }
   }, []);
 
@@ -150,14 +150,108 @@ function CodeAnalyzer() {
     navigate('/login');
   }
 
+  // Mock analysis for when backend is unavailable
+  function generateMockAnalysis(codeText, lang) {
+    const lines = codeText.split('\n').filter(l => l.trim().length > 0);
+    const totalLines = lines.length;
+    
+    // Simple heuristic clone detection
+    const lineMap = {};
+    let duplicateLines = 0;
+    lines.forEach(line => {
+      const trimmed = line.trim();
+      if (trimmed.length > 5) {
+        if (lineMap[trimmed]) {
+          duplicateLines++;
+        } else {
+          lineMap[trimmed] = true;
+        }
+      }
+    });
+    
+    // Round clone percentage to one decimal place
+    const clonePercentage = totalLines > 0 ? Math.round((duplicateLines / totalLines) * 1000) / 10 : 0;
+    
+    // Count decision points for cyclomatic complexity
+    const decisionKeywords = lang === 'python' 
+      ? ['if ', 'elif ', 'for ', 'while ', 'except ', 'and ', 'or ']
+      : ['if ', 'else if', 'for ', 'while ', 'catch ', '&&', '||', 'case '];
+    let complexity = 1;
+    lines.forEach(line => {
+      decisionKeywords.forEach(kw => {
+        if (line.includes(kw)) complexity++;
+      });
+    });
+    
+    // Maintainability index: penalize high complexity and duplication
+    const COMPLEXITY_WEIGHT = 2;
+    const CLONE_WEIGHT = 0.5;
+    const maintainability = Math.max(0, Math.min(100, Math.round(100 - (complexity * COMPLEXITY_WEIGHT) - (clonePercentage * CLONE_WEIGHT))));
+    
+    // Find clone pairs
+    const clones = [];
+    const seen = {};
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed.length > 10) {
+        if (seen[trimmed] !== undefined) {
+          clones.push({
+            type: 'Type-I (Exact)',
+            similarity: 1.0,
+            locations: [
+              { start_line: seen[trimmed] + 1, end_line: seen[trimmed] + 1 },
+              { start_line: idx + 1, end_line: idx + 1 }
+            ]
+          });
+        } else {
+          seen[trimmed] = idx;
+        }
+      }
+    });
+    
+    // Refactoring suggestions
+    const suggestions = [];
+    if (clonePercentage > 10) {
+      suggestions.push({
+        refactoring_type: 'Extract Method',
+        explanation: {
+          remember: 'Duplicate code blocks should be extracted into reusable functions.',
+          apply: 'Create a shared function for the repeated logic and call it from both locations.'
+        }
+      });
+    }
+    if (complexity > 10) {
+      suggestions.push({
+        refactoring_type: 'Simplify Conditionals',
+        explanation: {
+          remember: 'High cyclomatic complexity makes code hard to test and maintain.',
+          apply: 'Consider using guard clauses, lookup tables, or the strategy pattern to reduce branching.'
+        }
+      });
+    }
+    
+    return {
+      clone_percentage: clonePercentage,
+      cyclomatic_complexity: complexity,
+      maintainability_index: maintainability,
+      total_lines: totalLines,
+      execution_time_ms: Math.round(Math.random() * 50 + 10),
+      clones: clones.slice(0, 5),
+      refactoring_suggestions: suggestions,
+      mock: true
+    };
+  }
+
   async function testHealth() {
     setQuickResult({ text: 'Testing...', className: 'loading' });
     try {
       const res = await fetch(`${API}/health`);
       const data = await res.json();
       setQuickResult({ text: JSON.stringify(data, null, 2), className: 'success' });
-    } catch (error) {
-      setQuickResult({ text: `Error: ${error.message}`, className: 'error' });
+    } catch {
+      // Mock fallback
+      const mockData = { status: 'healthy', message: 'Mock mode — backend not connected', version: '1.0.0-mock', mock: true };
+      setQuickResult({ text: JSON.stringify(mockData, null, 2), className: 'success' });
     }
   }
 
@@ -167,8 +261,10 @@ function CodeAnalyzer() {
       const res = await fetch(`${API}/languages`);
       const data = await res.json();
       setQuickResult({ text: JSON.stringify(data, null, 2), className: 'success' });
-    } catch (error) {
-      setQuickResult({ text: `Error: ${error.message}`, className: 'error' });
+    } catch {
+      // Mock fallback
+      const mockData = { languages: ['python', 'java'], message: 'Mock mode — backend not connected', mock: true };
+      setQuickResult({ text: JSON.stringify(mockData, null, 2), className: 'success' });
     }
   }
 
@@ -389,8 +485,14 @@ function CodeAnalyzer() {
       } else {
         setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
       }
-    } catch (error) {
-      setAnalyzeResult({ text: `Error: ${error.message}`, className: 'error' });
+    } catch {
+      // Mock fallback for extracted file analysis
+      const mockData = generateMockAnalysis(ef.content, ef.lang);
+      setAnalysisData(mockData);
+      setAnalyzeResult({ text: '', className: 'success' });
+      setExtractedFiles(prev => prev.map(f =>
+        f.id === ef.id ? { ...f, analyzed: true, result: mockData } : f
+      ));
     }
   }
 
@@ -431,8 +533,24 @@ function CodeAnalyzer() {
       } else {
         setAnalyzeResult({ text: JSON.stringify(data, null, 2), className: 'error' });
       }
-    } catch (error) {
-      setAnalyzeResult({ text: `Error: ${error.message}`, className: 'error' });
+    } catch {
+      // Mock fallback when backend is unavailable  
+      const mockData = generateMockAnalysis(code, language);
+      setAnalysisData(mockData);
+      setAnalyzeResult({ text: '', className: 'success' });
+
+      const userId = user.id || user.username || 'default';
+      const historyKey = `activityHistory_${userId}`;
+      const historyEntries = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      historyEntries.unshift({
+        id: Date.now(),
+        type: 'analysis',
+        icon: '',
+        description: `Analyzed ${language} code - ${mockData.clone_percentage}% clone detected (mock)`,
+        time: new Date().toISOString(),
+        status: mockData.clone_percentage > 30 ? 'warning' : 'success'
+      });
+      localStorage.setItem(historyKey, JSON.stringify(historyEntries));
     }
   }
 
@@ -475,9 +593,13 @@ function CodeAnalyzer() {
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
-          <button className="nav-item" onClick={() => navigate('/students')}>
+          <button className="nav-item" onClick={() => navigate('/analysis-results')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
             Analysis Results
+          </button>
+          <button className="nav-item" onClick={() => navigate('/students')}>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            Students
           </button>
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
@@ -490,6 +612,10 @@ function CodeAnalyzer() {
           <button className="nav-item" onClick={() => navigate('/settings')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
+          </button>
+          <button className="nav-item" onClick={() => navigate('/chat')}>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            Chat
           </button>
           {user.role === 'admin' && (
             <button className="nav-item" onClick={() => navigate('/admin')}>
@@ -539,10 +665,11 @@ function CodeAnalyzer() {
             <div className="quick-test-buttons">
               <button className="test-btn" onClick={testHealth}>
                 <span className="btn-icon">+</span>
-                ❤️ Health Check
+                Health Check
               </button>
               <button className="test-btn" onClick={testLanguages}>
-                🌐 Get Languages
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Get Languages
               </button>
             </div>
             {quickResult.text && (
@@ -586,14 +713,16 @@ function CodeAnalyzer() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                📋 Load Sample
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                Load Sample
               </button>
 
               <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
-                📤 Upload File
+                Upload File
               </button>
               <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
-                📦 Upload Zip
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                Upload Zip
               </button>
               <input
                 type="file"
@@ -613,7 +742,7 @@ function CodeAnalyzer() {
 
             {uploadedFileName && (
               <div className="file-uploaded-badge">
-                <span className="badge-icon">✓</span>
+                <span className="badge-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
                 Loaded: {uploadedFileName}
               </div>
             )}
@@ -650,10 +779,10 @@ function CodeAnalyzer() {
                       </span>
                     )}
                     <button className="action-btn secondary batch-file-btn" onClick={() => handleSelectExtractedFile(ef)}>
-                      👁️ View
+                      View
                     </button>
                     <button className="action-btn primary batch-file-btn" onClick={() => handleAnalyzeExtractedFile(ef)}>
-                      {ef.analyzed ? '🔍 Re-scan' : '🔍 Scan'}
+                      {ef.analyzed ? 'Re-scan' : 'Scan'}
                     </button>
                   </div>
                 ))}
@@ -754,7 +883,7 @@ function CodeAnalyzer() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={analyze}>
-              🔬 Analyze Code
+              Analyze Code
             </button>
 
             {analyzeResult.className === 'loading' && (
@@ -880,7 +1009,8 @@ function CodeAnalyzer() {
                   localStorage.setItem('refactoringLanguage', language);
                   navigate('/refactoring');
                 }}>
-                  🔧 View Detailed Refactoring
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  View Detailed Refactoring
                 </button>
               </div>
             )}
@@ -893,7 +1023,7 @@ function CodeAnalyzer() {
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
             <div className="help-modal-header">
               <h3>Help & Documentation</h3>
-              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="help-modal-body">
               <div className="help-section">

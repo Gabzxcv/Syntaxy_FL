@@ -10,7 +10,7 @@
   display: flex;
   min-height: 100vh;
   width: 100vw;
-  background: #0f1219 !important;
+  background: #0a0d14;
   font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -19,7 +19,7 @@
 /* ===== SIDEBAR (Same as Dashboard) ===== */
 .sidebar {
   width: 260px;
-  background: linear-gradient(180deg, #1a1f36 0%, #0f1419 100%);
+  background: linear-gradient(180deg, #111827 0%, #0d1117 100%);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -83,9 +83,9 @@
 }
 
 .nav-item.active {
-  background: rgba(51, 65, 149, 0.15);
+  background: rgba(99, 102, 241, 0.15);
   color: #fff;
-  border-left-color: var(--accent-color, #334195);
+  border-left-color: var(--accent-color, #6366f1);
 }
 
 .nav-icon {
@@ -118,7 +118,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-color, #334195), #647aa3);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #7c3aed);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -174,22 +174,23 @@
   margin-left: 12px;
   min-height: 100vh;
   width: 100%;
-  background: #0f1219 !important;
+  background: #0a0d14;
 }
 
 
 
 .admin-header {
-  background: #1a1f2e;
+  background: rgba(10, 13, 20, 0.85);
+  backdrop-filter: blur(20px);
   padding: 24px 40px;
-  border-bottom: 1px solid #2d3348;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   display: flex;
   justify-content: space-between;
   align-items: center;
   position: sticky;
   top: 0;
   z-index: 50;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
 }
 
 .header-left {
@@ -213,7 +214,7 @@
 
 .admin-content {
   padding: 32px 40px;
-  background: #0f1219;
+  background: transparent;
   animation: fadeIn 0.4s ease;
   min-height: calc(100vh - 100px);
 }
@@ -238,14 +239,14 @@
 }
 
 .stat-card {
-  background: #1e2538;
+  background: #111827;
   border-radius: 16px;
   padding: 24px;
   display: flex;
   align-items: center;
   gap: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  border: 1px solid #2d3348;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s ease;
 }
 
@@ -258,7 +259,7 @@
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  background: linear-gradient(135deg, var(--accent-color, #334195), #4f46e5);
+  background: linear-gradient(135deg, var(--accent-color, #6366f1), #4f46e5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,7 +289,7 @@
 
 /* ===== ADMIN SECTION ===== */
 .admin-section {
-  background: #1a1f2e;
+  background: #111827;
   border: 2px solid #374151;
   border-radius: 16px;
   padding: 28px;
@@ -311,7 +312,7 @@
   align-items: center;
   gap: 10px;
   padding: 0 16px;
-  background: #1e2538;
+  background: #111827;
   border: 2px solid #374151;
   border-radius: 12px;
   transition: all 0.2s ease;
@@ -319,8 +320,8 @@
 }
 
 .search-bar:focus-within {
-  border-color: var(--accent-color, #334195);
-  box-shadow: 0 0 0 3px rgba(51, 65, 149, 0.1);
+  border-color: var(--accent-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .search-icon {
@@ -353,12 +354,12 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  background: #1e2538;
+  background: #111827;
   color: #f3f4f6;
 }
 
 .admin-table thead {
-  background: #252a3a;
+  background: #1a1f36;
 }
 
 .admin-table th {
@@ -369,16 +370,16 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  border-bottom: 2px solid #2d3348;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.06);
 }
 
 .admin-table tbody tr {
-  border-bottom: 1px solid #2d3348;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s ease;
 }
 
 .admin-table tbody tr:hover {
-  background: #252a3a;
+  background: #1a1f36;
 }
 
 .admin-table tbody tr:last-child {
@@ -388,13 +389,13 @@
 .admin-table td {
   padding: 16px 20px;
   color: #e5e7eb;
-  border-bottom: 1px solid #2d3348;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* ===== ROLE DROPDOWN ===== */
 .role-select {
   padding: 8px 12px;
-  background: #252a3a;
+  background: #1a1f36;
   border: 1px solid #374151;
   border-radius: 8px;
   font-family: 'Montserrat', sans-serif;
@@ -407,13 +408,13 @@
 }
 
 .role-select:hover {
-  border-color: var(--accent-color, #334195);
+  border-color: var(--accent-color, #6366f1);
 }
 
 .role-select:focus {
   outline: none;
-  border-color: var(--accent-color, #334195);
-  box-shadow: 0 0 0 3px rgba(51, 65, 149, 0.1);
+  border-color: var(--accent-color, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 /* ===== DELETE BUTTON ===== */
@@ -461,7 +462,7 @@
   height: 40px;
   border: 2px solid #374151;
   border-radius: 8px;
-  background: #252a3a;
+  background: #1a1f36;
   cursor: pointer;
   padding: 2px;
 }
@@ -484,7 +485,7 @@
 
 .reset-color-btn {
   padding: 8px 16px;
-  background: #252a3a;
+  background: #1a1f36;
   border: 1px solid #374151;
   border-radius: 8px;
   color: #e5e7eb;
@@ -496,8 +497,8 @@
 }
 
 .reset-color-btn:hover {
-  border-color: var(--accent-color, #334195);
-  color: var(--accent-color, #334195);
+  border-color: var(--accent-color, #6366f1);
+  color: var(--accent-color, #6366f1);
 }
 
 /* ===== LOADING ===== */
@@ -508,7 +509,7 @@
   min-height: 100vh;
   font-size: 18px;
   color: #9ca3af;
-  background: #0f1219;
+  background: #0a0d14;
   width: 100%;
 }
 

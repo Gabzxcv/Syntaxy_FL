@@ -26,12 +26,14 @@ function Settings() {
     localStorage.getItem('profilePicture_' + user.id) || ''
   );
 
+  const settingsKey = `appSettings_${user.id || user.username || 'default'}`;
+
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('appSettings');
+    const saved = localStorage.getItem(settingsKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return { ...parsed, darkMode: localStorage.getItem('darkMode') === 'true' };
+        return { ...parsed, lightMode: localStorage.getItem('lightMode') === 'true' };
       } catch (e) {
         console.warn('Failed to parse saved settings:', e);
       }
@@ -39,30 +41,30 @@ function Settings() {
     return {
       emailNotifications: true,
       autoSave: true,
-      darkMode: localStorage.getItem('darkMode') === 'true',
+      lightMode: localStorage.getItem('lightMode') === 'true',
       languageDefault: 'python',
-      maxFileSize: '10',
+      maxFileSize: '15',
       enableHistory: true,
     };
   });
 
   useEffect(() => {
-    const isDark = localStorage.getItem('darkMode') === 'true';
-    if (isDark) {
-      document.body.classList.add('dark-mode');
+    const isLight = localStorage.getItem('lightMode') === 'true';
+    if (isLight) {
+      document.body.classList.add('light-mode');
     } else {
-      document.body.classList.remove('dark-mode');
+      document.body.classList.remove('light-mode');
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('darkMode', settings.darkMode);
-    if (settings.darkMode) {
-      document.body.classList.add('dark-mode');
+    localStorage.setItem('lightMode', settings.lightMode);
+    if (settings.lightMode) {
+      document.body.classList.add('light-mode');
     } else {
-      document.body.classList.remove('dark-mode');
+      document.body.classList.remove('light-mode');
     }
-  }, [settings.darkMode]);
+  }, [settings.lightMode]);
 
   function handleLogout() {
     const token = localStorage.getItem('token');
@@ -83,7 +85,7 @@ function Settings() {
 
   function saveSettings() {
     try {
-      localStorage.setItem('appSettings', JSON.stringify(settings));
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
       alert('Settings saved successfully!');
     } catch (e) {
       console.error('Failed to save settings:', e);
@@ -112,9 +114,13 @@ function Settings() {
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
-          <button className="nav-item" onClick={() => navigate('/students')}>
+          <button className="nav-item" onClick={() => navigate('/analysis-results')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
             Analysis Results
+          </button>
+          <button className="nav-item" onClick={() => navigate('/students')}>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            Students
           </button>
           <button className="nav-item" onClick={() => navigate('/refactoring')}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
@@ -127,6 +133,10 @@ function Settings() {
           <button className="nav-item active">
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
+          </button>
+          <button className="nav-item" onClick={() => navigate('/chat')}>
+            <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            Chat
           </button>
           {user.role === 'admin' && (
             <button className="nav-item" onClick={() => navigate('/admin')}>
@@ -172,7 +182,7 @@ function Settings() {
         <div className="settings-content">
           {/* General Settings */}
           <section className="settings-section">
-            <h3 className="section-title">⚙️ General Settings</h3>
+            <h3 className="section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>General Settings</h3>
             
             <div className="settings-grid">
               <div className="setting-item">
@@ -208,13 +218,13 @@ function Settings() {
               <div className="setting-item">
                 <div className="setting-info">
                   <div className="setting-label">Light Mode</div>
-                  <div className="setting-description">Switch to light theme</div>
+                  <div className="setting-description">Switch to light beige theme</div>
                 </div>
                 <label className="toggle-switch">
                   <input
                     type="checkbox"
-                    checked={!settings.darkMode}
-                    onChange={(e) => handleSettingChange('darkMode', !e.target.checked)}
+                    checked={settings.lightMode}
+                    onChange={(e) => handleSettingChange('lightMode', e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
                 </label>
@@ -239,7 +249,7 @@ function Settings() {
 
           {/* Code Analysis Settings */}
           <section className="settings-section">
-            <h3 className="section-title">🔬 Code Analysis Settings</h3>
+            <h3 className="section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Code Analysis Settings</h3>
             
             <div className="settings-grid">
               <div className="setting-item-full">
@@ -254,8 +264,6 @@ function Settings() {
                 >
                   <option value="python">Python</option>
                   <option value="java">Java</option>
-                  <option value="javascript">JavaScript (Coming Soon)</option>
-                  <option value="cpp">C++ (Coming Soon)</option>
                 </select>
               </div>
 
@@ -278,7 +286,7 @@ function Settings() {
 
           {/* Account Settings */}
           <section className="settings-section">
-            <h3 className="section-title">👤 Account Information</h3>
+            <h3 className="section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Account Information</h3>
             
             <div className="account-info-card">
               <div className="account-row" style={{ flexDirection: 'column', alignItems: 'center', gap: '8px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
@@ -398,7 +406,7 @@ function Settings() {
 
           {/* Change Password */}
           <section className="settings-section">
-            <h3 className="section-title">🔒 Change Password</h3>
+            <h3 className="section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Change Password</h3>
 
             <div className="account-info-card">
               {passwordMessage && (
@@ -485,10 +493,10 @@ function Settings() {
           {/* Save Button */}
           <div className="settings-actions">
             <button className="action-btn secondary" onClick={() => navigate('/dashboard')}>
-              ↩️ Cancel
+              Cancel
             </button>
             <button className="action-btn primary" onClick={saveSettings}>
-              💾 Save Settings
+              Save Settings
             </button>
           </div>
         </div>
@@ -499,7 +507,7 @@ function Settings() {
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
             <div className="help-modal-header">
               <h3>Help & Documentation</h3>
-              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="help-modal-body">
               <div className="help-section">
