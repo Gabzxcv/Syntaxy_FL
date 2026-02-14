@@ -1,8 +1,31 @@
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import './Landing.css';
 
 function Landing() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            // Also reveal children (feature-card, step-card)
+            entry.target.querySelectorAll('.feature-card, .step-card').forEach((child) => {
+              child.classList.add('visible');
+            });
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    const sections = document.querySelectorAll('.landing-features, .landing-how-it-works, .landing-stats, .landing-cta');
+    sections.forEach((section) => observer.observe(section));
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="landing-page">
@@ -13,8 +36,9 @@ function Landing() {
           <span className="landing-nav-logo">Syntaxy</span>
         </div>
         <div className="landing-nav-links">
-          <button className="nav-link" onClick={() => navigate('/features')}>Features</button>
-          <button className="nav-link" onClick={() => navigate('/how-it-works')}>How It Works</button>
+          <button className="nav-link" onClick={() => document.querySelector('.landing-features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
+          <button className="nav-link" onClick={() => document.querySelector('.landing-how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</button>
+          <button className="nav-link" onClick={() => navigate('/about')}>About</button>
         </div>
         <div className="landing-nav-actions">
           <button className="nav-sign-in" onClick={() => navigate('/login')}>

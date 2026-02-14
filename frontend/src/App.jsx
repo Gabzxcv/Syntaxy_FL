@@ -15,6 +15,7 @@ import Admin from './components/Admin';
 import Features from './components/Features';
 import HowItWorks from './components/HowItWorks';
 import ChatDemo from './components/ChatDemo';
+import About from './components/About';
 import './App.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -56,6 +57,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/chat" element={<ChatDemo />} />
+          <Route path="/about" element={<About />} />
         </Routes>
       </div>
     </HashRouter>

@@ -11,6 +11,22 @@
   --text-muted: #6b7280;
 }
 
+/* Ensure stat-icon SVGs are always white (they sit on colored backgrounds) */
+.stat-icon svg {
+  stroke: #fff !important;
+  color: #fff !important;
+}
+
+/* Ensure section-title SVGs are visible in dark mode */
+.section-title svg {
+  color: var(--text-primary);
+}
+
+/* Ensure empty-state SVGs are visible */
+.empty-state svg {
+  color: var(--text-muted);
+}
+
 * {
   margin: 0;
   padding: 0;

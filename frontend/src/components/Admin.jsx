@@ -6,7 +6,7 @@ import './Admin.css';
 const API = 'http://localhost:5000/api/v1';
 const DEFAULT_ACCENT = '#6366f1';
 
-const REGISTERED_STUDENTS = [
+const FALLBACK_STUDENTS = [
   { name: 'Alice Chen', email: 'alice.chen@university.edu' },
   { name: 'Bob Martinez', email: 'bob.martinez@university.edu' },
   { name: 'Carlos Wang', email: 'carlos.wang@university.edu' },
@@ -23,6 +23,7 @@ function Admin() {
     try { return userStr ? JSON.parse(userStr) : null; } catch { return null; }
   });
   const [users, setUsers] = useState([]);
+  const [registeredStudents, setRegisteredStudents] = useState(FALLBACK_STUDENTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('uiAccentColor') || DEFAULT_ACCENT;
@@ -81,6 +82,10 @@ function Admin() {
       .then((data) => {
         if (data && data.users) {
           setUsers(data.users);
+          const students = data.users
+            .filter(u => u.role === 'student')
+            .map(u => ({ name: u.full_name || u.username, email: u.email }));
+          if (students.length > 0) setRegisteredStudents(students);
         }
       })
       .catch(() => {});
@@ -180,7 +185,7 @@ function Admin() {
 
   function handleAssignStudent() {
     if (!assignSectionId || !assignStudent) return;
-    const student = REGISTERED_STUDENTS.find(s => s.email === assignStudent);
+    const student = registeredStudents.find(s => s.email === assignStudent);
     if (!student) return;
     const updated = adminSections.map(sec => {
       if (sec.id === assignSectionId) {
@@ -613,7 +618,7 @@ function Admin() {
                   {(() => {
                     const sec = adminSections.find(s => s.id === assignSectionId);
                     const existing = sec ? (sec.students || []).map(s => s.email) : [];
-                    return REGISTERED_STUDENTS.filter(s => !existing.includes(s.email));
+                    return registeredStudents.filter(s => !existing.includes(s.email));
                   })().map(s => (
                     <option key={s.email} value={s.email}>{s.name} ({s.email})</option>
                   ))}

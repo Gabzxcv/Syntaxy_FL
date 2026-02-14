@@ -339,6 +339,57 @@ function Dashboard() {
             </div>
           </div>
 
+          {/* Analytics Charts - visible for instructors and admins */}
+          {(user.role === 'instructor' || user.role === 'admin') && (
+            <div className="account-section">
+              <h4 className="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Analytics Overview
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '16px' }}>
+                {/* Sections Chart */}
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
+                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Students per Section</h5>
+                  {(() => {
+                    try {
+                      const savedSections = JSON.parse(localStorage.getItem('savedSections') || '[]');
+                      if (savedSections.length === 0) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No sections yet</p>;
+                      const maxStudents = Math.max(...savedSections.map(s => (s.students || []).length), 1);
+                      return savedSections.map(sec => (
+                        <div key={sec.id || sec.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                          <span style={{ minWidth: '80px', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'right' }}>{sec.name}</span>
+                          <div style={{ flex: 1, height: '24px', background: 'var(--bg-secondary)', borderRadius: '6px', overflow: 'hidden' }}>
+                            <div style={{ height: '100%', width: `${((sec.students || []).length / maxStudents) * 100}%`, background: 'var(--accent-color, #6366f1)', borderRadius: '6px', minWidth: (sec.students || []).length > 0 ? '20px' : '0', transition: 'width 0.3s ease' }} />
+                          </div>
+                          <span style={{ minWidth: '24px', fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>{(sec.students || []).length}</span>
+                        </div>
+                      ));
+                    } catch { return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Unable to load sections</p>; }
+                  })()}
+                </div>
+
+                {/* Activity Summary */}
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
+                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Recent Activity</h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{user.total_analyses || 0} total analyses completed</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{stats.totalFiles} files uploaded</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{stats.totalHistory} activities recorded</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Account Details */}
           <div className="account-section">
             <h4 className="section-title">Account Details</h4>

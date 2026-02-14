@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Students.css';
 
-const REGISTERED_STUDENTS = [
+const API = 'http://localhost:5000/api/v1';
+
+const FALLBACK_STUDENTS = [
   { name: 'Alice Chen', email: 'alice.chen@university.edu' },
   { name: 'Bob Martinez', email: 'bob.martinez@university.edu' },
   { name: 'Carlos Wang', email: 'carlos.wang@university.edu' },
@@ -14,7 +16,7 @@ const REGISTERED_STUDENTS = [
   { name: 'Henry Wilson', email: 'henry.wilson@university.edu' },
 ];
 
-const REGISTERED_INSTRUCTORS = [
+const FALLBACK_INSTRUCTORS = [
   { name: 'Dr. Smith', email: 'smith@university.edu' },
   { name: 'Prof. Garcia', email: 'garcia@university.edu' },
   { name: 'Dr. Patel', email: 'patel@university.edu' },
@@ -40,12 +42,37 @@ function Students() {
   });
 
   const [results, setResults] = useState([]);
+  const [registeredStudents, setRegisteredStudents] = useState(FALLBACK_STUDENTS);
+  const [registeredInstructors, setRegisteredInstructors] = useState(FALLBACK_INSTRUCTORS);
 
   // Form state
   const [newSectionName, setNewSectionName] = useState('');
   const [newSectionInstructor, setNewSectionInstructor] = useState('');
   const [selectedStudentEmail, setSelectedStudentEmail] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState('');
+
+  // Fetch registered users from database
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/admin/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.users) {
+          const students = data.users
+            .filter(u => u.role === 'student')
+            .map(u => ({ name: u.full_name || u.username, email: u.email }));
+          const instructors = data.users
+            .filter(u => u.role === 'instructor')
+            .map(u => ({ name: u.full_name || u.username, email: u.email }));
+          if (students.length > 0) setRegisteredStudents(students);
+          if (instructors.length > 0) setRegisteredInstructors(instructors);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('studentResults');
@@ -76,7 +103,7 @@ function Students() {
   function handleCreateSection(e) {
     e.preventDefault();
     if (!newSectionName.trim() || !newSectionInstructor) return;
-    const instructor = REGISTERED_INSTRUCTORS.find(i => i.email === newSectionInstructor);
+    const instructor = registeredInstructors.find(i => i.email === newSectionInstructor);
     const section = {
       id: crypto.randomUUID(),
       name: newSectionName.trim(),
@@ -91,7 +118,7 @@ function Students() {
   function handleAddStudent(e) {
     e.preventDefault();
     if (!selectedSectionId || !selectedStudentEmail) return;
-    const registered = REGISTERED_STUDENTS.find(s => s.email === selectedStudentEmail);
+    const registered = registeredStudents.find(s => s.email === selectedStudentEmail);
     if (!registered) return;
     const section = sections.find(s => s.id === selectedSectionId);
     if (section && section.students.some(st => st.email === registered.email)) return;
@@ -106,11 +133,11 @@ function Students() {
   }
 
   function getAvailableStudents() {
-    if (!selectedSectionId) return REGISTERED_STUDENTS;
+    if (!selectedSectionId) return registeredStudents;
     const section = sections.find(s => s.id === selectedSectionId);
-    if (!section) return REGISTERED_STUDENTS;
+    if (!section) return registeredStudents;
     const existingEmails = new Set(section.students.map(st => st.email));
-    return REGISTERED_STUDENTS.filter(s => !existingEmails.has(s.email));
+    return registeredStudents.filter(s => !existingEmails.has(s.email));
   }
 
   function getStudentProfilePic(email) {
@@ -273,7 +300,7 @@ function Students() {
                   onChange={(e) => setNewSectionInstructor(e.target.value)}
                 >
                   <option value="">Select instructor...</option>
-                  {REGISTERED_INSTRUCTORS.map(i => (
+                  {registeredInstructors.map(i => (
                     <option key={i.email} value={i.email}>{i.name} ({i.email})</option>
                   ))}
                 </select>
