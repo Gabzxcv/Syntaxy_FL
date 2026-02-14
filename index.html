@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Syntaxy – Code Analysis Platform</title>
   <meta name="description" content="Syntaxy scans your codebase for duplicated logic, surfaces refactoring opportunities, and tracks changes over time." />
-  <script>
-    // GitHub Pages: redirect to the built frontend app
-    window.location.href = 'frontend/dist/index.html';
-  </script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -46,13 +42,27 @@
     <div class="wrapper">
       <h1>Welcome to <span>Syntaxy</span></h1>
       <p>Please enable JavaScript to use the Syntaxy platform.</p>
-      <a class="btn" href="frontend/dist/index.html">Open App</a>
     </div>
   </noscript>
   <div class="wrapper">
     <h1>Welcome to <span>Syntaxy</span></h1>
     <p>Redirecting to the app...</p>
     <a class="btn" href="frontend/dist/index.html">Open App</a>
+    <p class="note">This page is for local development. For production, deploy using the GitHub Actions workflow which serves directly from the <code>frontend/dist</code> folder.</p>
   </div>
+  <script>
+    // For local testing: redirect to the built frontend app
+    // In GitHub Pages deployment (via Actions), this file is not used — the built app is served directly
+    if (window.location.pathname === '/' || window.location.pathname.endsWith('/index.html')) {
+      var distUrl = 'frontend/dist/index.html';
+      var xhr = new XMLHttpRequest();
+      xhr.open('HEAD', distUrl, true);
+      xhr.onload = function() {
+        if (xhr.status === 200) window.location.href = distUrl;
+      };
+      xhr.onerror = function() { /* stay on this page */ };
+      xhr.send();
+    }
+  </script>
 </body>
 </html>

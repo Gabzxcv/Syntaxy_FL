@@ -1,6 +1,29 @@
 import { useNavigate } from 'react-router-dom';
 import './Landing.css';
 
+const TEAM_MEMBERS = [
+  {
+    name: 'Allen Gabriel Cruz',
+    role: 'Main Programmer / Backend',
+    image: '', // Add image URL here
+  },
+  {
+    name: 'Joshua Nathaniel Castillo',
+    role: 'Thesis Leader',
+    image: '', // Add image URL here
+  },
+  {
+    name: 'Erl Pascual',
+    role: 'Main Researcher',
+    image: '', // Add image URL here
+  },
+  {
+    name: 'Giancarlo Andre Saba',
+    role: 'Programmer / Frontend',
+    image: '', // Add image URL here
+  },
+];
+
 function About() {
   const navigate = useNavigate();
 
@@ -38,7 +61,6 @@ function About() {
               About <span className="hero-title-accent">Syntaxy</span>
             </h1>
             <p className="hero-subtitle" style={{ maxWidth: '100%', margin: '0 auto 40px' }}>
-              {/* Edit this section to add your own about page content */}
               Syntaxy is a code analysis platform built to help instructors and students
               maintain code quality and originality. Our tools detect duplicated logic,
               provide refactoring suggestions, and track improvements over time.
@@ -48,20 +70,19 @@ function About() {
       </section>
 
       {/* ===== OUR MISSION ===== */}
-      <section className="landing-features" style={{ paddingTop: '40px' }}>
+      <section className="landing-features" style={{ paddingTop: '40px', opacity: 1, transform: 'none' }}>
         <div className="features-inner">
           <div className="features-header">
             <span className="features-label">Our Mission</span>
             <h2 className="features-title">Empowering better code practices</h2>
             <p className="features-desc">
-              {/* Edit this section to describe your mission */}
               We believe that writing clean, original code is a fundamental skill. Syntaxy
               provides the tools and insights needed to develop this skill effectively.
             </p>
           </div>
 
           <div className="features-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div className="feature-card">
+            <div className="feature-card" style={{ opacity: 1, transform: 'none' }}>
               <div className="feature-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -69,13 +90,12 @@ function About() {
               </div>
               <h3 className="feature-title">Our Team</h3>
               <p className="feature-desc">
-                {/* Edit this to describe your team */}
                 A dedicated team of developers and educators working to make code analysis
                 accessible and effective for everyone.
               </p>
             </div>
 
-            <div className="feature-card">
+            <div className="feature-card" style={{ opacity: 1, transform: 'none' }}>
               <div className="feature-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
@@ -83,7 +103,6 @@ function About() {
               </div>
               <h3 className="feature-title">Our Values</h3>
               <p className="feature-desc">
-                {/* Edit this to describe your values */}
                 Integrity, innovation, and education. We strive to build tools that make a
                 real difference in how code is written and reviewed.
               </p>
@@ -92,20 +111,52 @@ function About() {
         </div>
       </section>
 
-      {/* ===== GALLERY / SHOWCASE SECTION ===== */}
-      <section className="landing-how-it-works">
+      {/* ===== TEAM MEMBERS ===== */}
+      <section className="landing-how-it-works" style={{ opacity: 1, transform: 'none' }}>
         <div className="how-inner">
+          <div className="features-header">
+            <span className="features-label">The Team</span>
+            <h2 className="features-title">Meet the people behind Syntaxy</h2>
+            <p className="features-desc">
+              Our team brings together expertise in software engineering, research, and education.
+            </p>
+          </div>
+
+          <div className="about-team-grid">
+            {TEAM_MEMBERS.map((member) => (
+              <div key={member.name} className="about-team-card">
+                <div className="about-team-avatar">
+                  {member.image ? (
+                    <img src={member.image} alt={member.name} className="about-team-img" />
+                  ) : (
+                    <div className="about-team-placeholder">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="40" height="40">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <h4 className="about-team-name">{member.name}</h4>
+                <p className="about-team-role">{member.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== GALLERY / SHOWCASE SECTION ===== */}
+      <section className="landing-features" style={{ opacity: 1, transform: 'none' }}>
+        <div className="features-inner">
           <div className="features-header">
             <span className="features-label">Gallery</span>
             <h2 className="features-title">See Syntaxy in action</h2>
             <p className="features-desc">
-              {/* Edit this to describe images you'll add later */}
               Screenshots and visuals of the platform in use.
             </p>
           </div>
 
           <div className="about-gallery">
-            {/* Replace these placeholder boxes with your own images */}
             <div className="about-gallery-item">
               <div className="about-gallery-placeholder">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="48" height="48">
@@ -144,12 +195,11 @@ function About() {
       </section>
 
       {/* ===== CONTACT / INFO ===== */}
-      <section className="landing-cta">
+      <section className="landing-cta" style={{ opacity: 1, transform: 'none' }}>
         <div className="cta-inner">
           <div className="cta-glow" />
           <h2 className="cta-title">Get in touch</h2>
           <p className="cta-desc">
-            {/* Edit with your contact info or remove if not needed */}
             Have questions or want to learn more? We{"'"}d love to hear from you.
           </p>
           <button className="hero-cta" onClick={() => navigate('/login')}>

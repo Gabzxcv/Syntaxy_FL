@@ -46,6 +46,55 @@ body {
   overflow-x: hidden;
 }
 
+/* ===== CUSTOM SCROLLBARS ===== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.5);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.25);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.45);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+body.light-mode * {
+  scrollbar-color: rgba(99, 102, 241, 0.25) transparent;
+}
+
 /* ===== LIGHT MODE THEME ===== */
 body.light-mode {
   --bg-primary: #E7DFC6;
