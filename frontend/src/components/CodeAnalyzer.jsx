@@ -539,7 +539,7 @@ function CodeAnalyzer() {
             <div className="quick-test-buttons">
               <button className="test-btn" onClick={testHealth}>
                 <span className="btn-icon">+</span>
-                ❤️ Health Check
+                Health Check
               </button>
               <button className="test-btn" onClick={testLanguages}>
                 🌐 Get Languages
@@ -590,7 +590,7 @@ function CodeAnalyzer() {
               </button>
 
               <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
-                📤 Upload File
+                Upload File
               </button>
               <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
                 📦 Upload Zip
@@ -650,10 +650,10 @@ function CodeAnalyzer() {
                       </span>
                     )}
                     <button className="action-btn secondary batch-file-btn" onClick={() => handleSelectExtractedFile(ef)}>
-                      👁️ View
+                      View
                     </button>
                     <button className="action-btn primary batch-file-btn" onClick={() => handleAnalyzeExtractedFile(ef)}>
-                      {ef.analyzed ? '🔍 Re-scan' : '🔍 Scan'}
+                      {ef.analyzed ? 'Re-scan' : 'Scan'}
                     </button>
                   </div>
                 ))}
@@ -754,7 +754,7 @@ function CodeAnalyzer() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={analyze}>
-              🔬 Analyze Code
+              Analyze Code
             </button>
 
             {analyzeResult.className === 'loading' && (

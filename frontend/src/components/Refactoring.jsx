@@ -359,7 +359,7 @@ function Refactoring() {
             </div>
 
             <button className="action-btn primary analyze-btn" onClick={handleAnalyze}>
-              🔬 Analyze &amp; Refactor
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:'6px',verticalAlign:'middle'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Analyze &amp; Refactor
             </button>
           </section>
 
@@ -426,10 +426,10 @@ function Refactoring() {
               {/* Cross-page link */}
               <div className="cross-page-actions">
                 <button className="action-btn primary" onClick={() => navigate('/analyzer')}>
-                  🔍 Analyze More Code
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:'6px',verticalAlign:'middle'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Analyze More Code
                 </button>
                 <button className="action-btn secondary" onClick={() => navigate('/students')}>
-                  👥 View Analysis Results
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:'6px',verticalAlign:'middle'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>View Analysis Results
                 </button>
               </div>
             </section>

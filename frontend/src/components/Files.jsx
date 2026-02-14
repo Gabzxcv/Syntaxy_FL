@@ -414,14 +414,14 @@ function Files() {
           {/* Stats Cards */}
           <div className="files-stats">
             <div className="stat-card">
-              <div className="stat-icon">📁 </div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{files.length}</div>
                 <div className="stat-label">Total Files</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">💾 </div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{formatSize(totalSize)}</div>
                 <div className="stat-label">Total Size</div>
@@ -467,7 +467,7 @@ function Files() {
               className="upload-btn"
               onClick={() => fileInputRef.current.click()}
             >
-              📤 Upload Files
+              Upload Files
             </button>
             <input
               ref={fileInputRef}

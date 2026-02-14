@@ -277,7 +277,7 @@ function History() {
           {/* Stats Cards */}
           <div className="history-stats">
             <div className="stat-card">
-              <div className="stat-icon">📊 </div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{totalActivities}</div>
                 <div className="stat-label">Total Activities</div>
@@ -291,7 +291,7 @@ function History() {
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">⏰ </div>
+              <div className="stat-icon"></div>
               <div className="stat-info">
                 <div className="stat-value">{today}</div>
                 <div className="stat-label">Today</div>
