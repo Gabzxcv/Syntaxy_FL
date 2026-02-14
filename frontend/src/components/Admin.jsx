@@ -46,8 +46,8 @@ function Admin() {
   }, [accentColor]);
 
   useEffect(() => {
-    if (localStorage.getItem('darkMode') === 'true') {
-      document.body.classList.add('dark-mode');
+    if (localStorage.getItem('lightMode') === 'true') {
+      document.body.classList.add('light-mode');
     }
   }, []);
 

@@ -19,6 +19,11 @@ const API = 'http://localhost:5000/api/v1';
 
 function App() {
   useEffect(() => {
+    // Apply light mode from saved settings
+    if (localStorage.getItem('lightMode') === 'true') {
+      document.body.classList.add('light-mode');
+    }
+
     fetch(`${API}/auth/admin/theme`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {

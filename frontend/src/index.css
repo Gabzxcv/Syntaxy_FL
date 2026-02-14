@@ -25,3 +25,377 @@ body {
   color: var(--text-primary);
   overflow-x: hidden;
 }
+
+/* ===== LIGHT MODE THEME ===== */
+body.light-mode {
+  --bg-primary: #E7DFC6;
+  --bg-secondary: #f5f0e3;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8f6f0;
+  --border-color: #d4cbb5;
+  --border-color-strong: #c4b99a;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+  background: #E7DFC6;
+  color: #1a1a2e;
+}
+
+/* Light mode - layout backgrounds */
+body.light-mode .app-wrapper,
+body.light-mode .dashboard-layout,
+body.light-mode .analyzer-layout,
+body.light-mode .settings-layout,
+body.light-mode .history-layout,
+body.light-mode .files-layout,
+body.light-mode .refactoring-layout,
+body.light-mode .admin-layout {
+  background: #E7DFC6 !important;
+}
+
+/* Light mode - sidebar */
+body.light-mode .sidebar {
+  background: linear-gradient(180deg, #f5f0e3 0%, #E7DFC6 100%) !important;
+  color: #1a1a2e;
+  border-right: 1px solid #c4b99a;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .sidebar-header {
+  border-bottom-color: #c4b99a;
+}
+
+body.light-mode .nav-item {
+  color: #555555;
+}
+
+body.light-mode .nav-item:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: #1a1a2e;
+}
+
+body.light-mode .nav-item.active {
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-color, #6366f1);
+  border-left-color: var(--accent-color, #6366f1);
+}
+
+body.light-mode .sidebar-footer {
+  border-top-color: #c4b99a;
+}
+
+body.light-mode .user-profile {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+body.light-mode .user-name {
+  color: #1a1a2e;
+}
+
+body.light-mode .user-email {
+  color: #888888;
+}
+
+/* Light mode - main content */
+body.light-mode .main-content {
+  background: #E7DFC6 !important;
+}
+
+/* Light mode - headers */
+body.light-mode .dashboard-header,
+body.light-mode .analyzer-header,
+body.light-mode .settings-header,
+body.light-mode .history-header,
+body.light-mode .files-header,
+body.light-mode .refactoring-header,
+body.light-mode .admin-header {
+  background: rgba(245, 240, 227, 0.9) !important;
+  backdrop-filter: blur(20px);
+  border-bottom-color: #c4b99a !important;
+}
+
+body.light-mode .page-title {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .page-subtitle {
+  color: #555555 !important;
+}
+
+/* Light mode - cards */
+body.light-mode .stat-card,
+body.light-mode .action-card,
+body.light-mode .details-grid,
+body.light-mode .settings-section,
+body.light-mode .account-info-card,
+body.light-mode .section-card,
+body.light-mode .admin-section {
+  background: #ffffff !important;
+  border-color: #d4cbb5 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .stat-card:hover,
+body.light-mode .action-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+/* Light mode - text overrides */
+body.light-mode .section-title,
+body.light-mode .stat-value,
+body.light-mode .welcome-title,
+body.light-mode .action-title {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .stat-label,
+body.light-mode .welcome-text,
+body.light-mode .action-desc,
+body.light-mode .setting-description {
+  color: #555555 !important;
+}
+
+body.light-mode .setting-label,
+body.light-mode .account-label,
+body.light-mode .detail-label {
+  color: #555555 !important;
+}
+
+body.light-mode .account-value,
+body.light-mode .detail-value {
+  color: #1a1a2e !important;
+}
+
+/* Light mode - inputs */
+body.light-mode .setting-input,
+body.light-mode .setting-select,
+body.light-mode .section-input,
+body.light-mode .language-select,
+body.light-mode .search-input,
+body.light-mode .filter-select {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+  color: #1a1a2e !important;
+}
+
+body.light-mode .setting-input:focus,
+body.light-mode .setting-select:focus,
+body.light-mode .section-input:focus {
+  border-color: var(--accent-color, #6366f1) !important;
+}
+
+/* Light mode - tables */
+body.light-mode .admin-table,
+body.light-mode .students-table,
+body.light-mode .results-table {
+  background: #ffffff;
+  color: #1a1a2e;
+}
+
+body.light-mode .admin-table thead,
+body.light-mode .students-table thead,
+body.light-mode .results-table thead {
+  background: #f5f0e3;
+}
+
+body.light-mode .admin-table th,
+body.light-mode .students-table th,
+body.light-mode .results-table th {
+  color: #555555;
+  border-bottom-color: #c4b99a;
+}
+
+body.light-mode .admin-table td,
+body.light-mode .students-table td,
+body.light-mode .results-table td {
+  color: #1a1a2e;
+  border-bottom-color: #e8e2d0;
+}
+
+body.light-mode .admin-table tbody tr:hover,
+body.light-mode .students-table tbody tr:hover,
+body.light-mode .results-table tbody tr:hover {
+  background: #f5f0e3;
+}
+
+/* Light mode - code editor */
+body.light-mode .code-editor-container {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .editor-header {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .code-editor {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .editor-label,
+body.light-mode .editor-lang {
+  color: #555555 !important;
+}
+
+/* Light mode - results */
+body.light-mode .result-box {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .result-box pre {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .analysis-visual-results {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .metric-card {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .metric-label {
+  color: #555555 !important;
+}
+
+body.light-mode .metric-value {
+  color: #1a1a2e !important;
+}
+
+/* Light mode - notifications */
+body.light-mode .notification-btn {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+  color: #555555 !important;
+}
+
+body.light-mode .notification-dropdown {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .notification-text {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .notification-time {
+  color: #888888 !important;
+}
+
+/* Light mode - buttons */
+body.light-mode .action-btn.secondary {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+  color: #1a1a2e !important;
+}
+
+body.light-mode .btn-logout-sidebar {
+  color: #ef4444;
+}
+
+/* Light mode - timeline/history items */
+body.light-mode .timeline-item,
+body.light-mode .file-row {
+  background: #ffffff !important;
+  border-color: #d4cbb5 !important;
+}
+
+body.light-mode .timeline-description,
+body.light-mode .file-name {
+  color: #1a1a2e !important;
+}
+
+/* Light mode - drop zone */
+body.light-mode .drop-zone {
+  background: #f5f0e3 !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .drop-zone-text {
+  color: #555555 !important;
+}
+
+/* Light mode - help modal */
+body.light-mode .help-modal-overlay {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+body.light-mode .help-modal {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .help-modal-header {
+  border-bottom-color: #d4cbb5 !important;
+}
+
+body.light-mode .help-modal-header h3 {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .help-section h4 {
+  color: #1a1a2e !important;
+}
+
+body.light-mode .help-section p {
+  color: #555555 !important;
+}
+
+body.light-mode .help-section {
+  border-bottom-color: #e8e2d0 !important;
+}
+
+/* Light mode - batch files */
+body.light-mode .batch-files-list,
+body.light-mode .batch-suggestions {
+  background: #ffffff !important;
+  border-color: #d4cbb5 !important;
+}
+
+/* Light mode - loading */
+body.light-mode .loading {
+  color: #555555;
+  background: #E7DFC6;
+}
+
+/* Light mode - search */
+body.light-mode .search-bar {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .search-input {
+  color: #1a1a2e !important;
+}
+
+/* Light mode - chat demo */
+body.light-mode .chat-panel {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+}
+
+body.light-mode .chat-header {
+  background: #f5f0e3 !important;
+  border-bottom-color: #c4b99a !important;
+  color: #1a1a2e !important;
+}
+
+body.light-mode .chat-input-area {
+  background: #f5f0e3 !important;
+  border-top-color: #c4b99a !important;
+}
+
+body.light-mode .chat-input {
+  background: #ffffff !important;
+  border-color: #c4b99a !important;
+  color: #1a1a2e !important;
+}
+
+body.light-mode .bot-message {
+  background: #f5f0e3 !important;
+  color: #1a1a2e !important;
+}

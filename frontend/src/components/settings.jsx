@@ -31,7 +31,7 @@ function Settings() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return { ...parsed, darkMode: localStorage.getItem('darkMode') === 'true' };
+        return { ...parsed, lightMode: localStorage.getItem('lightMode') === 'true' };
       } catch (e) {
         console.warn('Failed to parse saved settings:', e);
       }
@@ -39,7 +39,7 @@ function Settings() {
     return {
       emailNotifications: true,
       autoSave: true,
-      darkMode: localStorage.getItem('darkMode') === 'true',
+      lightMode: localStorage.getItem('lightMode') === 'true',
       languageDefault: 'python',
       maxFileSize: '10',
       enableHistory: true,
@@ -47,22 +47,22 @@ function Settings() {
   });
 
   useEffect(() => {
-    const isDark = localStorage.getItem('darkMode') === 'true';
-    if (isDark) {
-      document.body.classList.add('dark-mode');
+    const isLight = localStorage.getItem('lightMode') === 'true';
+    if (isLight) {
+      document.body.classList.add('light-mode');
     } else {
-      document.body.classList.remove('dark-mode');
+      document.body.classList.remove('light-mode');
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('darkMode', settings.darkMode);
-    if (settings.darkMode) {
-      document.body.classList.add('dark-mode');
+    localStorage.setItem('lightMode', settings.lightMode);
+    if (settings.lightMode) {
+      document.body.classList.add('light-mode');
     } else {
-      document.body.classList.remove('dark-mode');
+      document.body.classList.remove('light-mode');
     }
-  }, [settings.darkMode]);
+  }, [settings.lightMode]);
 
   function handleLogout() {
     const token = localStorage.getItem('token');
@@ -208,13 +208,13 @@ function Settings() {
               <div className="setting-item">
                 <div className="setting-info">
                   <div className="setting-label">Light Mode</div>
-                  <div className="setting-description">Switch to light theme</div>
+                  <div className="setting-description">Switch to light beige theme</div>
                 </div>
                 <label className="toggle-switch">
                   <input
                     type="checkbox"
-                    checked={!settings.darkMode}
-                    onChange={(e) => handleSettingChange('darkMode', !e.target.checked)}
+                    checked={settings.lightMode}
+                    onChange={(e) => handleSettingChange('lightMode', e.target.checked)}
                   />
                   <span className="toggle-slider"></span>
                 </label>

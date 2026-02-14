@@ -169,8 +169,8 @@ function Refactoring() {
   const profilePic = user ? localStorage.getItem('profilePicture_' + user.id) : null;
 
   useEffect(() => {
-    if (localStorage.getItem('darkMode') === 'true') {
-      document.body.classList.add('dark-mode');
+    if (localStorage.getItem('lightMode') === 'true') {
+      document.body.classList.add('light-mode');
     }
   }, []);
 
