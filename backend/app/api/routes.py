@@ -6,7 +6,13 @@ import uuid
 
 bp = Blueprint('api', __name__)
 
-# ... keep existing health and languages endpoints ...
+@bp.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy', 'message': 'Code Clone Detector API is running'}), 200
+
+@bp.route('/languages', methods=['GET'])
+def get_languages():
+    return jsonify({'languages': ['python', 'java']}), 200
 
 @bp.route('/analyze', methods=['POST'])
 @jwt_required(optional=True)  # Optional auth
