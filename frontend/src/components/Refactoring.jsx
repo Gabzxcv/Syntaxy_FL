@@ -286,21 +286,21 @@ function Refactoring() {
           {/* Stats Cards */}
           <section className="stats-cards">
             <div className="stat-card">
-              <div className="stat-icon smell-icon">🐛 </div>
+              <div className="stat-icon smell-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
               <div className="stat-info">
                 <div className="stat-value">{smellCount}</div>
                 <div className="stat-label">Code Smells Found</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon suggestion-icon">💡 </div>
+              <div className="stat-icon suggestion-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg></div>
               <div className="stat-info">
                 <div className="stat-value">{suggestionCount}</div>
                 <div className="stat-label">Suggestions Generated</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon score-icon">⭐ </div>
+              <div className="stat-icon score-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
               <div className="stat-info">
                 <div className="stat-value">{analyzed ? `${scoreBefore} → ${scoreAfter}` : '—'}</div>
                 <div className="stat-label">Quality Score</div>
@@ -326,7 +326,8 @@ function Refactoring() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                📋 Load Sample
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                Load Sample
               </button>
             </div>
 
@@ -442,7 +443,7 @@ function Refactoring() {
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
             <div className="help-modal-header">
               <h3>Help & Documentation</h3>
-              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="help-modal-body">
               <div className="help-section">

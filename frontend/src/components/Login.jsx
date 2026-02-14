@@ -85,6 +85,10 @@ function Login() {
   return (
     <div className="auth-container">
       <div className="auth-header">
+        <button className="back-to-landing" onClick={() => navigate('/')} style={{ position: 'absolute', top: '16px', left: '16px', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontFamily: 'Montserrat, sans-serif' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+          Home
+        </button>
         <img src="/logo.png" alt="Syntaxy Logo" style={{ width: '100px', height: '100px', marginBottom: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.15)', padding: '8px' }} />
         <h1>Syntaxy</h1>
         <p>Code Analysis Platform</p>

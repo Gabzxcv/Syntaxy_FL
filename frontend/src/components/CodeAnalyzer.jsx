@@ -542,7 +542,8 @@ function CodeAnalyzer() {
                 Health Check
               </button>
               <button className="test-btn" onClick={testLanguages}>
-                🌐 Get Languages
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Get Languages
               </button>
             </div>
             {quickResult.text && (
@@ -586,14 +587,16 @@ function CodeAnalyzer() {
               </div>
 
               <button className="action-btn secondary" onClick={loadSample}>
-                📋 Load Sample
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                Load Sample
               </button>
 
               <button className="action-btn secondary" onClick={() => fileInputRef.current.click()}>
                 Upload File
               </button>
               <button className="action-btn secondary" aria-label="Upload zip file" onClick={() => zipInputRef.current.click()}>
-                📦 Upload Zip
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                Upload Zip
               </button>
               <input
                 type="file"
@@ -613,7 +616,7 @@ function CodeAnalyzer() {
 
             {uploadedFileName && (
               <div className="file-uploaded-badge">
-                <span className="badge-icon">✓</span>
+                <span className="badge-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
                 Loaded: {uploadedFileName}
               </div>
             )}
@@ -880,7 +883,8 @@ function CodeAnalyzer() {
                   localStorage.setItem('refactoringLanguage', language);
                   navigate('/refactoring');
                 }}>
-                  🔧 View Detailed Refactoring
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  View Detailed Refactoring
                 </button>
               </div>
             )}
@@ -893,7 +897,7 @@ function CodeAnalyzer() {
           <div className="help-modal" onClick={(e) => e.stopPropagation()}>
             <div className="help-modal-header">
               <h3>Help & Documentation</h3>
-              <button className="help-close-btn" onClick={() => setShowHelp(false)}>✕</button>
+              <button className="help-close-btn" onClick={() => setShowHelp(false)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             <div className="help-modal-body">
               <div className="help-section">
