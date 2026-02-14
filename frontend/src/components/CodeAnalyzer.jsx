@@ -169,7 +169,8 @@ function CodeAnalyzer() {
       }
     });
     
-    const clonePercentage = totalLines > 0 ? Math.round((duplicateLines / totalLines) * 100 * 10) / 10 : 0;
+    // Round clone percentage to one decimal place
+    const clonePercentage = totalLines > 0 ? Math.round((duplicateLines / totalLines) * 1000) / 10 : 0;
     
     // Count decision points for cyclomatic complexity
     const decisionKeywords = lang === 'python' 
@@ -182,7 +183,10 @@ function CodeAnalyzer() {
       });
     });
     
-    const maintainability = Math.max(0, Math.min(100, Math.round(100 - (complexity * 2) - (clonePercentage * 0.5))));
+    // Maintainability index: penalize high complexity and duplication
+    const COMPLEXITY_WEIGHT = 2;
+    const CLONE_WEIGHT = 0.5;
+    const maintainability = Math.max(0, Math.min(100, Math.round(100 - (complexity * COMPLEXITY_WEIGHT) - (clonePercentage * CLONE_WEIGHT))));
     
     // Find clone pairs
     const clones = [];
