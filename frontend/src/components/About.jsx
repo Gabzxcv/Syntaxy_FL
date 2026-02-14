@@ -5,22 +5,22 @@ const TEAM_MEMBERS = [
   {
     name: 'Allen Gabriel Cruz',
     role: 'Main Programmer / Backend',
-    image: '', // Add image URL here
+    image: 'oleg.jpg', // Add image URL here
   },
   {
     name: 'Joshua Nathaniel Castillo',
     role: 'Thesis Leader',
-    image: '', // Add image URL here
+    image: 'joshua castillo.jpg', // Add image URL here
   },
   {
     name: 'Erl Pascual',
     role: 'Main Researcher',
-    image: '', // Add image URL here
+    image: 'abe-r.jpg', // Add image URL here
   },
   {
     name: 'Giancarlo Andre Saba',
     role: 'Programmer / Frontend',
-    image: '', // Add image URL here
+    image: 'daddy tyga.jpg', // Add image URL here
   },
 ];
 
