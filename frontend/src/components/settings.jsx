@@ -41,7 +41,7 @@ function Settings() {
       autoSave: true,
       lightMode: localStorage.getItem('lightMode') === 'true',
       languageDefault: 'python',
-      maxFileSize: '10',
+      maxFileSize: '15',
       enableHistory: true,
     };
   });
@@ -258,8 +258,6 @@ function Settings() {
                 >
                   <option value="python">Python</option>
                   <option value="java">Java</option>
-                  <option value="javascript">JavaScript (Coming Soon)</option>
-                  <option value="cpp">C++ (Coming Soon)</option>
                 </select>
               </div>
 

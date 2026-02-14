@@ -12,11 +12,9 @@ const MAX_PREVIEW_LENGTH = 36;
 const AUTO_REPLY_DELAY_MS = 1200;
 
 const AUTO_REPLIES = [
-  'Got it, thanks!',
-  "I'll check the analysis results.",
-  'Have you submitted the assignment?',
-  'Sounds good, let me know if you need anything.',
-  'Thanks for the update!',
+  'gege',
+  'oks',
+  'omsim',
 ];
 
 function getStorageKey(userId, contactId) {
@@ -100,20 +98,29 @@ function getLastPreview(userId, contactId) {
 function ChatDemo() {
   const [open, setOpen] = useState(false);
   const [activeContact, setActiveContact] = useState(null);
+  const [selectedSection, setSelectedSection] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef(null);
   const replyTimerRef = useRef(null);
 
   const userId = getCurrentUser();
+  const isSignedIn = !!localStorage.getItem('token');
 
   const handleClose = useCallback(() => {
     setOpen(false);
     setActiveContact(null);
+    setSelectedSection(null);
     setMessages([]);
     setInput('');
   }, []);
   const [contacts] = useState(() => buildContacts());
+  const [sections] = useState(() => {
+    try {
+      const raw = localStorage.getItem('savedSections');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
 
   const openConversation = useCallback((contact) => {
     setActiveContact(contact);
@@ -121,10 +128,14 @@ function ChatDemo() {
   }, [userId]);
 
   const goBack = useCallback(() => {
-    setActiveContact(null);
-    setMessages([]);
-    setInput('');
-  }, []);
+    if (activeContact) {
+      setActiveContact(null);
+      setMessages([]);
+      setInput('');
+    } else {
+      setSelectedSection(null);
+    }
+  }, [activeContact]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -163,6 +174,23 @@ function ChatDemo() {
     if (e.key === 'Enter') send();
   };
 
+  if (!isSignedIn) return null;
+
+  // Get contacts for a specific section
+  const getContactsForSection = (section) => {
+    const sectionContacts = [];
+    if (section.instructor) {
+      sectionContacts.push({ id: `instructor-${section.id}-${section.instructor}`, name: section.instructor, role: 'instructor' });
+    }
+    (section.students || []).forEach((s) => {
+      const name = typeof s === 'string' ? s : s.name || s.username;
+      if (name) {
+        sectionContacts.push({ id: `student-${section.id}-${name}`, name, role: 'student' });
+      }
+    });
+    return sectionContacts;
+  };
+
   return (
     <>
       {open && (
@@ -182,6 +210,20 @@ function ChatDemo() {
                 </button>
                 <span className="chat-header-title">{activeContact.name}</span>
               </>
+            ) : selectedSection ? (
+              <>
+                <button
+                  className="chat-close-btn"
+                  onClick={goBack}
+                  aria-label="Back to sections"
+                  style={{ marginRight: 8 }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f3f4f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+                <span className="chat-header-title">{selectedSection.name}</span>
+              </>
             ) : (
               <span className="chat-header-title">Messages</span>
             )}
@@ -193,9 +235,71 @@ function ChatDemo() {
             </button>
           </div>
 
-          {!activeContact ? (
+          {!selectedSection && !activeContact ? (
+            /* Section list */
             <div className="chat-messages" style={{ padding: 0 }}>
-              {contacts.map((c) => (
+              {sections.length === 0 ? (
+                <div style={{ color: '#6b7280', textAlign: 'center', marginTop: 32, fontSize: '0.85rem', padding: '0 16px' }}>
+                  No sections available. Ask your instructor or admin to create sections first.
+                </div>
+              ) : (
+                sections.map((sec) => (
+                  <button
+                    key={sec.id}
+                    onClick={() => setSelectedSection(sec)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                      width: '100%',
+                      padding: '12px 16px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(255,255,255,0.06)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    aria-label={`Open section ${sec.name}`}
+                  >
+                    <span
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        background: '#374151',
+                        color: '#f3f4f6',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ color: '#f3f4f6', fontWeight: 600, fontSize: '0.88rem', display: 'block' }}>{sec.name}</span>
+                      <span style={{ color: '#6b7280', fontSize: '0.78rem' }}>
+                        {sec.instructor ? `Instructor: ${sec.instructor}` : ''} &middot; {(sec.students || []).length} student{(sec.students || []).length !== 1 ? 's' : ''}
+                      </span>
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : selectedSection && !activeContact ? (
+            /* Contact list for selected section */
+            <div className="chat-messages" style={{ padding: 0 }}>
+              {getContactsForSection(selectedSection).length === 0 ? (
+                <div style={{ color: '#6b7280', textAlign: 'center', marginTop: 32, fontSize: '0.85rem' }}>
+                  No people in this section yet.
+                </div>
+              ) : (
+                getContactsForSection(selectedSection).map((c) => (
                 <button
                   key={c.id}
                   onClick={() => openConversation(c)}
@@ -243,7 +347,8 @@ function ChatDemo() {
                     <polyline points="9 18 15 12 9 6" />
                   </svg>
                 </button>
-              ))}
+                ))
+              )}
             </div>
           ) : (
             <>
