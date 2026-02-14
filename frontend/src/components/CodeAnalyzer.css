@@ -19,7 +19,7 @@
 /* ===== SIDEBAR (Same as Dashboard) ===== */
 .sidebar {
   width: 260px;
-  background: #0a0d14;
+  background: linear-gradient(180deg, #111827 0%, #0d1117 100%);
   color: #e5e7eb;
   display: flex;
   flex-direction: column;
@@ -214,7 +214,7 @@
 
 .analyzer-content {
   padding: 32px 40px;
-  background: #0a0d14;
+  background: transparent;
   animation: fadeIn 0.4s ease;
 }
 
