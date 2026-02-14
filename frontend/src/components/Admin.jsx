@@ -281,28 +281,28 @@ function Admin() {
           {/* Stats Cards */}
           <div className="stats-grid">
             <div className="stat-card">
-              <div className="stat-icon">👤 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Total Users</div>
                 <div className="stat-value">{totalUsers}</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">🎓 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Students</div>
                 <div className="stat-value">{totalStudents}</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">👨‍🏫 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Instructors</div>
                 <div className="stat-value">{totalInstructors}</div>
               </div>
             </div>
             <div className="stat-card">
-              <div className="stat-icon">🛡️ <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+              <div className="stat-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
               <div className="stat-info">
                 <div className="stat-label">Admins</div>
                 <div className="stat-value">{totalAdmins}</div>
@@ -392,7 +392,7 @@ function Admin() {
 
           {/* UI Theme Color */}
           <div className="admin-section">
-            <h4 className="section-title">🎨 UI Theme Color</h4>
+            <h4 className="section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12" r="2.5"/><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12c0 1.82.487 3.53 1.338 5H6.5a2.5 2.5 0 0 0 0 5H12z"/></svg> UI Theme Color</h4>
             <div className="color-picker-section">
               <div className="color-swatch" style={{ backgroundColor: accentColor }} />
               <input
@@ -410,7 +410,7 @@ function Admin() {
 
           {/* Section Management */}
           <div className="admin-section">
-            <h4 className="section-title">📚 Section Management</h4>
+            <h4 className="section-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Section Management</h4>
             <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '16px' }}>
               Create sections and assign them to instructors. Sections will be available for file uploads and batch analysis.
             </p>
@@ -439,7 +439,7 @@ function Admin() {
                 onClick={handleCreateSection}
                 style={{ padding: '10px 20px', background: 'var(--accent-color, #6366f1)', border: 'none', borderRadius: '10px', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
               >
-                ➕ Create Section
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create Section
               </button>
             </div>
 
@@ -469,7 +469,7 @@ function Admin() {
                             className="delete-btn"
                             onClick={() => handleDeleteSection(sec.id)}
                           >
-                            🗑️ Delete
+                            Delete
                           </button>
                         </td>
                       </tr>
