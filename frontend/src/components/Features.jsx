@@ -6,7 +6,7 @@ const featuresList = [
   {
     title: 'Clone Detection',
     description:
-      'Identify duplicated code fragments across your entire codebase with our advanced clone-detection engine. Syntaxy analyses abstract syntax trees to surface exact, near-miss, and semantic clones so you can consolidate logic, reduce maintenance burden, and enforce DRY principles at scale.',
+      'Identify duplicated code fragments across your entire codebase with our advanced clone-detection engine. Syntaxy analyzes abstract syntax trees to surface exact, near-miss, and semantic clones so you can consolidate logic, reduce maintenance burden, and enforce DRY principles at scale.',
     icon: (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="8" height="8" rx="1.5" />
@@ -55,7 +55,7 @@ const featuresList = [
   {
     title: 'Student Management',
     description:
-      'Organise learners into groups, assign submissions, and monitor individual progress from a single dashboard. Role-based access ensures instructors see aggregate insights while students see only their own feedback.',
+      'Organize learners into groups, assign submissions, and monitor individual progress from a single dashboard. Role-based access ensures instructors see aggregate insights while students see only their own feedback.',
     icon: (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="9" cy="7" r="3" />
@@ -68,7 +68,7 @@ const featuresList = [
   {
     title: 'Code Metrics',
     description:
-      'Get quantitative insights including cyclomatic complexity, lines of code, maintainability index, and more. Visual dashboards make it easy to identify hotspots and prioritise technical-debt reduction.',
+      'Get quantitative insights including cyclomatic complexity, lines of code, maintainability index, and more. Visual dashboards make it easy to identify hotspots and prioritize technical-debt reduction.',
     icon: (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 3v18h18" />
@@ -100,7 +100,7 @@ function Features() {
       <section className="landing-hero" style={{ paddingTop: '120px', minHeight: 'auto' }}>
         <h1 className="landing-hero-title">Features</h1>
         <p className="landing-hero-sub">
-          Everything you need to analyse, improve, and manage code in one place.
+          Everything you need to analyze, improve, and manage code in one place.
         </p>
       </section>
 
@@ -118,7 +118,7 @@ function Features() {
 
       <section className="landing-cta" style={{ padding: '60px 0 80px' }}>
         <h2 className="cta-title">Ready to get started?</h2>
-        <p className="cta-sub">Create a free account and start analysing your code today.</p>
+        <p className="cta-sub">Create a free account and start analyzing your code today.</p>
         <button className="cta-btn" onClick={() => navigate('/login')}>
           Get Started
         </button>

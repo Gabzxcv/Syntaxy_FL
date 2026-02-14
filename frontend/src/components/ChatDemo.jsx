@@ -5,7 +5,7 @@ const AUTO_RESPONSES = {
   hello: 'Hi there! Welcome to Syntaxy. How can I help you today?',
   help: 'I can help you with clone detection, refactoring suggestions, batch analysis, history tracking, and more. Just ask!',
   'how to analyze':
-    'To analyse code, upload your source files, select the programming language, and click Analyse. Syntaxy will generate a full report with metrics, clones, and refactoring suggestions.',
+    'To analyze code, upload your source files, select the programming language, and click Analyze. Syntaxy will generate a full report with metrics, clones, and refactoring suggestions.',
   'clone detection':
     'Clone Detection identifies duplicated code fragments across your codebase using abstract syntax tree comparison. It surfaces exact, near-miss, and semantic clones so you can consolidate logic.',
   refactoring:

@@ -31,9 +31,9 @@ const steps = [
   },
   {
     number: 3,
-    title: 'Analyse',
+    title: 'Analyze',
     description:
-      'Hit the Analyse button and let the engine work. Syntaxy builds an abstract syntax tree, runs clone detection, computes metrics, and generates refactoring suggestions — all in one pass.',
+      'Hit the Analyze button and let the engine work. Syntaxy builds an abstract syntax tree, runs clone detection, computes metrics, and generates refactoring suggestions — all in one pass.',
     icon: (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="9" />
@@ -149,7 +149,7 @@ function HowItWorks() {
 
       <section className="landing-cta" style={{ padding: '60px 0 80px' }}>
         <h2 className="cta-title">Ready to get started?</h2>
-        <p className="cta-sub">Create a free account and start analysing your code today.</p>
+        <p className="cta-sub">Create a free account and start analyzing your code today.</p>
         <button className="cta-btn" onClick={() => navigate('/login')}>
           Get Started
         </button>
