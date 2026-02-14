@@ -6,24 +6,13 @@ import './Admin.css';
 const API = 'http://localhost:5000/api/v1';
 const DEFAULT_ACCENT = '#6366f1';
 
-const FALLBACK_STUDENTS = [
-  { name: 'Alice Chen', email: 'alice.chen@university.edu' },
-  { name: 'Bob Martinez', email: 'bob.martinez@university.edu' },
-  { name: 'Carlos Wang', email: 'carlos.wang@university.edu' },
-  { name: 'Diana Lee', email: 'diana.lee@university.edu' },
-  { name: 'Eve Johnson', email: 'eve.johnson@university.edu' },
-  { name: 'Frank Davis', email: 'frank.davis@university.edu' },
-  { name: 'Grace Kim', email: 'grace.kim@university.edu' },
-  { name: 'Henry Wilson', email: 'henry.wilson@university.edu' },
-];
-
 function Admin() {
   const [user, setUser] = useState(() => {
     const userStr = localStorage.getItem('user');
     try { return userStr ? JSON.parse(userStr) : null; } catch { return null; }
   });
   const [users, setUsers] = useState([]);
-  const [registeredStudents, setRegisteredStudents] = useState(FALLBACK_STUDENTS);
+  const [registeredStudents, setRegisteredStudents] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [accentColor, setAccentColor] = useState(() => {
     return localStorage.getItem('uiAccentColor') || DEFAULT_ACCENT;

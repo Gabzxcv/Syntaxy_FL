@@ -3,16 +3,13 @@
 /* ===== LANDING PAGE ===== */
 .landing-page {
   min-height: 100vh;
-  width: 100vw;
+  width: 100%;
   background: #0a0d14;
   color: #e5e7eb;
   font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow-x: hidden;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 10;
-  overflow-y: auto;
+  position: relative;
+  scroll-behavior: smooth;
 }
 
 /* ===== NAV ===== */
@@ -116,7 +113,7 @@
   min-height: 100vh;
   display: flex;
   align-items: center;
-  padding: 72px 48px 0;
+  padding: 120px 48px 80px;
   overflow: hidden;
 }
 
@@ -701,6 +698,59 @@
   justify-content: space-between;
 }
 
+/* ===== ABOUT GALLERY ===== */
+.about-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.about-gallery-item {
+  text-align: center;
+}
+
+.about-gallery-placeholder {
+  aspect-ratio: 16 / 10;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(17, 24, 39, 0.8), rgba(17, 24, 39, 0.4));
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #4b5563;
+  transition: all 0.35s ease;
+}
+
+.about-gallery-placeholder:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+
+.about-gallery-placeholder p {
+  font-size: 13px;
+  margin: 0;
+}
+
+.about-gallery-caption {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .about-gallery {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
 .footer-brand-wrap {
   display: flex;
   align-items: center;
@@ -741,11 +791,7 @@
   }
 }
 
-/* ===== Scroll-triggered fade ===== */
-.landing-features,
-.landing-stats {
-  animation: fadeSlideUp 0.7s ease both;
-}
+/* Scroll-triggered animations are handled via IntersectionObserver .visible class below */
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1024px) {
@@ -918,10 +964,7 @@
   }
 }
 
-/* ===== SCROLL ANIMATION ===== */
-.landing-page {
-  scroll-behavior: smooth;
-}
+/* ===== SCROLL & PARALLAX ===== */
 
 .landing-features,
 .landing-how-it-works,

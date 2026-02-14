@@ -5,23 +5,6 @@ import './Students.css';
 
 const API = 'http://localhost:5000/api/v1';
 
-const FALLBACK_STUDENTS = [
-  { name: 'Alice Chen', email: 'alice.chen@university.edu' },
-  { name: 'Bob Martinez', email: 'bob.martinez@university.edu' },
-  { name: 'Carlos Wang', email: 'carlos.wang@university.edu' },
-  { name: 'Diana Lee', email: 'diana.lee@university.edu' },
-  { name: 'Eve Johnson', email: 'eve.johnson@university.edu' },
-  { name: 'Frank Davis', email: 'frank.davis@university.edu' },
-  { name: 'Grace Kim', email: 'grace.kim@university.edu' },
-  { name: 'Henry Wilson', email: 'henry.wilson@university.edu' },
-];
-
-const FALLBACK_INSTRUCTORS = [
-  { name: 'Dr. Smith', email: 'smith@university.edu' },
-  { name: 'Prof. Garcia', email: 'garcia@university.edu' },
-  { name: 'Dr. Patel', email: 'patel@university.edu' },
-];
-
 function Students() {
   const navigate = useNavigate();
   const userStr = localStorage.getItem('user');
@@ -42,8 +25,8 @@ function Students() {
   });
 
   const [results, setResults] = useState([]);
-  const [registeredStudents, setRegisteredStudents] = useState(FALLBACK_STUDENTS);
-  const [registeredInstructors, setRegisteredInstructors] = useState(FALLBACK_INSTRUCTORS);
+  const [registeredStudents, setRegisteredStudents] = useState([]);
+  const [registeredInstructors, setRegisteredInstructors] = useState([]);
 
   // Form state
   const [newSectionName, setNewSectionName] = useState('');
@@ -55,7 +38,8 @@ function Students() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) return;
-    fetch(`${API}/auth/admin/users`, {
+    // Try the registered-users endpoint (accessible to instructors and admins)
+    fetch(`${API}/auth/registered-users`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.ok ? res.json() : null)
@@ -65,7 +49,7 @@ function Students() {
             .filter(u => u.role === 'student')
             .map(u => ({ name: u.full_name || u.username, email: u.email }));
           const instructors = data.users
-            .filter(u => u.role === 'instructor')
+            .filter(u => u.role === 'instructor' || u.role === 'admin')
             .map(u => ({ name: u.full_name || u.username, email: u.email }));
           if (students.length > 0) setRegisteredStudents(students);
           if (instructors.length > 0) setRegisteredInstructors(instructors);

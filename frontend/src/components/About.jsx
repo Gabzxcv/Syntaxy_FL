@@ -23,12 +23,21 @@ function About() {
         </div>
       </nav>
 
-      {/* ===== ABOUT CONTENT ===== */}
-      <section className="landing-hero" style={{ paddingTop: '120px' }}>
+      {/* ===== HERO ===== */}
+      <section className="landing-hero" style={{ minHeight: 'auto', paddingTop: '140px', paddingBottom: '60px' }}>
+        <div className="hero-glow hero-glow--primary" />
         <div className="hero-content" style={{ gridTemplateColumns: '1fr', textAlign: 'center', maxWidth: '800px', margin: '0 auto' }}>
-          <div className="hero-text">
-            <h1 className="hero-title">About Syntaxy</h1>
-            <p className="hero-subtitle" style={{ maxWidth: '100%' }}>
+          <div className="hero-text" style={{ maxWidth: '100%' }}>
+            <div className="hero-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              About Us
+            </div>
+            <h1 className="hero-title">
+              About <span className="hero-title-accent">Syntaxy</span>
+            </h1>
+            <p className="hero-subtitle" style={{ maxWidth: '100%', margin: '0 auto 40px' }}>
               {/* Edit this section to add your own about page content */}
               Syntaxy is a code analysis platform built to help instructors and students
               maintain code quality and originality. Our tools detect duplicated logic,
@@ -38,6 +47,7 @@ function About() {
         </div>
       </section>
 
+      {/* ===== OUR MISSION ===== */}
       <section className="landing-features" style={{ paddingTop: '40px' }}>
         <div className="features-inner">
           <div className="features-header">
@@ -79,6 +89,76 @@ function About() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ===== GALLERY / SHOWCASE SECTION ===== */}
+      <section className="landing-how-it-works">
+        <div className="how-inner">
+          <div className="features-header">
+            <span className="features-label">Gallery</span>
+            <h2 className="features-title">See Syntaxy in action</h2>
+            <p className="features-desc">
+              {/* Edit this to describe images you'll add later */}
+              Screenshots and visuals of the platform in use.
+            </p>
+          </div>
+
+          <div className="about-gallery">
+            {/* Replace these placeholder boxes with your own images */}
+            <div className="about-gallery-item">
+              <div className="about-gallery-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="48" height="48">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <p>Add your image here</p>
+              </div>
+              <h4 className="about-gallery-caption">Code Analysis Dashboard</h4>
+            </div>
+            <div className="about-gallery-item">
+              <div className="about-gallery-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="48" height="48">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <p>Add your image here</p>
+              </div>
+              <h4 className="about-gallery-caption">Clone Detection Results</h4>
+            </div>
+            <div className="about-gallery-item">
+              <div className="about-gallery-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="48" height="48">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                <p>Add your image here</p>
+              </div>
+              <h4 className="about-gallery-caption">Student Management</h4>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== CONTACT / INFO ===== */}
+      <section className="landing-cta">
+        <div className="cta-inner">
+          <div className="cta-glow" />
+          <h2 className="cta-title">Get in touch</h2>
+          <p className="cta-desc">
+            {/* Edit with your contact info or remove if not needed */}
+            Have questions or want to learn more? We&apos;d love to hear from you.
+          </p>
+          <button className="hero-cta" onClick={() => navigate('/login')}>
+            Try Syntaxy Now
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </section>
 
