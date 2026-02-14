@@ -74,11 +74,13 @@ def analyze_code():
         
     except Exception as e:
         if current_user_id:
+            from app.models import db
             db.session.rollback()
         return jsonify({'error': 'Analysis failed', 'details': str(e)}), 500
 
 
-# Keep existing _mock_analyze function
 def _mock_analyze(code, language):
-    # ... keep existing code ...
-    pass
+    """Generate mock analysis results using the CodeAnalyzer service."""
+    from app.services.analyzer import CodeAnalyzer
+    analyzer = CodeAnalyzer(language)
+    return analyzer.analyze(code)
