@@ -8,25 +8,50 @@
 }
 
 .auth-header {
-  background: linear-gradient(135deg, #C84B31, #9E8569);
+  background: #131B23;
   color: #fff;
   padding: 30px;
   text-align: center;
+  position: relative;
+}
+
+/* Add this new style for the logo container/image */
+.auth-header img,
+.auth-header .logo {
+  background: linear-gradient(135deg, #2274A5, #1a5a7d);
+  padding: 20px;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(34, 116, 165, 0.4), 
+              0 0 0 4px rgba(34, 116, 165, 0.2);
+  margin-bottom: 20px;
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+
+.auth-header img:hover,
+.auth-header .logo:hover {
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 15px 40px rgba(34, 116, 165, 0.5), 
+              0 0 0 6px rgba(34, 116, 165, 0.3);
 }
 
 .auth-header h1 {
   font-size: 22px;
   margin-bottom: 5px;
+  color: #E7DFC6;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .auth-header p {
   font-size: 14px;
   opacity: 0.95;
+  color: #E9F1F7;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
 }
 
 .tabs {
   display: flex;
-  border-bottom: 2px solid #e5e5e5;
+  border-bottom: 2px solid #E9F1F7;
 }
 
 .tab {
@@ -36,21 +61,21 @@
   cursor: pointer;
   font-weight: 600;
   font-size: 14px;
-  color: #6b6b6b;
-  background: #f8f8f8;
+  color: #131B23;
+  background: #E9F1F7;
   border: none;
   transition: all 0.3s;
 }
 
 .tab:hover {
-  color: #2c2c2c;
-  background: #eeeeee;
+  color: #131B23;
+  background: #E7DFC6;
 }
 
 .tab.active {
-  color: #C84B31;
+  color: #2274A5;
   background: #ffffff;
-  border-bottom: 3px solid #C84B31;
+  border-bottom: 3px solid #2274A5;
 }
 
 .form-container {
@@ -67,63 +92,65 @@
   margin-bottom: 6px;
   font-weight: 600;
   font-size: 13px;
-  color: #6b6b6b;
+  color: #131B23;
 }
 
 .form-group input {
   width: 100%;
   padding: 11px 14px;
-  border: 2px solid #e5e5e5;
+  border: 2px solid #E9F1F7;
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.3s;
   outline: none;
-  background: #fafafa;
-  color: #2c2c2c;
+  background: #E9F1F7;
+  color: #131B23;
 }
 
 .form-group input:focus {
-  border-color: #C84B31;
+  border-color: #2274A5;
   background: #ffffff;
 }
 
 .form-select {
   width: 100%;
   padding: 11px 14px;
-  border: 2px solid #e5e5e5;
+  border: 2px solid #E9F1F7;
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.3s;
   outline: none;
-  background: #fafafa;
-  color: #2c2c2c;
+  background: #E9F1F7;
+  color: #131B23;
   -webkit-appearance: none;
 }
+
 .form-select:focus {
-  border-color: #C84B31;
+  border-color: #2274A5;
   background: #ffffff;
 }
+
 .form-select option {
   background: #ffffff;
-  color: #2c2c2c;
+  color: #131B23;
 }
 
 .btn {
   width: 100%;
   padding: 12px;
-  background: linear-gradient(135deg, #C84B31, #9E8569);
+  background: #2274A5;
   color: #fff;
   border: none;
   border-radius: 8px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.3s, transform 0.2s;
+  transition: all 0.2s;
   margin-top: 8px;
 }
 
 .btn:hover {
-  opacity: 0.9;
+  background: #1a5a7d;
   transform: translateY(-1px);
 }
 

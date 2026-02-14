@@ -11,7 +11,7 @@
   min-height: 100vh;
   max-height: 100vh;
   width: 100vw;
-  background: #f5f5f5 !important;
+  background: #E7DFC6 !important;
   font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
   overflow-x: hidden;
@@ -21,8 +21,8 @@
 /* ===== SIDEBAR (Same as Dashboard) ===== */
 .sidebar {
   width: 260px;
-  background: #D3C5BA;
-  color: #2c2c2c;
+  background: #E7DFC6;
+  color: #131B23;
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -34,8 +34,8 @@
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
   z-index: 100;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-  transform: translateX(-248px); /* 260px width - 12px visible trigger strip */
-  border-right: 1px solid #9E8569;
+  transform: translateX(-248px);
+  border-right: 1px solid #816C61;
 }
 
 .sidebar:hover {
@@ -45,14 +45,14 @@
 
 .sidebar-header {
   padding: 24px 20px;
-  border-bottom: 1px solid #9E8569;
+  border-bottom: 1px solid #816C61;
 }
 
 .sidebar-logo {
   font-family: 'Outfit', sans-serif;
   font-size: 24px;
   font-weight: 700;
-  color: #C84B31;
+  color: #2274A5;
   margin: 0;
   letter-spacing: -0.5px;
 }
@@ -70,7 +70,7 @@
   padding: 12px 20px;
   background: transparent;
   border: none;
-  color: #5a5a5a;
+  color: #131B23;
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 500;
@@ -81,14 +81,14 @@
 }
 
 .nav-item:hover {
-  background: rgba(200, 75, 49, 0.15);
-  color: #2c2c2c;
+  background: rgba(34, 116, 165, 0.15);
+  color: #131B23;
 }
 
 .nav-item.active {
-  background: rgba(200, 75, 49, 0.2);
-  color: #C84B31;
-  border-left-color: #C84B31;
+  background: rgba(34, 116, 165, 0.25);
+  color: #2274A5;
+  border-left-color: #2274A5;
 }
 
 .nav-icon {
@@ -99,7 +99,7 @@
 
 .sidebar-footer {
   padding: 20px;
-  border-top: 1px solid #9E8569;
+  border-top: 1px solid #816C61;
 }
 
 .help-btn {
@@ -112,7 +112,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: rgba(200, 75, 49, 0.1);
+  background: rgba(34, 116, 165, 0.15);
   border-radius: 12px;
   margin-bottom: 12px;
 }
@@ -121,7 +121,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #C84B31, #9E8569);
+  background: linear-gradient(135deg, #2274A5, #131B23);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,7 +139,7 @@
 .user-name {
   font-weight: 600;
   font-size: 14px;
-  color: #2c2c2c;
+  color: #131B23;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -147,7 +147,7 @@
 
 .user-email {
   font-size: 12px;
-  color: #5a5a5a;
+  color: #131B23;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -179,17 +179,15 @@
   min-height: 100vh;
   max-height: 100vh;
   width: 100%;
-  background: #f5f5f5 !important;
+  background: #E7DFC6 !important;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-
-
 .files-header {
-  background: #ffffff;
+  background: #131B23;
   padding: 24px 40px;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid #816C61;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -207,20 +205,20 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #2c2c2c;
+  color: #E7DFC6;
   margin: 0 0 4px 0;
   letter-spacing: -0.5px;
 }
 
 .page-subtitle {
   font-size: 14px;
-  color: #6b6b6b;
+  color: #E9F1F7;
   margin: 0;
 }
 
 .files-content {
   padding: 32px 40px;
-  background: #f5f5f5;
+  background: #E7DFC6;
   animation: fadeIn 0.4s ease;
   min-height: calc(100vh - 100px);
 }
@@ -251,7 +249,7 @@
   gap: 16px;
   padding: 24px;
   background: #ffffff !important;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #E9F1F7;
   border-radius: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: all 0.2s ease;
@@ -261,7 +259,7 @@
 .files-stats .stat-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
-  border-color: #C84B31;
+  border-color: #2274A5 !important;
 }
 
 .stat-icon {
@@ -271,10 +269,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(200, 75, 49, 0.1);
+  background: rgba(34, 116, 165, 0.1);
   border-radius: 14px;
   flex-shrink: 0;
-  color: #C84B31;
+  color: #2274A5;
 }
 
 .stat-info {
@@ -286,20 +284,20 @@
   font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #2c2c2c;
+  color: #131B23;
   line-height: 1.2;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #6b6b6b;
+  color: #131B23;
   font-weight: 500;
   margin-top: 2px;
 }
 
 /* ===== DROP ZONE ===== */
 .drop-zone {
-  border: 2px dashed #d1d5db;
+  border: 2px dashed #E9F1F7;
   border-radius: 16px;
   padding: 48px 32px;
   text-align: center;
@@ -310,32 +308,32 @@
 }
 
 .drop-zone:hover {
-  border-color: #C84B31;
-  background: rgba(200, 75, 49, 0.03);
+  border-color: #2274A5;
+  background: rgba(34, 116, 165, 0.03);
 }
 
 .drop-zone.drag-over {
-  border-color: #C84B31;
-  background: rgba(200, 75, 49, 0.06);
-  box-shadow: 0 0 0 4px rgba(200, 75, 49, 0.1);
+  border-color: #2274A5;
+  background: rgba(34, 116, 165, 0.06);
+  box-shadow: 0 0 0 4px rgba(34, 116, 165, 0.1);
 }
 
 .drop-zone-icon {
   font-size: 48px;
   margin-bottom: 12px;
-  color: #C84B31;
+  color: #2274A5;
 }
 
 .drop-zone-text {
   font-size: 16px;
   font-weight: 600;
-  color: #2c2c2c;
+  color: #131B23;
   margin-bottom: 4px;
 }
 
 .drop-zone-hint {
   font-size: 13px;
-  color: #6b6b6b;
+  color: #131B23;
   margin-bottom: 20px;
 }
 
@@ -344,7 +342,7 @@
   align-items: center;
   gap: 8px;
   padding: 12px 28px;
-  background: linear-gradient(135deg, #C84B31, #9E8569);
+  background: #2274A5;
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -353,12 +351,13 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(200, 75, 49, 0.2);
+  box-shadow: 0 2px 8px rgba(34, 116, 165, 0.2);
 }
 
 .upload-btn:hover {
+  background: #1a5a7d;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(200, 75, 49, 0.3);
+  box-shadow: 0 4px 12px rgba(34, 116, 165, 0.3);
 }
 
 /* ===== TOOLBAR ===== */
@@ -376,20 +375,20 @@
   gap: 10px;
   padding: 0 16px;
   background: #ffffff !important;
-  border: 2px solid #e5e5e5;
+  border: 2px solid #E9F1F7;
   border-radius: 12px;
   transition: all 0.2s ease;
 }
 
 .search-bar:focus-within {
-  border-color: #C84B31;
-  box-shadow: 0 0 0 3px rgba(200, 75, 49, 0.1);
+  border-color: #2274A5 !important;
+  box-shadow: 0 0 0 3px rgba(34, 116, 165, 0.1) !important;
 }
 
 .search-icon {
   font-size: 16px;
   flex-shrink: 0;
-  color: #6b6b6b;
+  color: #131B23;
 }
 
 .search-input {
@@ -399,7 +398,7 @@
   background: transparent !important;
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
-  color: #2c2c2c !important;
+  color: #131B23 !important;
   outline: none;
 }
 
@@ -410,25 +409,25 @@
 .filter-select {
   padding: 12px 16px;
   background: #ffffff !important;
-  border: 2px solid #e5e5e5;
+  border: 2px solid #E9F1F7;
   border-radius: 12px;
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: #2c2c2c !important;
+  color: #131B23 !important;
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 140px;
 }
 
 .filter-select:hover {
-  border-color: #C84B31;
+  border-color: #2274A5 !important;
 }
 
 .filter-select:focus {
   outline: none;
-  border-color: #C84B31;
-  box-shadow: 0 0 0 3px rgba(200, 75, 49, 0.1);
+  border-color: #2274A5 !important;
+  box-shadow: 0 0 0 3px rgba(34, 116, 165, 0.1) !important;
 }
 
 /* ===== FILE LIST ===== */
@@ -444,7 +443,7 @@
   gap: 16px;
   padding: 16px 20px;
   background: #ffffff;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #E9F1F7;
   border-radius: 12px;
   transition: all 0.2s ease;
   flex-wrap: wrap;
@@ -452,19 +451,19 @@
 
 .file-row:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border-color: #C84B31;
+  border-color: #2274A5 !important;
 }
 
 .file-icon {
   font-size: 12px;
   font-weight: 700;
-  color: #C84B31;
+  color: #2274A5;
   width: 44px;
   height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(200, 75, 49, 0.1);
+  background: rgba(34, 116, 165, 0.1);
   border-radius: 10px;
   flex-shrink: 0;
   letter-spacing: 0.5px;
@@ -478,7 +477,7 @@
 .file-name {
   font-weight: 600;
   font-size: 15px;
-  color: #2c2c2c;
+  color: #131B23;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -493,7 +492,7 @@
 .file-size,
 .file-date {
   font-size: 13px;
-  color: #6b6b6b;
+  color: #131B23;
 }
 
 /* ===== TYPE BADGES ===== */
@@ -536,9 +535,9 @@
   font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
-  background: rgba(200, 75, 49, 0.1);
-  color: #C84B31;
-  border: 1px solid rgba(200, 75, 49, 0.3);
+  background: rgba(34, 116, 165, 0.1);
+  color: #2274A5;
+  border: 1px solid rgba(34, 116, 165, 0.3);
 }
 
 .section-upload-selector {
@@ -548,29 +547,36 @@
 /* ===== FILE ACTIONS ===== */
 .file-actions {
   display: flex;
-  gap: 4px;
+  gap: 12px;
   flex-shrink: 0;
+  margin-left: 16px;
+  align-items: center;
 }
 
 .action-icon-btn {
-  width: 36px;
+  width: auto;
+  min-width: 80px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0 12px;
   background: transparent;
-  border: 1px solid transparent;
+  border: 1px solid #E9F1F7;
   border-radius: 8px;
-  font-size: 16px;
-  color: #6b6b6b;
+  font-size: 14px;
+  font-weight: 500;
+  color: #131B23;
   cursor: pointer;
   transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .action-icon-btn:hover {
-  background: #f8f8f8;
-  border-color: #e5e5e5;
-  color: #2c2c2c;
+  background: #E9F1F7;
+  border-color: #E9F1F7;
+  color: #131B23;
 }
 
 .action-icon-btn:disabled {
@@ -594,16 +600,16 @@
   width: 100%;
   margin-top: 8px;
   padding: 16px;
-  background: #fafafa;
+  background: #E9F1F7;
   border-radius: 10px;
-  border: 1px solid #e5e5e5;
+  border: 1px solid #E9F1F7;
 }
 
 .file-preview pre {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
   font-size: 13px;
   line-height: 1.6;
-  color: #2c2c2c;
+  color: #131B23;
   white-space: pre-wrap;
   word-wrap: break-word;
   margin: 0;
@@ -618,12 +624,12 @@
 .empty-icon {
   font-size: 48px;
   margin-bottom: 12px;
-  color: #9ca3af;
+  color: #816C61;
 }
 
 .empty-text {
   font-size: 16px;
-  color: #6b6b6b;
+  color: #131B23;
   font-weight: 500;
 }
 
