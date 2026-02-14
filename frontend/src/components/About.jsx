@@ -150,7 +150,7 @@ function About() {
           <h2 className="cta-title">Get in touch</h2>
           <p className="cta-desc">
             {/* Edit with your contact info or remove if not needed */}
-            Have questions or want to learn more? We&apos;d love to hear from you.
+            Have questions or want to learn more? We{"'"}d love to hear from you.
           </p>
           <button className="hero-cta" onClick={() => navigate('/login')}>
             Try Syntaxy Now

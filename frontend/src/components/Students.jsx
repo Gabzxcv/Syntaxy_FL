@@ -51,8 +51,8 @@ function Students() {
           const instructors = data.users
             .filter(u => u.role === 'instructor' || u.role === 'admin')
             .map(u => ({ name: u.full_name || u.username, email: u.email }));
-          if (students.length > 0) setRegisteredStudents(students);
-          if (instructors.length > 0) setRegisteredInstructors(instructors);
+          setRegisteredStudents(students);
+          setRegisteredInstructors(instructors);
         }
       })
       .catch(() => {});

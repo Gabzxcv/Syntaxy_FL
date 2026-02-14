@@ -513,7 +513,7 @@ def list_registered_users():
         user = db.session.get(User, current_user_id)
         if not user or user.role not in ('admin', 'instructor'):
             return jsonify({'error': 'Instructor or admin access required'}), 403
-        all_users = User.query.all()
+        all_users = User.query.limit(500).all()
         return jsonify({'users': [u.to_dict() for u in all_users]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
