@@ -1,11 +1,14 @@
 :root {
-  --accent-color: #334195;
-  --electric-royal: #020887;
-  --french-blue: #334195;
-  --glaucous: #647aa3;
-  --cool-steel: #7d96aa;
-  --ash-grey: #95b2b0;
-  --tea-green: #c6ebbe;
+  --accent-color: #6366f1;
+  --bg-primary: #0a0d14;
+  --bg-secondary: #111827;
+  --bg-card: #1a1f36;
+  --bg-card-hover: #1e2538;
+  --border-color: rgba(255, 255, 255, 0.06);
+  --border-color-strong: rgba(255, 255, 255, 0.1);
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
 }
 
 * {
@@ -18,6 +21,7 @@ body {
   font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   min-height: 100vh;
   margin: 0;
-  background: #0f1219;
-  color: #e5e7eb;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow-x: hidden;
 }

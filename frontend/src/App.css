@@ -1,10 +1,7 @@
 .app-wrapper {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #0a0d14, #111827, #1a1f36);
-  padding: 20px;
+  width: 100%;
+  background: #0a0d14;
 }
 
 /* Help Modal */
