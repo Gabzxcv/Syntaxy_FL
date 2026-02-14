@@ -19,18 +19,15 @@ def create_app():
     db.init_app(app)
     bcrypt.init_app(app)
     jwt = JWTManager(app)
-<<<<<<< HEAD
 
-    # CORS — allow GitHub Pages AND localhost for development
-    CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "https://syntaxy-fl.onrender.com"])
+    # CORS — allow GitHub Pages, Render, and localhost for development
+    CORS(app, origins=[
+        "http://localhost:3000", 
+        "http://localhost:5173", 
+        "https://gabzxcv.github.io", 
+        "https://syntaxy-fl.onrender.com"
+    ])
 
-=======
-    
-    # Enable CORS
-    CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "https://gabzxcv.github.io"])
-    
-    # Create database tables
->>>>>>> 34c1aeda1a53b1765a6fa55ea61b9904d7f71747
     with app.app_context():
         db.create_all()
         print("✅ Database initialized")
