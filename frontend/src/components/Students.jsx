@@ -114,7 +114,7 @@ function Students() {
   }
 
   function getStudentProfilePic(email) {
-    return localStorage.getItem('profilePicture_' + email) || '';
+    return localStorage.getItem(`profilePicture_${email}`) || '';
   }
 
   function handleDeleteSection(id) {
@@ -357,7 +357,7 @@ function Students() {
                             <div className="student-info-row">
                               <div className="student-avatar-sm">
                                 {pic ? (
-                                  <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                  <img src={pic} alt={student.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
                                 ) : (
                                   student.name.charAt(0).toUpperCase()
                                 )}
