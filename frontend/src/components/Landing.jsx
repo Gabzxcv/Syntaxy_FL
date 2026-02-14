@@ -13,8 +13,8 @@ function Landing() {
           <span className="landing-nav-logo">Syntaxy</span>
         </div>
         <div className="landing-nav-links">
-          <button className="nav-link" onClick={() => document.querySelector('.landing-features')?.scrollIntoView({ behavior: 'smooth' })}>Features</button>
-          <button className="nav-link" onClick={() => document.querySelector('.landing-how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>How It Works</button>
+          <button className="nav-link" onClick={() => navigate('/features')}>Features</button>
+          <button className="nav-link" onClick={() => navigate('/how-it-works')}>How It Works</button>
         </div>
         <div className="landing-nav-actions">
           <button className="nav-sign-in" onClick={() => navigate('/login')}>

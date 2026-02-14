@@ -10,6 +10,9 @@ import History from './components/History';
 import Files from './components/Files';
 import Settings from './components/settings';
 import Admin from './components/Admin';
+import Features from './components/Features';
+import HowItWorks from './components/HowItWorks';
+import ChatDemo from './components/ChatDemo';
 import './App.css';
 
 const API = 'http://localhost:5000/api/v1';
@@ -33,6 +36,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/features" element={<Features />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/analyzer" element={<CodeAnalyzer />} />
           <Route path="/students" element={<Students />} />
@@ -42,6 +47,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
         </Routes>
+        <ChatDemo />
       </div>
     </BrowserRouter>
   );
