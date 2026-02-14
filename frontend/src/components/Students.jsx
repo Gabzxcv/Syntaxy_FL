@@ -3,10 +3,28 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Students.css';
 
+const REGISTERED_STUDENTS = [
+  { name: 'Alice Chen', email: 'alice.chen@university.edu' },
+  { name: 'Bob Martinez', email: 'bob.martinez@university.edu' },
+  { name: 'Carlos Wang', email: 'carlos.wang@university.edu' },
+  { name: 'Diana Lee', email: 'diana.lee@university.edu' },
+  { name: 'Eve Johnson', email: 'eve.johnson@university.edu' },
+  { name: 'Frank Davis', email: 'frank.davis@university.edu' },
+  { name: 'Grace Kim', email: 'grace.kim@university.edu' },
+  { name: 'Henry Wilson', email: 'henry.wilson@university.edu' },
+];
+
+const REGISTERED_INSTRUCTORS = [
+  { name: 'Dr. Smith', email: 'smith@university.edu' },
+  { name: 'Prof. Garcia', email: 'garcia@university.edu' },
+  { name: 'Dr. Patel', email: 'patel@university.edu' },
+];
+
 function Students() {
   const navigate = useNavigate();
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
+  const isPrivileged = user.role === 'admin' || user.role === 'instructor';
 
   const [showHelp, setShowHelp] = useState(false);
   const [profilePicture] = useState(() =>
@@ -26,8 +44,7 @@ function Students() {
   // Form state
   const [newSectionName, setNewSectionName] = useState('');
   const [newSectionInstructor, setNewSectionInstructor] = useState('');
-  const [newStudentName, setNewStudentName] = useState('');
-  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [selectedStudentEmail, setSelectedStudentEmail] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState('');
 
   useEffect(() => {
@@ -58,11 +75,12 @@ function Students() {
 
   function handleCreateSection(e) {
     e.preventDefault();
-    if (!newSectionName.trim()) return;
+    if (!newSectionName.trim() || !newSectionInstructor) return;
+    const instructor = REGISTERED_INSTRUCTORS.find(i => i.email === newSectionInstructor);
     const section = {
       id: crypto.randomUUID(),
       name: newSectionName.trim(),
-      instructor: newSectionInstructor.trim(),
+      instructor: instructor ? instructor.name : '',
       students: [],
     };
     setSections(prev => [...prev, section]);
@@ -72,19 +90,31 @@ function Students() {
 
   function handleAddStudent(e) {
     e.preventDefault();
-    if (!selectedSectionId || !newStudentName.trim() || !newStudentEmail.trim()) return;
-    const email = newStudentEmail.trim();
+    if (!selectedSectionId || !selectedStudentEmail) return;
+    const registered = REGISTERED_STUDENTS.find(s => s.email === selectedStudentEmail);
+    if (!registered) return;
     const section = sections.find(s => s.id === selectedSectionId);
-    if (section && section.students.some(st => st.email === email)) return;
+    if (section && section.students.some(st => st.email === registered.email)) return;
     setSections(prev =>
       prev.map(s =>
         s.id === selectedSectionId
-          ? { ...s, students: [...s.students, { name: newStudentName.trim(), email, submissions: 0 }] }
+          ? { ...s, students: [...s.students, { name: registered.name, email: registered.email, submissions: 0 }] }
           : s
       )
     );
-    setNewStudentName('');
-    setNewStudentEmail('');
+    setSelectedStudentEmail('');
+  }
+
+  function getAvailableStudents() {
+    if (!selectedSectionId) return REGISTERED_STUDENTS;
+    const section = sections.find(s => s.id === selectedSectionId);
+    if (!section) return REGISTERED_STUDENTS;
+    const existingEmails = new Set(section.students.map(st => st.email));
+    return REGISTERED_STUDENTS.filter(s => !existingEmails.has(s.email));
+  }
+
+  function getStudentProfilePic(email) {
+    return localStorage.getItem('profilePicture_' + email) || '';
   }
 
   function handleDeleteSection(id) {
@@ -218,6 +248,7 @@ function Students() {
           </div>
 
           {/* Create Section */}
+          {isPrivileged && (
           <section className="settings-section">
             <h3 className="section-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -232,19 +263,24 @@ function Students() {
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
                 />
-                <input
-                  type="text"
-                  className="setting-input"
-                  placeholder="Instructor name"
+                <select
+                  className="setting-select"
                   value={newSectionInstructor}
                   onChange={(e) => setNewSectionInstructor(e.target.value)}
-                />
+                >
+                  <option value="">Select instructor...</option>
+                  {REGISTERED_INSTRUCTORS.map(i => (
+                    <option key={i.email} value={i.email}>{i.name} ({i.email})</option>
+                  ))}
+                </select>
                 <button type="submit" className="action-btn primary">Create</button>
               </div>
             </form>
           </section>
+          )}
 
           {/* Add Student */}
+          {isPrivileged && (
           <section className="settings-section">
             <h3 className="section-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
@@ -262,24 +298,21 @@ function Students() {
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
-                <input
-                  type="text"
-                  className="setting-input"
-                  placeholder="Student name"
-                  value={newStudentName}
-                  onChange={(e) => setNewStudentName(e.target.value)}
-                />
-                <input
-                  type="email"
-                  className="setting-input"
-                  placeholder="Student email"
-                  value={newStudentEmail}
-                  onChange={(e) => setNewStudentEmail(e.target.value)}
-                />
+                <select
+                  className="setting-select"
+                  value={selectedStudentEmail}
+                  onChange={(e) => setSelectedStudentEmail(e.target.value)}
+                >
+                  <option value="">Select student...</option>
+                  {getAvailableStudents().map(s => (
+                    <option key={s.email} value={s.email}>{s.name} ({s.email})</option>
+                  ))}
+                </select>
                 <button type="submit" className="action-btn primary">Add</button>
               </div>
             </form>
           </section>
+          )}
 
           {/* Sections List */}
           <section className="settings-section">
@@ -302,10 +335,12 @@ function Students() {
                       {section.instructor && <p className="section-card-subtitle">Instructor: {section.instructor}</p>}
                       <p className="section-card-subtitle">{section.students.length} student{section.students.length !== 1 ? 's' : ''}</p>
                     </div>
+                    {isPrivileged && (
                     <button className="btn-sm btn-danger" onClick={() => handleDeleteSection(section.id)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'4px'}}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       Delete
                     </button>
+                    )}
                   </div>
 
                   {section.students.length === 0 ? (
@@ -316,19 +351,28 @@ function Students() {
                     <div className="student-list">
                       {section.students.map(student => {
                         const studentResults = getResultsForStudent(student.email);
+                        const pic = getStudentProfilePic(student.email);
                         return (
                           <div key={student.email} className="student-item">
                             <div className="student-info-row">
-                              <div className="student-avatar-sm">{student.name.charAt(0).toUpperCase()}</div>
+                              <div className="student-avatar-sm">
+                                {pic ? (
+                                  <img src={pic} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                                ) : (
+                                  student.name.charAt(0).toUpperCase()
+                                )}
+                              </div>
                               <div className="student-detail">
                                 <span className="name">{student.name}</span>
                                 <span className="email">{student.email}</span>
                               </div>
                               <span className="badge badge-purple">{studentResults.length} result{studentResults.length !== 1 ? 's' : ''}</span>
                             </div>
+                            {isPrivileged && (
                             <button className="btn-sm btn-danger" onClick={() => handleRemoveStudent(section.id, student.email)}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle'}}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
+                            )}
                           </div>
                         );
                       })}
