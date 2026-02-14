@@ -115,12 +115,17 @@ function ChatDemo() {
     setInput('');
   }, []);
   const [contacts] = useState(() => buildContacts());
-  const [sections] = useState(() => {
-    try {
-      const raw = localStorage.getItem('savedSections');
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
+  const [sections, setSections] = useState([]);
+
+  // Re-read sections from localStorage every time chat opens
+  useEffect(() => {
+    if (open) {
+      try {
+        const raw = localStorage.getItem('savedSections');
+        setSections(raw ? JSON.parse(raw) : []);
+      } catch { setSections([]); }
+    }
+  }, [open]);
 
   const openConversation = useCallback((contact) => {
     setActiveContact(contact);

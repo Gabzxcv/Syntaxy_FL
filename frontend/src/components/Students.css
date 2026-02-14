@@ -856,3 +856,12 @@ input:disabled + .toggle-slider {
     gap: 12px;
   }
 }
+.student-name-link {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.student-name-link:hover {
+  color: var(--accent-color, #6366f1);
+}

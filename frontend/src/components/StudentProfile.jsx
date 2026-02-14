@@ -38,8 +38,9 @@ function StudentProfile() {
     localStorage.getItem(`profilePicture_${user.id}`) || ''
   );
 
-  const student = REGISTERED_STUDENTS.find(s => s.email === email) || { name: email.split('@')[0], email };
-  const studentProfilePic = localStorage.getItem(`profilePicture_${email}`) || '';
+  const decodedEmail = email ? decodeURIComponent(email) : '';
+  const student = REGISTERED_STUDENTS.find(s => s.email === decodedEmail) || { name: decodedEmail ? decodedEmail.split('@')[0] : 'Unknown', email: decodedEmail };
+  const studentProfilePic = decodedEmail ? localStorage.getItem(`profilePicture_${decodedEmail}`) || '' : '';
 
   const [sections, setSections] = useState([]);
   const [results, setResults] = useState([]);
@@ -59,10 +60,10 @@ function StudentProfile() {
   }, []);
 
   const enrolledSections = sections.filter(s =>
-    s.students && s.students.some(st => st.email === email)
+    s.students && s.students.some(st => st.email === decodedEmail)
   );
 
-  const studentResults = results.filter(r => r.studentEmail === email);
+  const studentResults = results.filter(r => r.studentEmail === decodedEmail);
 
   function handleLogout() {
     const token = localStorage.getItem('token');
