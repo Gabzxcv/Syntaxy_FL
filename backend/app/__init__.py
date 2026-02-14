@@ -27,7 +27,7 @@ def create_app():
     jwt = JWTManager(app)
     
     # Enable CORS
-    CORS(app, origins=["http://localhost:3000", "http://localhost:5173"])
+    CORS(app, origins=["http://localhost:3000", "http://localhost:5173", "https://gabzxcv.github.io"])
     
     # Create database tables
     with app.app_context():
