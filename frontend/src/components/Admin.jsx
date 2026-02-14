@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Admin.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 const DEFAULT_ACCENT = '#6366f1';
 
 function Admin() {

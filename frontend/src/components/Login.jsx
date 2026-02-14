@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 function Login() {
   const [activeTab, setActiveTab] = useState('login');

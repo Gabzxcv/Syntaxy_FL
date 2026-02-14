@@ -18,7 +18,7 @@ import ChatDemo from './components/ChatDemo';
 import About from './components/About';
 import './App.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 function App() {
   useEffect(() => {

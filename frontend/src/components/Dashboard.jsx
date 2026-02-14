@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Dashboard.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 function Dashboard() {
   const [user, setUser] = useState(() => {

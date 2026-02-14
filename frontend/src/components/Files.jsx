@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Files.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', { 
@@ -124,7 +124,7 @@ function Files() {
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
+      fetch(`${API}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});

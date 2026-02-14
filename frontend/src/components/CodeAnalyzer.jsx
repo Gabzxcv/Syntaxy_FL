@@ -4,7 +4,7 @@ import JSZip from 'jszip';
 import Logo from './Logo';
 import './CodeAnalyzer.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 const PYTHON_SAMPLE = `def calculate_grade(score):
     if score >= 90:

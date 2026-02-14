@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './History.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 const DEFAULT_HISTORY_DATA = [
   { id: 1, type: 'analysis', icon: '', description: 'Analyzed Python code - 15.3% clone detected', time: '2024-12-01T10:00:00Z', status: 'success' },
