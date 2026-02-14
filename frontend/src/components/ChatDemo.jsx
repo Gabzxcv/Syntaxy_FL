@@ -150,7 +150,7 @@ function ChatDemo() {
   function handleLogout() {
     const tk = localStorage.getItem('token');
     if (tk) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
+      fetch(`${API}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${tk}` },
       }).catch(() => {});

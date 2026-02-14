@@ -68,7 +68,7 @@ function StudentProfile() {
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
+      fetch(`${API}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});

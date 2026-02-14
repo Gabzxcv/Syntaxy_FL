@@ -18,7 +18,7 @@ import ChatDemo from './components/ChatDemo';
 import About from './components/About';
 import './App.css';
 
-import API from '../api';
+import API from './api';
 
 function App() {
   useEffect(() => {
