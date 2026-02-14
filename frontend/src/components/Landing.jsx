@@ -319,7 +319,7 @@ function Landing() {
             <img src="/logo.png" alt="Syntaxy" className="footer-logo-img" />
             <span className="footer-brand">Syntaxy</span>
           </div>
-          <span className="footer-copy">&copy; {new Date().getFullYear()} Syntaxy. All rights reserved.</span>
+          <span className="footer-copy">&copy; {new Date().getFullYear()} Syntaxy by Fusion Logic. All rights reserved.</span>
         </div>
       </footer>
     </div>

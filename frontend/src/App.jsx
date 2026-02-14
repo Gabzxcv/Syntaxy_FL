@@ -55,8 +55,8 @@ function App() {
           <Route path="/files" element={<Files />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/chat" element={<ChatDemo />} />
         </Routes>
-        <ChatDemo />
       </div>
     </HashRouter>
   );
