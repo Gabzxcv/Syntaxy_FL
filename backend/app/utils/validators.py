@@ -2,13 +2,12 @@ from .exceptions import ValidationException
 
 class AnalyzeRequestValidator:
     """
-    Validate the request payload for analysis.
-    Behavior is tuned to match backend/tests/test_validators.py expectations:
+    Validate the request payload for analysis according to tests expectations:
       - require 'code' and 'language' keys
-      - treat language case-insensitively and return it lowercased
-      - empty or whitespace-only code -> ValidationException mentioning 'empty'
-      - very short code (len < 4 after strip) -> ValidationException mentioning 'short'
-      - unsupported language -> ValidationException mentioning 'unsupported'
+      - language is case-insensitive and returned lowercased
+      - empty/whitespace-only code -> ValidationException mentioning 'empty'
+      - very short code (<4 non-whitespace chars) -> 'short'
+      - unsupported language -> 'unsupported'
     """
 
     SUPPORTED_LANGUAGES = {"python", "java"}
@@ -33,7 +32,7 @@ class AnalyzeRequestValidator:
         if code.strip() == "":
             raise ValidationException("Empty code provided")
 
-        # Treat code 'too short' if fewer than 4 non-whitespace characters (matches tests' 'x=1')
+        # Consider code 'too short' if fewer than 4 non-whitespace characters
         if len(code.strip()) < 4:
             raise ValidationException("Code too short")
 
