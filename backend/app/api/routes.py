@@ -76,3 +76,39 @@ def _mock_analyze(code, language):
     from app.services.analyzer import CodeAnalyzer
     analyzer = CodeAnalyzer(language)
     return analyzer.analyze(code)
+
+
+@bp.route('/compare', methods=['POST'])
+@jwt_required(optional=True)
+def compare_pair():
+    """Compare two student submissions using the full TAHD pipeline."""
+    start_time = time.time()
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'error': 'No JSON data provided'}), 400
+    for field in ('code_a', 'code_b', 'language'):
+        if field not in data:
+            return jsonify({'error': f'Missing required field: {field}'}), 400
+
+    code_a = data['code_a']
+    code_b = data['code_b']
+    language = data['language']
+    file_a = data.get('file_a', 'submission_a')
+    file_b = data.get('file_b', 'submission_b')
+
+    if language not in ['java', 'python']:
+        return jsonify({'error': f'Unsupported language: {language}'}), 400
+    if not code_a or not code_a.strip():
+        return jsonify({'error': 'Empty code_a provided'}), 400
+    if not code_b or not code_b.strip():
+        return jsonify({'error': 'Empty code_b provided'}), 400
+
+    try:
+        from app.services.analyzer import CodeAnalyzer
+        analyzer = CodeAnalyzer(language)
+        result = analyzer.analyze_pair(code_a, code_b, file_a, file_b)
+        result['execution_time_ms'] = int((time.time() - start_time) * 1000)
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': 'Comparison failed', 'details': str(e)}), 500

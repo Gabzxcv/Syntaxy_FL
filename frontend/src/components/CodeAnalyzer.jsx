@@ -195,9 +195,11 @@ function computeSimilarity(codeA, codeB) {
 }
 
 /**
- * Normalize code by stripping comments and replacing string/number literals
- * with generic tokens (STR, NUM). Identifiers are intentionally kept so that
- * files with different variable names and logic remain distinguishable.
+ * Normalize code by stripping comments, replacing string/number literals with
+ * generic tokens, and replacing all identifiers with a single placeholder ID.
+ * Normalizing identifiers prevents structurally-different files (e.g. bubble
+ * sort vs fibonacci) from scoring ~100% just because they share language
+ * keywords; only true structural clones will remain similar after this pass.
  * Used to compute normSim for Type-2 (renamed clone) detection.
  */
 function normalizeCode(code) {
@@ -207,19 +209,21 @@ function normalizeCode(code) {
     .replace(/\/\*[\s\S]*?\*\//g, '')            // strip block comments
     .replace(/["']([^"'\\]|\\.)*["']/g, 'STR')  // normalize string literals
     .replace(/\b\d+\.?\d*\b/g, 'NUM')           // normalize numeric literals
+    .replace(/\b[a-zA-Z_]\w*\b/g, 'ID')         // normalize all identifiers
     .replace(/\s+/g, ' ').trim();
 }
 
 /**
  * Classify a file pair as a clone type based on similarity scores.
  *   Type-1 (exact):   raw token similarity >= 95%
- *   Type-2 (renamed): normalized similarity >= 85%
+ *   Type-2 (renamed): normalized similarity >= 85% AND raw >= 45%
+ *                     (raw guard prevents keyword-only matches being flagged)
  *   Type-3 (near-miss): raw similarity >= 40%
  * Returns null if similarities are too low to be considered a clone.
  */
 function classifyPairType(raw, normalized) {
   if (raw >= 0.95) return 'Type-1';
-  if (normalized >= 0.85) return 'Type-2';
+  if (normalized >= 0.85 && raw >= 0.45) return 'Type-2';
   if (raw >= 0.40) return 'Type-3';
   return null;
 }
@@ -467,6 +471,7 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
         {[
           { id: 'feedback', label: 'Feedback', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> },
           { id: 'pairs', label: 'Pairs', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> },
+          { id: 'metrics', label: 'Metrics', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> },
           { id: 'code', label: 'Code', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> },
         ].map(tab => (
           <button key={tab.id} className={`sdp-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
@@ -560,6 +565,46 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'metrics' && (
+        <div className="sdp-body">
+          {!file.result ? (
+            <div className="sdp-clear-state">
+              <p>Run batch analysis to populate code quality metrics.</p>
+            </div>
+          ) : (
+            <div>
+              <div className="sdp-section-label" style={{marginBottom:12}}>Code Quality Metrics</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                {[
+                  { label: 'Lines of Code', value: file.result.lines_of_code ?? file.content.split('\n').filter(l=>l.trim()).length, unit: 'LOC' },
+                  { label: 'Cyclomatic Complexity', value: file.result.cyclomatic_complexity ?? '—', unit: '' },
+                  { label: 'Maintainability Index', value: file.result.maintainability_index != null ? file.result.maintainability_index.toFixed(1) : '—', unit: '/100' },
+                  { label: 'Halstead Volume', value: file.result.halstead_metrics?.total_volume != null ? file.result.halstead_metrics.total_volume.toFixed(1) : '—', unit: '' },
+                ].map(m => (
+                  <div key={m.label} className="sdp-feedback-card" style={{margin:0}}>
+                    <div className="sdp-section-label">{m.label}</div>
+                    <div style={{fontFamily:"'Outfit',sans-serif",fontSize:22,fontWeight:700,color:'#818cf8',marginTop:4}}>
+                      {m.value}<span style={{fontSize:12,color:'#6b7280',marginLeft:4}}>{m.unit}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {file.result.clone_percentage != null && (
+                <div className="sdp-feedback-card" style={{marginTop:10}}>
+                  <div className="sdp-section-label">Internal Clone Density</div>
+                  <div style={{display:'flex',alignItems:'center',gap:10,marginTop:4}}>
+                    <div style={{flex:1,height:6,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
+                      <div style={{width:`${Math.min(file.result.clone_percentage,100)}%`,height:'100%',background:file.result.clone_percentage>50?'#ef4444':file.result.clone_percentage>25?'#f59e0b':'#22c55e',borderRadius:4}}/>
+                    </div>
+                    <span style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:700,color:'#f3f4f6',minWidth:42}}>{file.result.clone_percentage}%</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -766,10 +811,44 @@ function CodeAnalyzer() {
         pair_idx++;
         setBatchProgress({ current:pair_idx, total:total_pairs, phase:'Comparing pairs', currentName:`${shortName(analyzed[i].name)} ↔ ${shortName(analyzed[j].name)}` });
         await new Promise(r=>setTimeout(r,0));
-        const rawSim = computeSimilarity(analyzed[i].content, analyzed[j].content);
-        const normSim = computeSimilarity(normalizeCode(analyzed[i].content), normalizeCode(analyzed[j].content));
-        const sim = Math.max(rawSim, normSim*0.9);
-        const cloneType = classifyPairType(rawSim, normSim);
+
+        let rawSim, normSim, sim, cloneType;
+        // Try the real TAHD backend first; fall back to JS similarity on failure
+        try {
+          // Use the shared language; if they differ, prefer the first file's language
+          const lang = analyzed[i].lang === analyzed[j].lang ? analyzed[i].lang : (analyzed[i].lang || analyzed[j].lang || 'python');
+          const res = await fetch(`${API}/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code_a: analyzed[i].content, code_b: analyzed[j].content, language: lang, file_a: analyzed[i].name, file_b: analyzed[j].name }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            sim = data.overall_similarity ?? 0;
+            // Map integer clone_type from backend to string using the dominant clone
+            const dominantClone = data.clones?.length
+              ? data.clones.reduce((best, c) => (c.similarity > (best?.similarity ?? 0) ? c : best), null)
+              : null;
+            if (dominantClone) {
+              // Use token_score as rawSim, ast_score as normSim for display consistency
+              rawSim = dominantClone.token_score ?? sim;
+              normSim = dominantClone.ast_score ?? sim;
+              cloneType = dominantClone.type === 1 ? 'Type-1' : dominantClone.type === 2 ? 'Type-2' : 'Type-3';
+            } else {
+              rawSim = sim;
+              normSim = sim;
+              cloneType = null;
+            }
+          } else {
+            throw new Error('backend error');
+          }
+        } catch {
+          rawSim = computeSimilarity(analyzed[i].content, analyzed[j].content);
+          normSim = computeSimilarity(normalizeCode(analyzed[i].content), normalizeCode(analyzed[j].content));
+          sim = Math.max(rawSim, normSim * 0.9);
+          cloneType = classifyPairType(rawSim, normSim);
+        }
+
         matrix[i][j] = sim; matrix[j][i] = sim;
         if (cloneType) {
           pairs.push({ fileA:analyzed[i], fileB:analyzed[j], similarity:sim, rawSim, normSim, cloneType });
@@ -793,6 +872,26 @@ function CodeAnalyzer() {
     setQuickResult({ text:'Testing...', className:'loading' });
     try { const d=await(await fetch(`${API}/health`)).json(); setQuickResult({ text:JSON.stringify(d,null,2), className:'success' }); }
     catch { setQuickResult({ text:JSON.stringify({status:'healthy',message:'Mock mode',version:'1.0.0-mock'},null,2), className:'success' }); }
+  }
+
+  function exportFlaggedCsv() {
+    if (!flaggedPairs.length) return;
+    const headers = ['Student A','Student B','Clone Type','Similarity %','Token Sim %','Structural Sim %','Concept Tags'];
+    const rows = flaggedPairs.map(p => [
+      shortName(p.fileA.name),
+      shortName(p.fileB.name),
+      p.cloneType,
+      (p.similarity * 100).toFixed(1),
+      (p.rawSim * 100).toFixed(1),
+      (p.normSim * 100).toFixed(1),
+      tagConcepts(p).map(c => c.label).join('; '),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'flagged_pairs.csv'; a.click();
+    URL.revokeObjectURL(url);
   }
   async function testLanguages() {
     setQuickResult({ text:'Testing...', className:'loading' });
@@ -1202,6 +1301,24 @@ function CodeAnalyzer() {
                       <span className="bsc-label">High-Risk ≥80%</span>
                     </div>
                   </div>
+
+                  {/* Export bar */}
+                  {flaggedPairs.length > 0 && (
+                    <div className="export-bar">
+                      <div className="export-bar-left">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <span className="export-bar-title">Export Results</span>
+                        <span style={{opacity:0.6}}>{flaggedPairs.length} flagged pair{flaggedPairs.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="export-bar-actions">
+                        <button className="export-btn csv" onClick={exportFlaggedCsv}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                          Download CSV
+                          <span className="export-btn-sub">all pairs</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Class Learning Gap Banner */}
                   {Object.keys(classConcepts).length > 0 && (
