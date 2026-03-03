@@ -74,46 +74,52 @@ function Files() {
 
   // Load files from backend on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/login');
-      return;
+    function loadFiles() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      fetch(`${API}/auth/files`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          if (res.status === 401 || res.status === 422) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            navigate('/login');
+            return null;
+          }
+          if (!res.ok) throw new Error('Failed to fetch files');
+          return res.json();
+        })
+        .then((data) => {
+          if (data && data.files) {
+            // Convert backend files to frontend format
+            const formattedFiles = data.files.map((f) => ({
+              id: f.id,
+              name: f.name,
+              size: f.size,
+              type: f.file_type,
+              date: formatDate(f.created_at),
+              preview: f.content ? f.content.split('\n').slice(0, 5).join('\n') : null,
+              fullContent: f.content || null,
+            }));
+            setFiles(formattedFiles);
+          }
+        })
+        .catch((err) => {
+          console.error('Error loading files:', err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     }
 
-    fetch(`${API}/auth/files`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (res.status === 401 || res.status === 422) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          navigate('/login');
-          return null;
-        }
-        if (!res.ok) throw new Error('Failed to fetch files');
-        return res.json();
-      })
-      .then((data) => {
-        if (data && data.files) {
-          // Convert backend files to frontend format
-          const formattedFiles = data.files.map((f) => ({
-            id: f.id,
-            name: f.name,
-            size: f.size,
-            type: f.file_type,
-            date: formatDate(f.created_at),
-            preview: f.content ? f.content.split('\n').slice(0, 5).join('\n') : null,
-            fullContent: f.content || null,
-          }));
-          setFiles(formattedFiles);
-        }
-      })
-      .catch((err) => {
-        console.error('Error loading files:', err);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    loadFiles();
+    const interval = setInterval(loadFiles, 10000);
+    return () => clearInterval(interval);
   }, [navigate]);
 
   useEffect(() => {

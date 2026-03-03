@@ -1157,7 +1157,7 @@ function CodeAnalyzer() {
       fetch(`${API}/auth/activity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ entry_type: type, description, status: status || 'success' }),
+        body: JSON.stringify({ type, description, status: status || 'success' }),
       }).catch(() => {});
     }
     // Also save to localStorage for immediate cross-page visibility
@@ -1220,7 +1220,10 @@ function CodeAnalyzer() {
     if (!code.trim()) { alert('Please enter some code!'); return; }
     setAnalyzeResult({ text:'Analyzing...', className:'loading' }); setAnalysisData(null); setExpandedClone(null);
     try {
-      const res = await fetch(`${API}/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code,language}) });
+      const token = localStorage.getItem('token');
+      const headers = {'Content-Type':'application/json'};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API}/analyze`, { method:'POST', headers, body:JSON.stringify({code,language}) });
       const data = await res.json();
       if (res.ok) {
         const normalized = normalizeAnalysisData(data);
@@ -1295,7 +1298,10 @@ function CodeAnalyzer() {
   async function analyzeSingleExtracted(ef) {
     setExtractedFiles(prev=>prev.map(f=>f.id===ef.id?{...f,analyzing:true}:f));
     try {
-      const res = await fetch(`${API}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:ef.content,language:ef.lang}) });
+      const token = localStorage.getItem('token');
+      const headers = {'Content-Type':'application/json'};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API}/analyze`,{ method:'POST', headers, body:JSON.stringify({code:ef.content,language:ef.lang}) });
       const data = await res.json();
       const result = res.ok ? normalizeAnalysisData(data) : generateMockAnalysis(ef.content,ef.lang);
       setExtractedFiles(prev=>prev.map(f=>f.id===ef.id?{...f,analyzed:true,analyzing:false,result}:f));
@@ -1318,7 +1324,10 @@ function CodeAnalyzer() {
       let result = ef.result;
       if (!result) {
         try {
-          const res = await fetch(`${API}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:ef.content,language:ef.lang}) });
+          const batchToken = localStorage.getItem('token');
+          const batchHeaders = {'Content-Type':'application/json'};
+          if (batchToken) batchHeaders['Authorization'] = `Bearer ${batchToken}`;
+          const res = await fetch(`${API}/analyze`,{ method:'POST', headers:batchHeaders, body:JSON.stringify({code:ef.content,language:ef.lang}) });
           const data = await res.json();
           result = res.ok ? normalizeAnalysisData(data) : generateMockAnalysis(ef.content,ef.lang);
         } catch { result = generateMockAnalysis(ef.content,ef.lang); }
@@ -1346,9 +1355,12 @@ function CodeAnalyzer() {
 
         // Try backend /compare endpoint first (TAHD pipeline)
         try {
+          const cmpToken = localStorage.getItem('token');
+          const cmpHeaders = { 'Content-Type': 'application/json' };
+          if (cmpToken) cmpHeaders['Authorization'] = `Bearer ${cmpToken}`;
           const cmpRes = await fetch(`${API}/compare`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: cmpHeaders,
             body: JSON.stringify({
               code_a: analyzed[i].content,
               code_b: analyzed[j].content,
@@ -1399,6 +1411,19 @@ function CodeAnalyzer() {
     setBatchProgress(null);
     setBatchDone(true);
     setBatchView('students');
+
+    // Save batch results to studentResults localStorage for Analysis Results page
+    const studentResults = analyzed.map(f => ({
+      fileName: shortName(f.name),
+      student: displayName(f),
+      section: f.section || '',
+      clonePercentage: f.result?.clone_percentage ?? 0,
+      complexity: f.result?.cyclomatic_complexity ?? 0,
+      maintainability: f.result?.maintainability_index ?? 0,
+      date: new Date().toISOString(),
+    }));
+    const existing = JSON.parse(localStorage.getItem('studentResults') || '[]');
+    localStorage.setItem('studentResults', JSON.stringify([...studentResults, ...existing]));
 
     logActivity('analysis', `Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
   }, [extractedFiles, user, logActivity]);
