@@ -30,7 +30,7 @@ def create_app():
 
     with app.app_context():
         db.create_all()
-        print("✅ Database initialized")
+        print("[OK] Database initialized")
 
     from app.api import routes, auth
     app.register_blueprint(routes.bp, url_prefix='/api/v1')
