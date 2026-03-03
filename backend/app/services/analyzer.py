@@ -149,6 +149,71 @@ _JAVA_CF_KEYWORDS = frozenset([
     "return", "throw", "try", "catch", "finally", "new", "instanceof",
 ])
 
+# Pre-compiled Java tokenizer pattern (shared by _normalize_java_tokens and
+# _raw_java_tokens to avoid re-compiling on every call).
+_JAVA_TOKEN_SPEC = [
+    ("COMMENT_ML", r"/\*.*?\*/"),
+    ("COMMENT_SL", r"//[^\n]*"),
+    ("STRING",     r'"(?:\\.|[^"\\])*"'),
+    ("CHAR",       r"'(?:\\.|[^'\\])'"),
+    ("NUMBER",     r"\b\d+(?:\.\d+)?[lLfFdD]?\b"),
+    ("IDENT",      r"\b[A-Za-z_]\w*\b"),
+    ("OP3",        r">>>=|<<=|>>="),
+    ("OP2",        r"==|!=|<=|>=|&&|\|\||<<|>>>|>>|\+\+|--|[+\-*/%&|^]="),
+    ("OP1",        r"[+\-*/%&|^~!<>=?:;,.()\[\]{}]"),
+    ("SKIP",       r"\s+"),
+    ("MISMATCH",   r"."),
+]
+_JAVA_TOKEN_RE = re.compile(
+    "|".join(f"(?P<{name}>{regex})" for name, regex in _JAVA_TOKEN_SPEC),
+    re.DOTALL,
+)
+
+# Pre-compiled patterns for _java_ast_sequence — avoids re-compiling on every
+# call.  Ordered: control-flow patterns first, CALL last (Fix #4).
+_JAVA_AST_CONSTRUCTS = [
+    (re.compile(r"\bif\s*\("),          "IF"),
+    (re.compile(r"\belse\s*\{"),        "ELSE"),
+    (re.compile(r"\bfor\s*\("),         "FOR"),
+    (re.compile(r"\bwhile\s*\("),       "WHILE"),
+    (re.compile(r"\bdo\s*\{"),          "DO"),
+    (re.compile(r"\bswitch\s*\("),      "SWITCH"),
+    (re.compile(r"\bcase\b"),           "CASE"),
+    (re.compile(r"\breturn\b"),         "RETURN"),
+    (re.compile(r"\bthrow\b"),          "THROW"),
+    (re.compile(r"\btry\s*\{"),         "TRY"),
+    (re.compile(r"\bcatch\s*\("),       "CATCH"),
+    (re.compile(r"\bfinally\s*\{"),     "FINALLY"),
+    (re.compile(r"\bnew\s+\w+"),        "NEW"),
+    (re.compile(r"\binstanceof\b"),     "INSTANCEOF"),
+    (re.compile(r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
+                r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b"),
+     "TYPEDECL"),
+    (re.compile(r"\{"), "BLOCK_OPEN"),
+    (re.compile(r"\}"), "BLOCK_CLOSE"),
+    # Fix #4: CALL is last — the claimed-positions mechanism prevents
+    # overlap with higher-priority keyword patterns.  The negative
+    # lookahead rejects identifiers that are reserved keywords.
+    (re.compile(r"\b(?!(?:if|else|for|while|do|switch|case|return|throw|"
+                r"try|catch|finally|new|instanceof)\b)"
+                r"[A-Za-z_]\w*\s*\("), "CALL"),
+]
+
+# Pre-compiled patterns for _extract_halstead_java
+_JAVA_HALSTEAD_OP_RE = re.compile(
+    r">>>=|<<=|>>=|==|!=|<=|>=|&&|\|\||<<|>>>|>>"
+    r"|[+\-*/%&|^]=|\+\+|--|[+\-*/%&|^~!<>=?:]"
+)
+_JAVA_HALSTEAD_NUM_RE = re.compile(r"\b\d+(?:\.\d+)?[lLfFdD]?\b")
+_JAVA_HALSTEAD_STR_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
+_JAVA_HALSTEAD_ID_RE  = re.compile(r"\b[A-Za-z_]\w*\b")
+
+# Pre-compiled comment-stripping patterns
+_JAVA_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+_JAVA_LINE_COMMENT_RE  = re.compile(r"//[^\n]*")
+_JAVA_STRING_LIT_RE    = re.compile(r'"(?:\\.|[^"\\])*"')
+_JAVA_CHAR_LIT_RE      = re.compile(r"'(?:\\.|[^'\\])'")
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -267,26 +332,8 @@ def _normalize_java_tokens(source: str) -> list[str]:
     Tokenize Java source with a regex lexer and normalize the same way.
     No external library required.
     """
-    token_spec = [
-        ("COMMENT_ML", r"/\*.*?\*/"),
-        ("COMMENT_SL", r"//[^\n]*"),
-        ("STRING",     r'"(?:\\.|[^"\\])*"'),
-        ("CHAR",       r"'(?:\\.|[^'\\])'"),
-        ("NUMBER",     r"\b\d+(?:\.\d+)?[lLfFdD]?\b"),
-        ("IDENT",      r"\b[A-Za-z_]\w*\b"),
-        ("OP3",        r">>>=|<<=|>>="),
-        ("OP2",        r"==|!=|<=|>=|&&|\|\||<<|>>>|>>|\+\+|--|[+\-*/%&|^]="),
-        ("OP1",        r"[+\-*/%&|^~!<>=?:;,.()\[\]{}]"),
-        ("SKIP",       r"\s+"),
-        ("MISMATCH",   r"."),
-    ]
-    pattern = re.compile(
-        "|".join(f"(?P<{name}>{regex})" for name, regex in token_spec),
-        re.DOTALL
-    )
-
     tokens = []
-    for mo in pattern.finditer(source):
+    for mo in _JAVA_TOKEN_RE.finditer(source):
         kind = mo.lastgroup
         val  = mo.group()
 
@@ -314,26 +361,8 @@ def _raw_java_tokens(source: str) -> list[str]:
     Only strips comments and whitespace.
     Used for Type-1 (exact clone) detection.
     """
-    token_spec = [
-        ("COMMENT_ML", r"/\*.*?\*/"),
-        ("COMMENT_SL", r"//[^\n]*"),
-        ("STRING",     r'"(?:\\.|[^"\\])*"'),
-        ("CHAR",       r"'(?:\\.|[^'\\])'"),
-        ("NUMBER",     r"\b\d+(?:\.\d+)?[lLfFdD]?\b"),
-        ("IDENT",      r"\b[A-Za-z_]\w*\b"),
-        ("OP3",        r">>>=|<<=|>>="),
-        ("OP2",        r"==|!=|<=|>=|&&|\|\||<<|>>>|>>|\+\+|--|[+\-*/%&|^]="),
-        ("OP1",        r"[+\-*/%&|^~!<>=?:;,.()\[\]{}]"),
-        ("SKIP",       r"\s+"),
-        ("MISMATCH",   r"."),
-    ]
-    pattern = re.compile(
-        "|".join(f"(?P<{name}>{regex})" for name, regex in token_spec),
-        re.DOTALL
-    )
-
     tokens = []
-    for mo in pattern.finditer(source):
+    for mo in _JAVA_TOKEN_RE.finditer(source):
         kind = mo.lastgroup
         val  = mo.group()
 
@@ -425,60 +454,29 @@ def _java_ast_sequence(source: str) -> list[str]:
     scoring at function level.
     """
     # Strip comments and strings first
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    source = re.sub(r"//[^\n]*",  " ", source)
-    source = re.sub(r'"(?:\\.|[^"\\])*"', "STR", source)
-    source = re.sub(r"'(?:\\.|[^'\\])'",  "STR", source)
+    source = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
+    source = _JAVA_LINE_COMMENT_RE.sub(" ", source)
+    source = _JAVA_STRING_LIT_RE.sub("STR", source)
+    source = _JAVA_CHAR_LIT_RE.sub("STR", source)
 
     # Fix #4: Ordered construct list — control-flow patterns first, CALL last.
-    # Using word-boundary anchors on keyword patterns ensures we don't match
-    # substrings inside identifiers, and placing CALL last means it only fires
-    # on identifiers that weren't already consumed by a keyword pattern.
-    constructs = [
-        (r"\bif\s*\(",          "IF"),
-        (r"\belse\s*\{",        "ELSE"),
-        (r"\bfor\s*\(",         "FOR"),
-        (r"\bwhile\s*\(",       "WHILE"),
-        (r"\bdo\s*\{",          "DO"),
-        (r"\bswitch\s*\(",      "SWITCH"),
-        (r"\bcase\b",           "CASE"),
-        (r"\breturn\b",         "RETURN"),
-        (r"\bthrow\b",          "THROW"),
-        (r"\btry\s*\{",         "TRY"),
-        (r"\bcatch\s*\(",       "CATCH"),
-        (r"\bfinally\s*\{",     "FINALLY"),
-        (r"\bnew\s+\w+",        "NEW"),
-        (r"\binstanceof\b",     "INSTANCEOF"),
-        (r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
-         r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b",
-         "TYPEDECL"),
-        (r"\{", "BLOCK_OPEN"),
-        (r"\}", "BLOCK_CLOSE"),
-        # Fix #4: CALL is last — only matches identifiers not preceded by a
-        # control-flow keyword. The negative lookbehind rejects any match
-        # where the identifier is one of the reserved CF words.
-        (r"(?<!\b(?:if|for|while|do|switch|catch|return|throw|new))"
-         r"\b(?!(?:if|else|for|while|do|switch|case|return|throw|"
-         r"try|catch|finally|new|instanceof)\b)"
-         r"[A-Za-z_]\w*\s*\(", "CALL"),
-    ]
-
-    # Collect (position, symbol) pairs so we respect source order.
-    # Fix #4: Track already-claimed positions so CALL cannot overlap with
+    # Track already-claimed positions so CALL cannot overlap with
     # a position already claimed by a keyword pattern.
     claimed: set[int] = set()
     hits = []
 
-    for pattern, symbol in constructs:
-        for m in re.finditer(pattern, source):
+    for pattern, symbol in _JAVA_AST_CONSTRUCTS:
+        for m in pattern.finditer(source):
             start = m.start()
+            end   = m.end()
             # Skip if this position was already claimed by an earlier (higher-
-            # priority) keyword pattern.
-            if any(start <= pos < m.end() for pos in claimed):
+            # priority) keyword pattern.  Iterate over the match range (small)
+            # and check the O(1) set lookup instead of iterating over all
+            # claimed positions.
+            if any(pos in claimed for pos in range(start, end)):
                 continue
             hits.append((start, symbol))
-            for pos in range(start, m.end()):
-                claimed.add(pos)
+            claimed.update(range(start, end))
 
     hits.sort(key=lambda x: x[0])
     return [sym for _, sym in hits]
@@ -498,6 +496,10 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
         return 1.0
     if la == 0 or lb == 0:
         return 0.0
+
+    # Fast path: identical sequences
+    if seq_a == seq_b:
+        return 1.0
 
     # Diagonal band optimization: length ratio > 2:1 → can't be clones
     if la > 2 * lb or lb > 2 * la:
@@ -608,31 +610,23 @@ def _extract_halstead_java(source: str) -> dict:
     regex tokenizer.
     """
     # Strip comments
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    source = re.sub(r"//[^\n]*",  " ", source)
+    source = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
+    source = _JAVA_LINE_COMMENT_RE.sub(" ", source)
 
     operators = []
     operands  = []
 
-    op_pattern  = re.compile(
-        r">>>=|<<=|>>=|==|!=|<=|>=|&&|\|\||<<|>>>|>>"
-        r"|[+\-*/%&|^]=|\+\+|--|[+\-*/%&|^~!<>=?:]"
-    )
-    num_pattern = re.compile(r"\b\d+(?:\.\d+)?[lLfFdD]?\b")
-    str_pattern = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
-    id_pattern  = re.compile(r"\b[A-Za-z_]\w*\b")
-
     # Collect operators
-    for m in op_pattern.finditer(source):
+    for m in _JAVA_HALSTEAD_OP_RE.finditer(source):
         operators.append(m.group())
 
     # Remove strings before scanning identifiers/numbers
-    clean = str_pattern.sub("STR_LIT ", source)
+    clean = _JAVA_HALSTEAD_STR_RE.sub("STR_LIT ", source)
 
-    for m in num_pattern.finditer(clean):
+    for m in _JAVA_HALSTEAD_NUM_RE.finditer(clean):
         operands.append(m.group())
 
-    for m in id_pattern.finditer(clean):
+    for m in _JAVA_HALSTEAD_ID_RE.finditer(clean):
         val = m.group()
         if val in JAVA_OPERATORS:
             operators.append(val)
@@ -836,8 +830,8 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
     lines = source.splitlines()
 
     # Strip comments before scanning for method signatures
-    clean = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    clean = re.sub(r"//[^\n]*",  " ", clean)
+    clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
+    clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
 
     # Pattern: optional modifiers + return type + name + (params) + {
     method_pattern = re.compile(
@@ -1205,17 +1199,31 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
     """
     McCabe's Cyclomatic Complexity  M = E - N + 2P
     Approximated by counting decision points + 1.
+
+    Comments and string literals are stripped first to avoid false positives
+    from keywords appearing inside non-code content.
     """
     if language == "python":
+        # Strip Python comments and string literals
+        clean = re.sub(r'#[^\n]*', ' ', source)
+        clean = re.sub(r'""".*?"""', 'STR', clean, flags=re.DOTALL)
+        clean = re.sub(r"'''.*?'''", 'STR', clean, flags=re.DOTALL)
+        clean = re.sub(r'"(?:\\.|[^"\\])*"', 'STR', clean)
+        clean = re.sub(r"'(?:\\.|[^'\\])*'", 'STR', clean)
         keywords = ["if ", "elif ", "else:", "for ", "while ",
                     "except", " and ", " or "]
     else:
+        # Strip Java comments and string literals
+        clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
+        clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
+        clean = re.sub(r'"(?:\\.|[^"\\])*"', 'STR', clean)
+        clean = re.sub(r"'(?:\\.|[^'\\])'", 'STR', clean)
         keywords = ["if ", "else ", "for ", "while ", "case ",
                     "catch ", " && ", " || ", " ? "]
 
     count = 1
     for kw in keywords:
-        count += source.count(kw)
+        count += clean.count(kw)
 
     return float(count)
 
@@ -1285,10 +1293,12 @@ def _compute_nesting_depth(source: str, language: str) -> int:
         return max_depth
 
     else:  # java — brace depth (unchanged)
+        # Strip comments first to avoid counting braces inside comments
+        src = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
+        src = _JAVA_LINE_COMMENT_RE.sub(" ", src)
         depth = 0
         max_depth = 0
         i = 0
-        src = source
         n = len(src)
         while i < n:
             ch = src[i]
