@@ -431,7 +431,7 @@ function Dashboard() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                     <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', margin: 0 }}>Recent Analyses</h5>
                     {analysisStats.analyses.length > 0 && (
-                      <button onClick={() => navigate('/analysis-results')} style={{ background: 'none', border: 'none', color: 'var(--accent-color, #6366f1)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>View All →</button>
+                      <button onClick={() => navigate('/analysis-results')} aria-label="View all analyses" style={{ background: 'none', border: 'none', color: 'var(--accent-color, #6366f1)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '2px 6px' }}>View All →</button>
                     )}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

@@ -1423,7 +1423,9 @@ function CodeAnalyzer() {
       date: new Date().toISOString(),
     }));
     const existing = JSON.parse(localStorage.getItem('studentResults') || '[]');
-    localStorage.setItem('studentResults', JSON.stringify([...studentResults, ...existing]));
+    const newNames = new Set(studentResults.map(r => r.fileName));
+    const deduped = existing.filter(r => !newNames.has(r.fileName));
+    localStorage.setItem('studentResults', JSON.stringify([...studentResults, ...deduped]));
 
     logActivity('analysis', `Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
   }, [extractedFiles, user, logActivity]);
