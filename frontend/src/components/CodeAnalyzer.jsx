@@ -168,30 +168,45 @@ function shortName(fileName) {
 }
 
 /**
- * Compute Jaccard similarity between two code strings.
- * Tokenizes both strings into word-sets and returns
- * |intersection| / |union|, a value between 0 (no overlap) and 1 (identical).
+ * Compute multiset (bag) Jaccard similarity between two code strings.
+ * Uses token frequency counts rather than a Set, so files with different
+ * distributions of tokens score lower even if they share the same vocabulary.
+ * Returns a value between 0 (no overlap) and 1 (identical token distribution).
  */
 function computeSimilarity(codeA, codeB) {
-  const tokenize = s => new Set(s.toLowerCase().replace(/[^a-z0-9_\s]/g, ' ').split(/\s+/).filter(t => t.length > 1));
-  const A = tokenize(codeA);
-  const B = tokenize(codeB);
-  const intersection = [...A].filter(t => B.has(t)).length;
-  const union = new Set([...A, ...B]).size;
+  const tokenize = s => {
+    const tokens = s.toLowerCase().replace(/[^a-z0-9_\s]/g, ' ').split(/\s+/).filter(t => t.length > 1);
+    const freq = {};
+    tokens.forEach(t => { freq[t] = (freq[t] || 0) + 1; });
+    return freq;
+  };
+  const freqA = tokenize(codeA);
+  const freqB = tokenize(codeB);
+  const allTokens = new Set([...Object.keys(freqA), ...Object.keys(freqB)]);
+  let intersection = 0;
+  let union = 0;
+  allTokens.forEach(t => {
+    const a = freqA[t] || 0;
+    const b = freqB[t] || 0;
+    intersection += Math.min(a, b);
+    union += Math.max(a, b);
+  });
   return union === 0 ? 0 : intersection / union;
 }
 
 /**
- * Normalize code by stripping comments, replacing strings/numbers/identifiers
- * with generic tokens (STR, NUM, ID). This makes structural comparison
- * insensitive to variable renaming — useful for detecting Type-2 clones.
+ * Normalize code by stripping comments and replacing string/number literals
+ * with generic tokens (STR, NUM). Identifiers are intentionally kept so that
+ * files with different variable names and logic remain distinguishable.
+ * Used to compute normSim for Type-2 (renamed clone) detection.
  */
 function normalizeCode(code) {
   return code
-    .replace(/\/\/.*$/gm, '').replace(/#.*$/gm, '')
-    .replace(/["']([^"'\\]|\\.)*["']/g, 'STR')
-    .replace(/\b\d+\.?\d*\b/g, 'NUM')
-    .replace(/\b[a-zA-Z_]\w*\b/g, 'ID')
+    .replace(/\/\/.*$/gm, '')                    // strip JS/Java line comments
+    .replace(/#.*$/gm, '')                       // strip Python line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '')            // strip block comments
+    .replace(/["']([^"'\\]|\\.)*["']/g, 'STR')  // normalize string literals
+    .replace(/\b\d+\.?\d*\b/g, 'NUM')           // normalize numeric literals
     .replace(/\s+/g, ' ').trim();
 }
 
