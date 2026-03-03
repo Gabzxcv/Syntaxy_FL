@@ -1161,7 +1161,7 @@ function CodeAnalyzer() {
       }).catch(() => {});
     }
     // Also save to localStorage for immediate cross-page visibility
-    const userId = user.id || user.username || 'default';
+    const userId = user?.id || user?.username || 'default';
     const h = JSON.parse(localStorage.getItem(`activityHistory_${userId}`) || '[]');
     h.unshift({ id: Date.now(), type, icon: '', description, time: new Date().toISOString(), status: status || 'success' });
     localStorage.setItem(`activityHistory_${userId}`, JSON.stringify(h));
@@ -1593,7 +1593,7 @@ function CodeAnalyzer() {
                       <MetricRing value={analysisData.cyclomatic_complexity} max={30} color={analysisData.cyclomatic_complexity>20?'#ef4444':analysisData.cyclomatic_complexity>10?'#f97316':'#6366f1'} label={analysisData.cyclomatic_complexity} sublabel="Complexity"/>
                       <MetricRing value={analysisData.maintainability_index} max={100} color={analysisData.maintainability_index>=60?'#22c55e':analysisData.maintainability_index>=30?'#f97316':'#ef4444'} label={`${analysisData.maintainability_index}`} sublabel="Maintainability"/>
                       <div className="metrics-summary-box">
-                        <div className="metrics-summary-row"><span className="ms-label">Total Lines</span><span className="ms-value">{analysisData.total_lines||analysisData.lines_of_code}</span></div>
+                        <div className="metrics-summary-row"><span className="ms-label">Total Lines</span><span className="ms-value">{analysisData.total_lines}</span></div>
                         <div className="metrics-summary-row"><span className="ms-label">Clones Found</span><span className="ms-value">{analysisData.clones?.length??0}</span></div>
                         {Object.entries(cloneTypeCounts).map(([t,n])=>(
                           <div key={t} className="metrics-summary-row"><span className="ms-label">{t} Clones</span><span className="ms-value" style={{color:resolveCloneMeta(t).color}}>{n}</span></div>
@@ -1734,7 +1734,7 @@ function CodeAnalyzer() {
                             <span className="qs-item"><strong>{analysisData.quality_report.structure.function_count}</strong> functions</span>
                             <span className="qs-item">Avg length: <strong>{analysisData.quality_report.structure.avg_function_length}</strong> lines</span>
                             <span className="qs-item">Max nesting: <strong>{analysisData.quality_report.structure.max_nesting_depth}</strong></span>
-                            <span className="qs-item">Comment density: <strong>{(analysisData.quality_report.structure.comment_density*100).toFixed(0)}%</strong></span>
+                            <span className="qs-item">Comment density: <strong>{((analysisData.quality_report.structure.comment_density ?? 0)*100).toFixed(0)}%</strong></span>
                           </div>
                         )}
                         {analysisData.quality_report.functions?.length>0&&(
@@ -1748,7 +1748,7 @@ function CodeAnalyzer() {
                                 <div className="quality-fn-metrics">
                                   <span className="clone-score-tag">CC: {fn.cyclomatic_complexity}</span>
                                   <span className="clone-score-tag">Nesting: {fn.nesting_depth}</span>
-                                  {fn.halstead&&<span className="clone-score-tag">Vol: {fn.halstead.volume?.toFixed(0)}</span>}
+                                  {fn.halstead&&<span className="clone-score-tag">Vol: {(fn.halstead.volume ?? 0).toFixed(0)}</span>}
                                 </div>
                                 {fn.smells?.length>0&&(
                                   <div className="quality-fn-smells">
