@@ -591,4 +591,10 @@ body.light-mode .mobile-menu-btn {
   .sidebar-overlay.sidebar-overlay-visible {
     display: block;
   }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
 }
