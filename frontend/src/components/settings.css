@@ -502,10 +502,6 @@ input:disabled + .toggle-slider {
 }
 
 @media (max-width: 640px) {
-  .sidebar {
-    display: none;
-  }
-  
   .main-content {
     margin-left: 0;
   }
