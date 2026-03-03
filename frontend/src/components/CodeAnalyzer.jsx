@@ -1150,6 +1150,33 @@ function CodeAnalyzer() {
     localStorage.removeItem('token'); localStorage.removeItem('user'); navigate('/login');
   }
 
+  const logActivity = useCallback((type, description, status) => {
+    const token = localStorage.getItem('token');
+    // Save to backend activity log
+    if (token) {
+      fetch(`${API}/auth/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ type, description, status: status || 'success' }),
+      }).catch(() => {});
+    }
+    // Also save to localStorage for immediate cross-page visibility
+    const userId = user?.id || user?.username || 'default';
+    const h = JSON.parse(localStorage.getItem(`activityHistory_${userId}`) || '[]');
+    h.unshift({ id: Date.now(), type, icon: '', description, time: new Date().toISOString(), status: status || 'success' });
+    localStorage.setItem(`activityHistory_${userId}`, JSON.stringify(h));
+  }, [user]);
+
+  function saveFileToBackend(fileName, content, fileType) {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/files`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: fileName, size: new Blob([content]).size, file_type: fileType, content }),
+    }).catch(() => {});
+  }
+
   function generateMockAnalysis(codeText, lang) {
     const lines = codeText.split('\n').filter(l=>l.trim());
     const totalLines = lines.length;
@@ -1170,13 +1197,40 @@ function CodeAnalyzer() {
     return { clone_percentage:clonePercentage, cyclomatic_complexity:complexity, maintainability_index:maintainability, total_lines:totalLines, execution_time_ms:Math.round(Math.random()*50+10), clones:clones.slice(0,6), refactoring_suggestions:suggestions, mock:true };
   }
 
+  function normalizeAnalysisData(data) {
+    const d = { ...data };
+    if (d.lines_of_code !== undefined && d.total_lines === undefined) d.total_lines = d.lines_of_code;
+    if (d.clones) {
+      d.clones = d.clones.map(c => ({
+        ...c,
+        type: typeof c.type === 'number' ? `Type-${c.type}` : c.type,
+      }));
+    }
+    if (d.refactoring_suggestions) {
+      d.refactoring_suggestions = d.refactoring_suggestions.map(s => ({
+        ...s,
+        refactoring_type: s.refactoring_type || s.type || 'Refactor',
+        explanation: s.explanation || {},
+      }));
+    }
+    return d;
+  }
+
   async function analyze() {
     if (!code.trim()) { alert('Please enter some code!'); return; }
     setAnalyzeResult({ text:'Analyzing...', className:'loading' }); setAnalysisData(null); setExpandedClone(null);
     try {
-      const res = await fetch(`${API}/analyze`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code,language}) });
+      const token = localStorage.getItem('token');
+      const headers = {'Content-Type':'application/json'};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API}/analyze`, { method:'POST', headers, body:JSON.stringify({code,language}) });
       const data = await res.json();
-      if (res.ok) { setAnalysisData(data); setAnalyzeResult({ text:'', className:'success' }); }
+      if (res.ok) {
+        const normalized = normalizeAnalysisData(data);
+        setAnalysisData(normalized);
+        setAnalyzeResult({ text:'', className:'success' });
+        logActivity('analysis', `Analyzed ${language} code — ${normalized.clone_percentage}% clone detected`, normalized.clone_percentage > 40 ? 'warning' : 'success');
+      }
       else setAnalyzeResult({ text:JSON.stringify(data,null,2), className:'error' });
     } catch {
       const m = generateMockAnalysis(code,language);
@@ -1188,9 +1242,13 @@ function CodeAnalyzer() {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      setCode(ev.target.result); setUploadedFileName(file.name);
+      const content = ev.target.result;
+      setCode(content); setUploadedFileName(file.name);
       const ext = file.name.split('.').pop().toLowerCase();
       if (ext==='py') setLanguage('python'); else if (ext==='java') setLanguage('java');
+      const fileType = ext === 'py' ? 'python' : ext === 'java' ? 'java' : 'text';
+      saveFileToBackend(file.name, content, fileType);
+      logActivity('upload', `Uploaded file: ${file.name}`, 'success');
     };
     reader.readAsText(file);
   }
@@ -1210,6 +1268,12 @@ function CodeAnalyzer() {
         }
       }
       if (!newFiles.length) { alert('No .py, .java, or .txt files found in zip.'); return; }
+      // Save extracted files to backend for visibility on Files page
+      newFiles.forEach(f => {
+        const fileType = f.ext === 'py' ? 'python' : f.ext === 'java' ? 'java' : 'text';
+        saveFileToBackend(f.name, f.content, fileType);
+      });
+      logActivity('upload', `Uploaded batch: ${file.name} — ${newFiles.length} files processed`, 'success');
       setExtractedFiles(prev => {
         const updated = [...prev, ...newFiles];
         setDatasetStats(computeDatasetStats(updated));
@@ -1234,9 +1298,12 @@ function CodeAnalyzer() {
   async function analyzeSingleExtracted(ef) {
     setExtractedFiles(prev=>prev.map(f=>f.id===ef.id?{...f,analyzing:true}:f));
     try {
-      const res = await fetch(`${API}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:ef.content,language:ef.lang}) });
+      const token = localStorage.getItem('token');
+      const headers = {'Content-Type':'application/json'};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API}/analyze`,{ method:'POST', headers, body:JSON.stringify({code:ef.content,language:ef.lang}) });
       const data = await res.json();
-      const result = res.ok ? data : generateMockAnalysis(ef.content,ef.lang);
+      const result = res.ok ? normalizeAnalysisData(data) : generateMockAnalysis(ef.content,ef.lang);
       setExtractedFiles(prev=>prev.map(f=>f.id===ef.id?{...f,analyzed:true,analyzing:false,result}:f));
     } catch {
       const result = generateMockAnalysis(ef.content,ef.lang);
@@ -1257,9 +1324,12 @@ function CodeAnalyzer() {
       let result = ef.result;
       if (!result) {
         try {
-          const res = await fetch(`${API}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:ef.content,language:ef.lang}) });
+          const batchToken = localStorage.getItem('token');
+          const batchHeaders = {'Content-Type':'application/json'};
+          if (batchToken) batchHeaders['Authorization'] = `Bearer ${batchToken}`;
+          const res = await fetch(`${API}/analyze`,{ method:'POST', headers:batchHeaders, body:JSON.stringify({code:ef.content,language:ef.lang}) });
           const data = await res.json();
-          result = res.ok ? data : generateMockAnalysis(ef.content,ef.lang);
+          result = res.ok ? normalizeAnalysisData(data) : generateMockAnalysis(ef.content,ef.lang);
         } catch { result = generateMockAnalysis(ef.content,ef.lang); }
       }
       analyzed.push({ ...ef, analyzed:true, result });
@@ -1280,15 +1350,54 @@ function CodeAnalyzer() {
         pair_idx++;
         setBatchProgress({ current:pair_idx, total:total_pairs, phase:'Comparing pairs', currentName:`${shortName(analyzed[i].name)} ↔ ${shortName(analyzed[j].name)}` });
         await new Promise(r=>setTimeout(r,0));
-        const rawSim = computeSimilarity(analyzed[i].content, analyzed[j].content);
-        const normSim = computeStructuralSimilarity(analyzed[i].content, analyzed[j].content);
-        // AST-only component for display (structural minus weighted token portion)
-        const astNodes_i = astLinearize(analyzed[i].content);
-        const astNodes_j = astLinearize(analyzed[j].content);
-        const astSim = ngramJaccardSimilarity(astNodes_i, astNodes_j, 2);
-        // Overall displayed similarity: raw leads for Type-1; structural score leads for Type-2
-        const sim = rawSim >= 0.70 ? rawSim : normSim >= 0.72 ? normSim * 0.95 : Math.max(rawSim, normSim * 0.85);
-        const cloneType = classifyPairType(rawSim, normSim);
+
+        let sim, rawSim, normSim, astSim, cloneType;
+
+        // Try backend /compare endpoint first (TAHD pipeline)
+        try {
+          const cmpToken = localStorage.getItem('token');
+          const cmpHeaders = { 'Content-Type': 'application/json' };
+          if (cmpToken) cmpHeaders['Authorization'] = `Bearer ${cmpToken}`;
+          const cmpRes = await fetch(`${API}/compare`, {
+            method: 'POST',
+            headers: cmpHeaders,
+            body: JSON.stringify({
+              code_a: analyzed[i].content,
+              code_b: analyzed[j].content,
+              language: analyzed[i].lang,
+              file_a: analyzed[i].name,
+              file_b: analyzed[j].name,
+            }),
+          });
+          if (cmpRes.ok) {
+            const cmpData = await cmpRes.json();
+            sim = cmpData.overall_similarity || 0;
+            // Use the highest clone pair scores if available
+            if (cmpData.clones && cmpData.clones.length > 0) {
+              const best = cmpData.clones.reduce((a, b) => (b.similarity || 0) > (a.similarity || 0) ? b : a, cmpData.clones[0]);
+              rawSim = best.token_score || sim;
+              astSim = best.ast_score || sim;
+              normSim = best.similarity || sim;
+              const ct = typeof best.type === 'number' ? best.type : parseInt(String(best.type).replace(/\D/g, '')) || 3;
+              cloneType = ct === 1 ? 'Type-1' : ct === 2 ? 'Type-2' : ct === 3 ? 'Type-3' : null;
+            } else {
+              rawSim = sim; normSim = sim; astSim = sim;
+              cloneType = sim >= 0.6 ? 'Type-3' : null;
+            }
+          } else {
+            throw new Error('Backend compare failed');
+          }
+        } catch {
+          // Fallback to local comparison
+          rawSim = computeSimilarity(analyzed[i].content, analyzed[j].content);
+          normSim = computeStructuralSimilarity(analyzed[i].content, analyzed[j].content);
+          const astNodes_i = astLinearize(analyzed[i].content);
+          const astNodes_j = astLinearize(analyzed[j].content);
+          astSim = ngramJaccardSimilarity(astNodes_i, astNodes_j, 2);
+          sim = rawSim >= 0.70 ? rawSim : normSim >= 0.72 ? normSim * 0.95 : Math.max(rawSim, normSim * 0.85);
+          cloneType = classifyPairType(rawSim, normSim);
+        }
+
         matrix[i][j] = sim; matrix[j][i] = sim;
         if (cloneType) {
           pairs.push({ fileA:analyzed[i], fileB:analyzed[j], similarity:sim, rawSim, normSim, astSim, cloneType });
@@ -1303,10 +1412,23 @@ function CodeAnalyzer() {
     setBatchDone(true);
     setBatchView('students');
 
-    const h = JSON.parse(localStorage.getItem(`activityHistory_${user.id||user.username||'default'}`)||'[]');
-    h.unshift({ id:Date.now(), type:'analysis', icon:'', description:`Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, time:new Date().toISOString(), status:pairs.some(p=>p.similarity>=0.8)?'warning':'success' });
-    localStorage.setItem(`activityHistory_${user.id||user.username||'default'}`,JSON.stringify(h));
-  }, [extractedFiles, user]);
+    // Save batch results to studentResults localStorage for Analysis Results page
+    const studentResults = analyzed.map(f => ({
+      fileName: shortName(f.name),
+      student: displayName(f),
+      section: f.section || '',
+      clonePercentage: f.result?.clone_percentage ?? 0,
+      complexity: f.result?.cyclomatic_complexity ?? 0,
+      maintainability: f.result?.maintainability_index ?? 0,
+      date: new Date().toISOString(),
+    }));
+    const existing = JSON.parse(localStorage.getItem('studentResults') || '[]');
+    const newNames = new Set(studentResults.map(r => r.fileName));
+    const deduped = existing.filter(r => !newNames.has(r.fileName));
+    localStorage.setItem('studentResults', JSON.stringify([...studentResults, ...deduped]));
+
+    logActivity('analysis', `Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
+  }, [extractedFiles, user, logActivity]);
 
   async function testHealth() {
     setQuickResult({ text:'Testing...', className:'loading' });
@@ -1489,6 +1611,7 @@ function CodeAnalyzer() {
                       <div className="result-header-left">
                         <span className="result-title">Analysis Results</span>
                         {analysisData.mock&&<span className="mock-badge">MOCK MODE</span>}
+                        {analysisData.detection_method&&<span className="detection-method-badge">{analysisData.detection_method}</span>}
                       </div>
                       <span className="result-time">{analysisData.execution_time_ms}ms</span>
                     </div>
@@ -1502,6 +1625,12 @@ function CodeAnalyzer() {
                         {Object.entries(cloneTypeCounts).map(([t,n])=>(
                           <div key={t} className="metrics-summary-row"><span className="ms-label">{t} Clones</span><span className="ms-value" style={{color:resolveCloneMeta(t).color}}>{n}</span></div>
                         ))}
+                        {analysisData.halstead_metrics&&(
+                          <>
+                            <div className="metrics-summary-row"><span className="ms-label">Halstead Volume</span><span className="ms-value">{analysisData.halstead_metrics.total_volume}</span></div>
+                            <div className="metrics-summary-row"><span className="ms-label">Avg Difficulty</span><span className="ms-value">{analysisData.halstead_metrics.avg_difficulty}</span></div>
+                          </>
+                        )}
                       </div>
                     </div>
                     {analysisData.clones&&analysisData.clones.length>0&&(
@@ -1542,12 +1671,20 @@ function CodeAnalyzer() {
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isExp?'rotate(180deg)':'none',transition:'transform 0.2s',color:'#6b7280'}}><polyline points="6 9 12 15 18 9"/></svg>
                                       </div>
                                     </div>
+                                    {(clone.token_score!==undefined||clone.ast_score!==undefined||clone.halstead_score!==undefined)&&(
+                                      <div className="clone-scores-row">
+                                        {clone.token_score!==undefined&&<span className="clone-score-tag">Token: {(clone.token_score*100).toFixed(0)}%</span>}
+                                        {clone.ast_score!==undefined&&<span className="clone-score-tag">AST: {(clone.ast_score*100).toFixed(0)}%</span>}
+                                        {clone.halstead_score!==undefined&&<span className="clone-score-tag">Halstead: {(clone.halstead_score*100).toFixed(0)}%</span>}
+                                      </div>
+                                    )}
                                     <div className="clone-locations">
                                       {clone.locations.map((l,j)=>(
-                                        <span key={j} className="clone-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Lines {l.start_line}–{l.end_line}</span>
+                                        <span key={j} className="clone-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>{l.function?`${l.function} · `:''}Lines {l.start_line}–{l.end_line}</span>
                                       ))}
                                     </div>
-                                    {isExp&&<div className="clone-inline-diff"><CodeDiff language={language} labelA={`Fragment A (Lines ${clone.locations[0]?.start_line}–${clone.locations[0]?.end_line})`} labelB={`Fragment B (Lines ${clone.locations[1]?.start_line}–${clone.locations[1]?.end_line})`} codeA={clone.fragmentA||getFragment(code,clone.locations[0]?.start_line,clone.locations[0]?.end_line)} codeB={clone.fragmentB||getFragment(code,clone.locations[1]?.start_line,clone.locations[1]?.end_line)}/></div>}
+                                    {clone.explanation&&<div className="clone-explanation"><span className="clone-explain-label">{clone.explanation.type_name||''}</span> {clone.explanation.description||''}</div>}
+                                    {isExp&&<div className="clone-inline-diff"><CodeDiff language={language} labelA={`${clone.locations[0]?.function||'Fragment A'} (Lines ${clone.locations[0]?.start_line}–${clone.locations[0]?.end_line})`} labelB={`${clone.locations[1]?.function||'Fragment B'} (Lines ${clone.locations[1]?.start_line}–${clone.locations[1]?.end_line})`} codeA={clone.fragmentA||getFragment(code,clone.locations[0]?.start_line,clone.locations[0]?.end_line)} codeB={clone.fragmentB||getFragment(code,clone.locations[1]?.start_line,clone.locations[1]?.end_line)}/></div>}
                                   </div>
                                 );
                               })}
@@ -1580,8 +1717,32 @@ function CodeAnalyzer() {
                           {analysisData.refactoring_suggestions.map((s,i)=>(
                             <div key={i} className="analyzer-suggestion-card">
                               <div className="analyzer-suggestion-type">{s.refactoring_type}</div>
-                              <div className="analyzer-suggestion-text">{s.explanation.remember}</div>
-                              <div className="analyzer-suggestion-text">{s.explanation.apply}</div>
+                              {s.explanation?.remember&&<div className="analyzer-suggestion-text">{s.explanation.remember}</div>}
+                              {s.explanation?.understand&&<div className="analyzer-suggestion-text" style={{color:'var(--text-muted)',fontSize:'0.8rem'}}>{s.explanation.understand}</div>}
+                              {s.explanation?.apply&&<div className="analyzer-suggestion-text">{s.explanation.apply}</div>}
+                              {s.before_code&&(
+                                <details className="suggestion-code-details">
+                                  <summary className="suggestion-code-summary">View Code</summary>
+                                  <div className="suggestion-code-block">
+                                    <div className="suggestion-code-label">Before:</div>
+                                    <pre className="suggestion-code-pre">{s.before_code}</pre>
+                                  </div>
+                                  {s.after_code&&(
+                                    <div className="suggestion-code-block">
+                                      <div className="suggestion-code-label">After:</div>
+                                      <pre className="suggestion-code-pre">{s.after_code}</pre>
+                                    </div>
+                                  )}
+                                </details>
+                              )}
+                              {s.scores&&(
+                                <div className="suggestion-scores">
+                                  <span className="clone-score-tag">Token: {(s.scores.token*100).toFixed(0)}%</span>
+                                  <span className="clone-score-tag">AST: {(s.scores.ast*100).toFixed(0)}%</span>
+                                  <span className="clone-score-tag">Halstead: {(s.scores.halstead*100).toFixed(0)}%</span>
+                                  <span className="clone-score-tag">Fusion: {(s.scores.fusion*100).toFixed(0)}%</span>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1589,6 +1750,44 @@ function CodeAnalyzer() {
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:6}}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                           Open in Refactoring Tool
                         </button>
+                      </div>
+                    )}
+                    {/* Quality Report */}
+                    {analysisData.quality_report&&(
+                      <div className="quality-report-section">
+                        <h4 className="subsection-title">Quality Report</h4>
+                        {analysisData.quality_report.structure&&(
+                          <div className="quality-structure-row">
+                            <span className="qs-item"><strong>{analysisData.quality_report.structure.function_count}</strong> functions</span>
+                            <span className="qs-item">Avg length: <strong>{analysisData.quality_report.structure.avg_function_length}</strong> lines</span>
+                            <span className="qs-item">Max nesting: <strong>{analysisData.quality_report.structure.max_nesting_depth}</strong></span>
+                            <span className="qs-item">Comment density: <strong>{((analysisData.quality_report.structure.comment_density ?? 0)*100).toFixed(0)}%</strong></span>
+                          </div>
+                        )}
+                        {analysisData.quality_report.functions?.length>0&&(
+                          <div className="quality-functions-list">
+                            {analysisData.quality_report.functions.map((fn,i)=>(
+                              <div key={i} className="quality-fn-card">
+                                <div className="quality-fn-header">
+                                  <span className="quality-fn-name">{fn.name}</span>
+                                  <span className="quality-fn-lines">Lines {fn.start_line}–{fn.end_line} ({fn.line_count} lines)</span>
+                                </div>
+                                <div className="quality-fn-metrics">
+                                  <span className="clone-score-tag">CC: {fn.cyclomatic_complexity}</span>
+                                  <span className="clone-score-tag">Nesting: {fn.nesting_depth}</span>
+                                  {fn.halstead&&<span className="clone-score-tag">Vol: {(fn.halstead.volume ?? 0).toFixed(0)}</span>}
+                                </div>
+                                {fn.smells?.length>0&&(
+                                  <div className="quality-fn-smells">
+                                    {fn.smells.map((smell,j)=>(
+                                      <span key={j} className="quality-smell-badge">{smell.replace(/_/g,' ')}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

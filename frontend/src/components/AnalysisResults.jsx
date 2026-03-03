@@ -82,25 +82,31 @@ function AnalysisResults() {
   const [analysisHistory, setAnalysisHistory] = useState([]);
 
   useEffect(() => {
-    const stored = localStorage.getItem('studentResults');
-    if (stored) {
-      try { setResults(JSON.parse(stored)); } catch { setResults([]); }
+    function loadData() {
+      const stored = localStorage.getItem('studentResults');
+      if (stored) {
+        try { setResults(JSON.parse(stored)); } catch { setResults([]); }
+      }
+
+      // Fetch TAHD analysis history from backend
+      const token = localStorage.getItem('token');
+      if (token) {
+        fetch(`${API}/auth/history?limit=100`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((res) => res.ok ? res.json() : null)
+          .then((data) => {
+            if (data && data.analyses) {
+              setAnalysisHistory(data.analyses);
+            }
+          })
+          .catch(() => {});
+      }
     }
 
-    // Fetch TAHD analysis history from backend
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetch(`${API}/auth/history?limit=100`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => res.ok ? res.json() : null)
-        .then((data) => {
-          if (data && data.analyses) {
-            setAnalysisHistory(data.analyses);
-          }
-        })
-        .catch(() => {});
-    }
+    loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const similarityPairs = generateSimilarityPairs(results);
