@@ -12,6 +12,7 @@ function Dashboard() {
   });
   const [showHelp, setShowHelp] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState([
     { id: 1, text: 'System updated to latest version', time: '2 hours ago', read: false },
     { id: 2, text: 'New analysis features available', time: '1 day ago', read: false },
@@ -21,6 +22,13 @@ function Dashboard() {
     totalFiles: 0,
     totalHistory: 0,
     activeProjects: 0,
+  });
+  const [analysisStats, setAnalysisStats] = useState({
+    analyses: [],
+    avgClonePercentage: 0,
+    avgComplexity: 0,
+    avgMaintainability: 0,
+    totalClones: 0,
   });
   const profilePic = user ? localStorage.getItem('profilePicture_' + user.id) : null;
   const navigate = useNavigate();
@@ -88,6 +96,28 @@ function Dashboard() {
           }
         })
         .catch(() => {});
+
+      // Fetch analysis history for TAHD analytics
+      fetch(`${API}/auth/history?limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data && data.analyses && data.analyses.length > 0) {
+            const analyses = data.analyses;
+            const avgClone = Math.round(analyses.reduce((s, a) => s + (a.clone_percentage || 0), 0) / analyses.length);
+            const avgComplexity = Math.round(analyses.reduce((s, a) => s + (a.cyclomatic_complexity || 0), 0) / analyses.length * 10) / 10;
+            const avgMaint = Math.round(analyses.reduce((s, a) => s + (a.maintainability_index || 0), 0) / analyses.length);
+            setAnalysisStats({
+              analyses,
+              avgClonePercentage: avgClone,
+              avgComplexity: avgComplexity,
+              avgMaintainability: avgMaint,
+              totalClones: analyses.reduce((s, a) => s + (a.clone_percentage > 0 ? 1 : 0), 0),
+            });
+          }
+        })
+        .catch(() => {});
     };
 
     fetchUserData();
@@ -131,51 +161,53 @@ function Dashboard() {
 
   return (
     <div className="dashboard-layout">
+      {/* Mobile sidebar overlay */}
+      <div className={`sidebar-overlay ${sidebarOpen ? 'sidebar-overlay-visible' : ''}`} onClick={() => setSidebarOpen(false)} />
       {/* Side Panel */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-header">
           <Logo />
         </div>
         
         <nav className="sidebar-nav">
-          <button className="nav-item active">
+          <button className="nav-item active" onClick={() => setSidebarOpen(false)}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
             Dashboard
           </button>
-          <button className="nav-item" onClick={() => navigate('/analyzer')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/analyzer'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
             Compiler Area
           </button>
-          <button className="nav-item" onClick={() => navigate('/files')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/files'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
-          <button className="nav-item" onClick={() => navigate('/analysis-results')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/analysis-results'); }}>
               <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
               {user.role === 'student' ? 'My Results' : 'Analysis Results'}
             </button>
-          <button className="nav-item" onClick={() => navigate('/students')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/students'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
             Students
           </button>
-          <button className="nav-item" onClick={() => navigate('/refactoring')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/refactoring'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
             Refactoring
           </button>
-          <button className="nav-item" onClick={() => navigate('/history')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/history'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
             History
           </button>
-          <button className="nav-item" onClick={() => navigate('/settings')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/settings'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
           </button>
-          <button className="nav-item" onClick={() => navigate('/chat')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/chat'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
             Chat
           </button>
           {user.role === 'admin' && (
-            <button className="nav-item" onClick={() => navigate('/admin')}>
+            <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/admin'); }}>
               <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
               Admin
             </button>
@@ -210,8 +242,13 @@ function Dashboard() {
       <main className="main-content">
         <header className="dashboard-header">
           <div className="header-left">
-            <h2 className="page-title">{user.role === 'student' ? 'My Dashboard' : 'Overview'}</h2>
-            <p className="page-subtitle">{user.role === 'student' ? 'Track your submissions and analysis results' : 'Monitor your projects and analysis metrics'}</p>
+            <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div>
+              <h2 className="page-title">{user.role === 'student' ? 'My Dashboard' : 'Instructor Dashboard'}</h2>
+              <p className="page-subtitle">{user.role === 'student' ? 'Track your submissions and analysis results' : 'Monitor student submissions, code quality, and clone detection analytics'}</p>
+            </div>
           </div>
           <div className="header-right" style={{ position: 'relative' }}>
             <button className="notification-btn" onClick={() => setShowNotifications(!showNotifications)}>
@@ -246,7 +283,7 @@ function Dashboard() {
         <div className="dashboard-content">
           <div className="welcome-section">
             <h3 className="welcome-title">Welcome back{user.role ? `, ${user.role.charAt(0).toUpperCase() + user.role.slice(1)}` : ''} {user.full_name || user.username}!</h3>
-            <p className="welcome-text">Here's what's happening with your projects today</p>
+            <p className="welcome-text">{user.role === 'student' ? "Here's an overview of your submissions and results" : "Here's an overview of your class analytics and code quality metrics"}</p>
           </div>
 
           {/* Stats Grid */}
@@ -286,13 +323,13 @@ function Dashboard() {
 
           {/* Quick Actions */}
           <div className="quick-actions">
-            <h4 className="section-title">Quick Actions</h4>
+            <h4 className="section-title">{user.role === 'student' ? 'Quick Actions' : 'Instructor Actions'}</h4>
             <div className="action-buttons">
               <button className="action-card" onClick={() => navigate('/analyzer')}>
                 <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
                 <div className="action-content">
-                  <div className="action-title">Code Analyzer</div>
-                  <div className="action-desc">Analyze your code for duplicates</div>
+                  <div className="action-title">TAHD Analyzer</div>
+                  <div className="action-desc">{user.role === 'student' ? 'Analyze your code for duplicates' : 'Run clone detection on student submissions'}</div>
                 </div>
                 <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
               </button>
@@ -339,21 +376,43 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Analytics Charts - visible for instructors and admins */}
+          {/* TAHD Code Quality Analytics - visible for instructors and admins */}
           {(user.role === 'instructor' || user.role === 'admin') && (
             <div className="account-section">
               <h4 className="section-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                Analytics Overview
+                TAHD Analytics Overview
               </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '16px' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '16px' }}>Powered by Token-AST-Halstead Detection pipeline</p>
+              
+              {/* TAHD Metrics Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Avg Clone %</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 700, color: analysisStats.avgClonePercentage > 50 ? '#ef4444' : analysisStats.avgClonePercentage > 25 ? '#f59e0b' : '#22c55e' }}>{analysisStats.avgClonePercentage}%</div>
+                </div>
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Avg Complexity</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 700, color: analysisStats.avgComplexity > 10 ? '#ef4444' : analysisStats.avgComplexity > 5 ? '#f59e0b' : '#22c55e' }}>{analysisStats.avgComplexity}</div>
+                </div>
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Avg Maintainability</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 700, color: analysisStats.avgMaintainability >= 65 ? '#22c55e' : analysisStats.avgMaintainability >= 35 ? '#f59e0b' : '#ef4444' }}>{analysisStats.avgMaintainability}</div>
+                </div>
+                <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Flagged Submissions</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 700, color: analysisStats.totalClones > 0 ? '#ef4444' : '#22c55e' }}>{analysisStats.totalClones}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
                 {/* Sections Chart */}
                 <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
                   <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Students per Section</h5>
                   {(() => {
                     try {
                       const savedSections = JSON.parse(localStorage.getItem('savedSections') || '[]');
-                      if (savedSections.length === 0) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No sections yet</p>;
+                      if (savedSections.length === 0) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No sections yet. Go to Students to create sections.</p>;
                       const maxStudents = Math.max(...savedSections.map(s => (s.students || []).length), 1);
                       return savedSections.map(sec => (
                         <div key={sec.id || sec.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
@@ -368,22 +427,23 @@ function Dashboard() {
                   })()}
                 </div>
 
-                {/* Activity Summary */}
+                {/* Recent Analyses - TAHD powered */}
                 <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
-                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Recent Activity</h5>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{user.total_analyses || 0} total analyses completed</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--border-color)' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{stats.totalFiles} files uploaded</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0' }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{stats.totalHistory} activities recorded</span>
-                    </div>
+                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Recent Analyses (TAHD)</h5>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {analysisStats.analyses.length === 0 ? (
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No analyses yet. Use the Code Analyzer to scan submissions.</p>
+                    ) : (
+                      analysisStats.analyses.slice(0, 5).map((a, i) => (
+                        <div key={a.id || i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < 4 ? '1px solid var(--border-color)' : 'none' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 500 }}>{a.language?.toUpperCase()} analysis</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{a.created_at ? new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''} · CC: {a.cyclomatic_complexity} · MI: {a.maintainability_index}</div>
+                          </div>
+                          <span style={{ padding: '2px 10px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 600, background: a.clone_percentage > 50 ? 'rgba(239,68,68,0.15)' : a.clone_percentage > 25 ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.15)', color: a.clone_percentage > 50 ? '#ef4444' : a.clone_percentage > 25 ? '#f59e0b' : '#22c55e', border: `1px solid ${a.clone_percentage > 50 ? 'rgba(239,68,68,0.3)' : a.clone_percentage > 25 ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.3)'}` }}>{a.clone_percentage}%</span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>

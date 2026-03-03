@@ -3,14 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Students.css';
 
+import API from '../api';
+
 function generateSimilarityPairs(results) {
   if (!results || results.length < 2) {
-    return [
-      { student1: 'Alice Chen', student2: 'Bob Martinez', section: 'CS101-A', similarity: 87, file1: 'assignment1.py', file2: 'assignment1.py', status: 'high' },
-      { student1: 'Carlos Wang', student2: 'Diana Lee', section: 'CS101-A', similarity: 42, file1: 'project2.py', file2: 'project2.py', status: 'medium' },
-      { student1: 'Eve Johnson', student2: 'Frank Davis', section: 'CS101-B', similarity: 23, file1: 'lab3.py', file2: 'lab3.py', status: 'low' },
-      { student1: 'Grace Kim', student2: 'Henry Wilson', section: 'CS101-B', similarity: 71, file1: 'homework4.py', file2: 'homework4.py', status: 'high' },
-    ];
+    return [];
   }
 
   const bySection = {};
@@ -67,15 +64,6 @@ function generateSimilarityPairs(results) {
     }
   });
 
-  if (pairs.length === 0) {
-    return [
-      { student1: 'Alice Chen', student2: 'Bob Martinez', section: 'CS101-A', similarity: 87, file1: 'assignment1.py', file2: 'assignment1.py', status: 'high' },
-      { student1: 'Carlos Wang', student2: 'Diana Lee', section: 'CS101-A', similarity: 42, file1: 'project2.py', file2: 'project2.py', status: 'medium' },
-      { student1: 'Eve Johnson', student2: 'Frank Davis', section: 'CS101-B', similarity: 23, file1: 'lab3.py', file2: 'lab3.py', status: 'low' },
-      { student1: 'Grace Kim', student2: 'Henry Wilson', section: 'CS101-B', similarity: 71, file1: 'homework4.py', file2: 'homework4.py', status: 'high' },
-    ];
-  }
-
   return pairs;
 }
 
@@ -85,16 +73,33 @@ function AnalysisResults() {
   const user = userStr ? JSON.parse(userStr) : { username: 'User', email: 'user@email.com', full_name: 'User' };
 
   const [showHelp, setShowHelp] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profilePicture] = useState(() =>
     localStorage.getItem('profilePicture_' + user.id) || ''
   );
 
   const [results, setResults] = useState([]);
+  const [analysisHistory, setAnalysisHistory] = useState([]);
 
   useEffect(() => {
     const stored = localStorage.getItem('studentResults');
     if (stored) {
       try { setResults(JSON.parse(stored)); } catch { setResults([]); }
+    }
+
+    // Fetch TAHD analysis history from backend
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API}/auth/history?limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => {
+          if (data && data.analyses) {
+            setAnalysisHistory(data.analyses);
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -105,6 +110,14 @@ function AnalysisResults() {
     : 0;
 
   const highSimilarityCount = similarityPairs.filter(p => p.status === 'high').length;
+
+  // TAHD metrics from analysis history
+  const avgComplexity = analysisHistory.length > 0
+    ? Math.round(analysisHistory.reduce((s, a) => s + (a.cyclomatic_complexity || 0), 0) / analysisHistory.length * 10) / 10
+    : 0;
+  const avgMaintainability = analysisHistory.length > 0
+    ? Math.round(analysisHistory.reduce((s, a) => s + (a.maintainability_index || 0), 0) / analysisHistory.length)
+    : 0;
 
   const sectionStats = {};
   results.forEach(r => {
@@ -142,50 +155,51 @@ function AnalysisResults() {
 
   return (
     <div className="settings-layout">
-      <aside className="sidebar">
+      <div className={`sidebar-overlay ${sidebarOpen ? 'sidebar-overlay-visible' : ''}`} onClick={() => setSidebarOpen(false)} />
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-header">
           <Logo />
         </div>
 
         <nav className="sidebar-nav">
-          <button className="nav-item" onClick={() => navigate('/dashboard')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/dashboard'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
             Dashboard
           </button>
-          <button className="nav-item" onClick={() => navigate('/analyzer')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/analyzer'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
             Compiler Area
           </button>
-          <button className="nav-item" onClick={() => navigate('/files')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/files'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
             Files
           </button>
-          <button className="nav-item active">
+          <button className="nav-item active" onClick={() => setSidebarOpen(false)}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span>
             Analysis Results
           </button>
-          <button className="nav-item" onClick={() => navigate('/students')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/students'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
             Students
           </button>
-          <button className="nav-item" onClick={() => navigate('/refactoring')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/refactoring'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></span>
             Refactoring
           </button>
-          <button className="nav-item" onClick={() => navigate('/history')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/history'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
             History
           </button>
-          <button className="nav-item" onClick={() => navigate('/settings')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/settings'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             Settings
           </button>
-          <button className="nav-item" onClick={() => navigate('/chat')}>
+          <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/chat'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
             Chat
           </button>
           {user.role === 'admin' && (
-            <button className="nav-item" onClick={() => navigate('/admin')}>
+            <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/admin'); }}>
               <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
               Admin
             </button>
@@ -219,8 +233,13 @@ function AnalysisResults() {
       <main className="main-content">
         <header className="settings-header">
           <div className="header-left">
-            <h2 className="page-title">Analysis Results</h2>
-            <p className="page-subtitle">Review code analysis and cross-student similarity</p>
+            <button className="mobile-menu-btn" onClick={() => setSidebarOpen(true)}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <div>
+              <h2 className="page-title">Analysis Results</h2>
+              <p className="page-subtitle">TAHD-powered code analysis and cross-student similarity detection</p>
+            </div>
           </div>
         </header>
 
@@ -233,7 +252,7 @@ function AnalysisResults() {
               </div>
               <div className="stat-info">
                 <div className="stat-label">Total Results</div>
-                <div className="stat-value">{results.length}</div>
+                <div className="stat-value">{results.length || analysisHistory.length}</div>
               </div>
             </div>
             <div className="stat-card">
@@ -242,7 +261,7 @@ function AnalysisResults() {
               </div>
               <div className="stat-info">
                 <div className="stat-label">Avg Clone %</div>
-                <div className="stat-value">{avgClone}%</div>
+                <div className="stat-value">{avgClone || (analysisHistory.length > 0 ? Math.round(analysisHistory.reduce((s, a) => s + (a.clone_percentage || 0), 0) / analysisHistory.length) : 0)}%</div>
               </div>
             </div>
             <div className="stat-card">
@@ -250,23 +269,87 @@ function AnalysisResults() {
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </div>
               <div className="stat-info">
-                <div className="stat-label">High Similarity Pairs</div>
-                <div className="stat-value">{highSimilarityCount}</div>
+                <div className="stat-label">High Similarity</div>
+                <div className="stat-value">{highSimilarityCount || analysisHistory.filter(a => (a.clone_percentage || 0) > 50).length}</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              </div>
+              <div className="stat-info">
+                <div className="stat-label">Avg Complexity</div>
+                <div className="stat-value">{avgComplexity}</div>
               </div>
             </div>
           </div>
+
+          {/* TAHD Detection Method Info */}
+          <section className="settings-section" style={{ marginBottom: '24px' }}>
+            <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px 20px', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Detection Method: <strong style={{ color: 'var(--text-primary)' }}>TAHD v1.0</strong> — Token-AST-Halstead hybrid detection (fusion: 0.30×token + 0.40×AST + 0.30×Halstead). Avg Maintainability: <strong style={{ color: avgMaintainability >= 65 ? '#22c55e' : avgMaintainability >= 35 ? '#f59e0b' : '#ef4444' }}>{avgMaintainability}</strong>
+              </span>
+            </div>
+          </section>
+
+          {/* TAHD Analysis History Table */}
+          {analysisHistory.length > 0 && (
+            <section className="settings-section">
+              <h3 className="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                TAHD Analysis History
+              </h3>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="results-table">
+                  <thead>
+                    <tr>
+                      <th>Language</th>
+                      <th>Clone %</th>
+                      <th>Complexity</th>
+                      <th>Maintainability</th>
+                      <th>Execution</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analysisHistory.map((a, i) => (
+                      <tr key={a.id || i}>
+                        <td style={{ textTransform: 'capitalize' }}>{a.language || '-'}</td>
+                        <td>
+                          <span className={`badge ${cloneColor(a.clone_percentage)}`}>
+                            {a.clone_percentage}%
+                          </span>
+                        </td>
+                        <td>{a.cyclomatic_complexity != null ? a.cyclomatic_complexity : '-'}</td>
+                        <td>
+                          <span style={{ color: (a.maintainability_index || 0) >= 65 ? '#22c55e' : (a.maintainability_index || 0) >= 35 ? '#f59e0b' : '#ef4444', fontWeight: 600 }}>
+                            {a.maintainability_index != null ? a.maintainability_index : '-'}
+                          </span>
+                        </td>
+                        <td>{a.execution_time_ms != null ? `${a.execution_time_ms}ms` : '-'}</td>
+                        <td>{a.created_at ? new Date(a.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {/* Analysis Results Table */}
           <section className="settings-section">
             <h3 className="section-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              Analysis Results
+              Student Analysis Results
             </h3>
 
             {results.length === 0 ? (
               <div className="empty-state">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                <p>No analysis results found. Results will appear here when students submit code for analysis.</p>
+                <p>No student analysis results found. Results will appear here when students submit code for analysis.</p>
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -305,38 +388,40 @@ function AnalysisResults() {
           </section>
 
           {/* Cross-Student Similarity */}
-          <section className="settings-section">
-            <h3 className="section-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              Code Similarity Matrix
-            </h3>
+          {similarityPairs.length > 0 && (
+            <section className="settings-section">
+              <h3 className="section-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Code Similarity Matrix
+              </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
-              {similarityPairs.map((pair, i) => (
-                <div key={i} className="section-card" style={{ marginBottom: 0 }}>
-                  <div className="section-card-header" style={{ alignItems: 'center' }}>
-                    <div style={{ flex: 1 }}>
-                      <h4 className="section-card-title">{pair.student1} <span style={{ color: '#6b7280', margin: '0 4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle'}}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></span> {pair.student2}</h4>
-                      <p className="section-card-subtitle">{pair.file1} vs {pair.file2}</p>
-                      <p className="section-card-subtitle">Section: {pair.section}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                {similarityPairs.map((pair, i) => (
+                  <div key={i} className="section-card" style={{ marginBottom: 0 }}>
+                    <div className="section-card-header" style={{ alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <h4 className="section-card-title">{pair.student1} <span style={{ color: '#6b7280', margin: '0 4px' }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle'}}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></span> {pair.student2}</h4>
+                        <p className="section-card-subtitle">{pair.file1} vs {pair.file2}</p>
+                        <p className="section-card-subtitle">Section: {pair.section}</p>
+                      </div>
+                      <span
+                        style={{
+                          ...similarityBadgeStyle(pair.status),
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontWeight: 600,
+                          fontSize: '14px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {pair.similarity}%
+                      </span>
                     </div>
-                    <span
-                      style={{
-                        ...similarityBadgeStyle(pair.status),
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        fontWeight: 600,
-                        fontSize: '14px',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {pair.similarity}%
-                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Section Summary */}
           {Object.keys(sectionStats).length > 0 && (
@@ -374,20 +459,20 @@ function AnalysisResults() {
             </div>
             <div className="help-modal-body">
               <div className="help-section">
+                <h4>TAHD Analysis</h4>
+                <p>Results are powered by the TAHD (Token-AST-Halstead Detection) pipeline, which uses three layers of analysis: token-based Jaccard similarity, AST structural comparison, and Halstead complexity fingerprinting.</p>
+              </div>
+              <div className="help-section">
                 <h4>Analysis Results</h4>
-                <p>View all code analysis results submitted by students. The table shows file names, clone detection percentages, complexity scores, and maintainability ratings.</p>
+                <p>View all code analysis results. The table shows clone percentages, cyclomatic complexity, and maintainability index calculated by the TAHD engine.</p>
               </div>
               <div className="help-section">
                 <h4>Code Similarity Matrix</h4>
                 <p>The similarity matrix compares code submissions between students within the same section. High similarity (above 70%) is flagged in red, medium (above 40%) in orange, and low similarity in green.</p>
               </div>
               <div className="help-section">
-                <h4>Section Summary</h4>
-                <p>View aggregated statistics for each section, including the number of students, total results, and average clone percentage.</p>
-              </div>
-              <div className="help-section">
-                <h4>Understanding Clone Percentage</h4>
-                <p>Clone percentage indicates how much of a student's code matches other known code. Higher percentages may indicate code reuse or plagiarism and should be reviewed carefully.</p>
+                <h4>Understanding Metrics</h4>
+                <p>Clone percentage indicates code duplication. Cyclomatic complexity measures code branching. Maintainability index (0-100) rates how easy code is to maintain — higher is better.</p>
               </div>
             </div>
           </div>
