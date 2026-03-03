@@ -100,10 +100,10 @@ class TestSyntaxValidation:
 
 
 class TestCloneDetection:
-    """Test clone detection (stub for now)"""
+    """Test clone detection with TAHD pipeline"""
     
     def test_short_code_returns_no_clones(self):
-        """Code < 10 lines should have no clones (stub behavior)"""
+        """Code without duplicate functions should have no clones"""
         code = "print(1)\nprint(2)"
         analyzer = CodeAnalyzer('python')
         
@@ -112,14 +112,79 @@ class TestCloneDetection:
         assert len(result['clones']) == 0
     
     def test_longer_code_may_have_clones(self):
-        """Longer code may have clones (stub behavior)"""
+        """Longer code may have clones"""
         code = "\n".join([f"line{i}" for i in range(20)])
         analyzer = CodeAnalyzer('python')
         
         result = analyzer.analyze(code)
         
-        # Stub returns clones for longer code
         assert isinstance(result['clones'], list)
+
+    def test_type1_exact_clone_detected(self):
+        """Identical functions should be detected as Type 1 clone"""
+        code = (
+            "def add(a, b):\n"
+            "    result = a + b\n"
+            "    return result\n"
+            "\n"
+            "def add(a, b):\n"
+            "    result = a + b\n"
+            "    return result\n"
+        )
+        analyzer = CodeAnalyzer('python')
+        result = analyzer.analyze(code)
+
+        assert len(result['clones']) == 1
+        assert result['clones'][0]['type'] == 1
+
+    def test_type2_renamed_clone_detected(self):
+        """Functions with renamed identifiers should be Type 2"""
+        code = (
+            "def add(a, b):\n"
+            "    result = a + b\n"
+            "    return result\n"
+            "\n"
+            "def sum_nums(x, y):\n"
+            "    total = x + y\n"
+            "    return total\n"
+        )
+        analyzer = CodeAnalyzer('python')
+        result = analyzer.analyze(code)
+
+        assert len(result['clones']) == 1
+        assert result['clones'][0]['type'] == 2
+
+    def test_no_clone_for_different_functions(self):
+        """Structurally different functions should not be clones"""
+        code = (
+            "def add(a, b):\n"
+            "    return a + b\n"
+            "\n"
+            "def greet(name):\n"
+            "    print('hello ' + name)\n"
+            "    print('welcome')\n"
+            "    return name.upper()\n"
+        )
+        analyzer = CodeAnalyzer('python')
+        result = analyzer.analyze(code)
+
+        assert len(result['clones']) == 0
+
+
+class TestNgramFix:
+    """Test _make_ngrams edge cases"""
+
+    def test_short_sequence_returns_single_tuple(self):
+        """Tokens shorter than n should return set with one tuple"""
+        from app.services.analyzer import _make_ngrams
+        result = _make_ngrams(['a', 'b'], n=3)
+        assert result == {('a', 'b')}
+
+    def test_empty_sequence_returns_empty_set(self):
+        """Empty token list should return empty set"""
+        from app.services.analyzer import _make_ngrams
+        result = _make_ngrams([], n=3)
+        assert result == set()
 
 
 class TestMetricsCalculation:

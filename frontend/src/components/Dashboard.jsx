@@ -176,7 +176,7 @@ function Dashboard() {
           </button>
           <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/analyzer'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
-            Compiler Area
+            Code Analyzer
           </button>
           <button className="nav-item" onClick={() => { setSidebarOpen(false); navigate('/files'); }}>
             <span className="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
@@ -328,7 +328,7 @@ function Dashboard() {
               <button className="action-card" onClick={() => navigate('/analyzer')}>
                 <div className="action-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
                 <div className="action-content">
-                  <div className="action-title">TAHD Analyzer</div>
+                  <div className="action-title">Code Analyzer</div>
                   <div className="action-desc">{user.role === 'student' ? 'Analyze your code for duplicates' : 'Run clone detection on student submissions'}</div>
                 </div>
                 <div className="action-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></div>
@@ -381,9 +381,9 @@ function Dashboard() {
             <div className="account-section">
               <h4 className="section-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                TAHD Analytics Overview
+                Code Quality Analytics
               </h4>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '16px' }}>Powered by Token-AST-Halstead Detection pipeline</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '16px' }}>Powered by TAHD — Token-AST-Halstead Detection pipeline</p>
               
               {/* TAHD Metrics Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
@@ -429,7 +429,7 @@ function Dashboard() {
 
                 {/* Recent Analyses - TAHD powered */}
                 <div style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color)' }}>
-                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Recent Analyses (TAHD)</h5>
+                  <h5 style={{ color: 'var(--text-primary)', fontSize: '0.9rem', marginBottom: '16px' }}>Recent Analyses</h5>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {analysisStats.analyses.length === 0 ? (
                       <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No analyses yet. Use the Code Analyzer to scan submissions.</p>

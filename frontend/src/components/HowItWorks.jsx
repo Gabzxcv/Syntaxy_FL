@@ -73,7 +73,7 @@ const steps = [
     number: 6,
     title: 'Track History',
     description:
-      'Every analysis is saved automatically. Compare results across revisions, track quality trends over time, and export reports for grading or team retrospectives.',
+      'Every analysis is saved automatically. Compare results across revisions, track quality trends over time, and export reports for instructor grading or personal review.',
     icon: (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color, #6366f1)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 3v18h18" />
