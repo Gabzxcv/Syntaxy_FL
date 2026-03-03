@@ -40,6 +40,16 @@ References
   BigCloneBench." Proceedings of ICSME '15, pp. 131–140.
 
 Authors : Fusion Logic — FEU Institute of Technology, 2026
+
+Changelog
+---------
+v1.1 (2026-03-03)
+  - _python_ast_sequence now uses pre-order DFS (ast.iter_child_nodes)
+    instead of ast.walk() to guarantee structural ordering of node
+    sequences for correct Levenshtein-based similarity.
+  - _halstead_vector now uses operator/operand density ratios
+    (n1/(n1+n2+1), n2/(n1+n2+1)) instead of raw counts so that all
+    five vector dimensions have comparable magnitude for cosine similarity.
 """
 
 import ast
@@ -327,16 +337,27 @@ def compute_raw_token_similarity(block_a: FunctionBlock,
 def _python_ast_sequence(source: str) -> list[str]:
     """
     Parse Python source into an AST and produce a linearized node-type
-    sequence via pre-order traversal.  Identifiers are stripped so only
-    structural node types remain (making Type-2 detection robust).
+    sequence via **pre-order DFS** traversal.  Pre-order is essential so
+    that structurally similar trees produce similar sequences for the
+    Levenshtein similarity comparison.
+
+    ast.walk() must NOT be used here because it yields nodes in an
+    unspecified (BFS-like) order, making the edit-distance comparison
+    unreliable.
     """
     sequence = []
+
+    def _visit(node: ast.AST) -> None:
+        sequence.append(type(node).__name__)
+        for child in ast.iter_child_nodes(node):
+            _visit(child)
+
     try:
         tree = ast.parse(source)
-        for node in ast.walk(tree):
-            sequence.append(type(node).__name__)
+        _visit(tree)
     except SyntaxError:
         pass
+
     return sequence
 
 
@@ -566,14 +587,35 @@ def _halstead_metrics(operators: list, operands: list) -> dict:
 
 def _halstead_vector(h: dict) -> list[float]:
     """
-    Return a 5-dimensional feature vector from a Halstead dict.
-    We normalize each component to keep cosine similarity meaningful
-    across files of different sizes.
+    Return a 5-dimensional feature vector from a Halstead dict for
+    cosine-similarity comparison.
+
+    Dimension layout
+    ----------------
+    0  operator_density  = n1 / (n1 + n2 + 1)   ∈ [0, 1]
+       Fraction of the vocabulary that consists of operators.
+       Using a ratio rather than the raw count keeps this dimension
+       on the same scale as the log-scaled metrics below.
+
+    1  operand_density   = n2 / (n1 + n2 + 1)   ∈ [0, 1]
+       Fraction of the vocabulary that consists of operands.
+
+    2  log1p(volume)     ≈ log(N · log2(n))      ≈ 2–12 typical range
+    3  log1p(difficulty) ≈ log((n1/2)·(N2/n2))   ≈ 0–5  typical range
+    4  log1p(effort)     ≈ log(D · V)             ≈ 3–12 typical range
+
+    Rationale: the original vector used raw n1 / n2 (5–60 range) mixed
+    with log-scaled metrics (0–12 range), causing cosine similarity to
+    be dominated by the raw counts.  Normalising to density ratios
+    keeps all five dimensions at comparable magnitudes.
     """
-    # Use log-scale for volume and effort to reduce dynamic range
+    n1 = h.get("n1", 0)
+    n2 = h.get("n2", 0)
+    vocab = n1 + n2 + 1          # +1 avoids division by zero
+
     return [
-        float(h.get("n1", 0)),
-        float(h.get("n2", 0)),
+        n1 / vocab,                               # operator density
+        n2 / vocab,                               # operand density
         math.log1p(h.get("volume",     0)),
         math.log1p(h.get("difficulty", 0)),
         math.log1p(h.get("effort",     0)),
@@ -1161,7 +1203,7 @@ class CodeAnalyzer:
                     / max(len(all_halstead), 1), 2
                 ),
             },
-            "detection_method": "TAHD v1.0 (Token + AST + Halstead)",
+            "detection_method": "TAHD v1.1 (Token + AST + Halstead)",
         }
 
     # ------------------------------------------------------------------
@@ -1232,7 +1274,7 @@ class CodeAnalyzer:
             "clone_count":       len(clone_pairs),
             "clones":            clones_out,
             "refactoring_suggestions": suggestions,
-            "detection_method":  "TAHD v1.0 (Token + AST + Halstead)",
+            "detection_method":  "TAHD v1.1 (Token + AST + Halstead)",
         }
 
 
