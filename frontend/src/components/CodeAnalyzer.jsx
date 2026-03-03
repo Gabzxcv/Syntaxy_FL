@@ -1,3 +1,16 @@
+/**
+ * CodeAnalyzer — main analysis page for the Syntaxy platform.
+ *
+ * Two modes:
+ *   1. Single File  – paste/upload one file, detect internal clones
+ *   2. Batch / Class – upload a zip of student submissions, compare every
+ *                      pair and surface educational feedback
+ *
+ * Clone detection types:
+ *   Type-1 (Exact)     : identical code, only whitespace/comments differ
+ *   Type-2 (Renamed)   : same structure, different variable/function names
+ *   Type-3 (Near-miss) : partially modified, but still structurally similar
+ */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JSZip from 'jszip';
@@ -53,7 +66,7 @@ const CONCEPT_TAGS = {
     study: 'Functions & Code Reuse',
     color: '#ef4444',
     bg: 'rgba(239,68,68,0.1)',
-    icon: '🔁',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
   },
   ABSTRACTION: {
     label: 'Abstraction',
@@ -62,7 +75,7 @@ const CONCEPT_TAGS = {
     study: 'Functions with Parameters',
     color: '#f97316',
     bg: 'rgba(249,115,22,0.1)',
-    icon: '🧩',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z"/></svg>,
   },
   DECOMPOSITION: {
     label: 'Decomposition',
@@ -71,7 +84,7 @@ const CONCEPT_TAGS = {
     study: 'Modular Design',
     color: '#eab308',
     bg: 'rgba(234,179,8,0.1)',
-    icon: '🔧',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
   },
   GUARD_CLAUSES: {
     label: 'Guard Clauses',
@@ -80,7 +93,7 @@ const CONCEPT_TAGS = {
     study: 'Control Flow Patterns',
     color: '#06b6d4',
     bg: 'rgba(6,182,212,0.1)',
-    icon: '🛡️',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   },
   ENCAPSULATION: {
     label: 'Encapsulation',
@@ -89,7 +102,7 @@ const CONCEPT_TAGS = {
     study: 'Object-Oriented Programming',
     color: '#a78bfa',
     bg: 'rgba(167,139,250,0.1)',
-    icon: '📦',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
   },
 };
 
@@ -137,6 +150,10 @@ function generateStudentFeedback(studentFile, pairsInvolving) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Look up display metadata (label, color, description) for a clone type.
+ * Accepts strings like "Type-1", "1", "near-miss", etc.
+ */
 function resolveCloneMeta(typeStr) {
   if (!typeStr) return CLONE_TYPE_META['Type-1'];
   const s = typeStr.toString().toLowerCase();
@@ -145,10 +162,16 @@ function resolveCloneMeta(typeStr) {
   return CLONE_TYPE_META['Type-1'];
 }
 
+/** Extract just the file name (without path or extension) for display. */
 function shortName(fileName) {
   return fileName.split('/').pop().replace(/\.(py|java|txt)$/i, '');
 }
 
+/**
+ * Compute Jaccard similarity between two code strings.
+ * Tokenizes both strings into word-sets and returns
+ * |intersection| / |union|, a value between 0 (no overlap) and 1 (identical).
+ */
 function computeSimilarity(codeA, codeB) {
   const tokenize = s => new Set(s.toLowerCase().replace(/[^a-z0-9_\s]/g, ' ').split(/\s+/).filter(t => t.length > 1));
   const A = tokenize(codeA);
@@ -158,6 +181,11 @@ function computeSimilarity(codeA, codeB) {
   return union === 0 ? 0 : intersection / union;
 }
 
+/**
+ * Normalize code by stripping comments, replacing strings/numbers/identifiers
+ * with generic tokens (STR, NUM, ID). This makes structural comparison
+ * insensitive to variable renaming — useful for detecting Type-2 clones.
+ */
 function normalizeCode(code) {
   return code
     .replace(/\/\/.*$/gm, '').replace(/#.*$/gm, '')
@@ -167,6 +195,13 @@ function normalizeCode(code) {
     .replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Classify a file pair as a clone type based on similarity scores.
+ *   Type-1 (exact):   raw token similarity >= 95%
+ *   Type-2 (renamed): normalized similarity >= 85%
+ *   Type-3 (near-miss): raw similarity >= 40%
+ * Returns null if similarities are too low to be considered a clone.
+ */
 function classifyPairType(raw, normalized) {
   if (raw >= 0.95) return 'Type-1';
   if (normalized >= 0.85) return 'Type-2';
@@ -174,6 +209,7 @@ function classifyPairType(raw, normalized) {
   return null;
 }
 
+/** Build a list of human-readable reasons explaining why a pair was flagged. */
 function generateExplanation(pair) {
   const { rawSim, normSim, cloneType, fileA, fileB } = pair;
   const nameA = shortName(fileA.name);
@@ -200,6 +236,7 @@ function generateExplanation(pair) {
   return reasons;
 }
 
+/** Aggregate dataset-level statistics (file count, LOC, tokens) for the batch summary. */
 function computeDatasetStats(files) {
   if (!files.length) return null;
   const locs = files.map(f => f.content.split('\n').filter(l => l.trim()).length);
@@ -211,6 +248,7 @@ function computeDatasetStats(files) {
   return { count: files.length, avgLOC, maxLOC, minLOC, langCounts, totalTokens };
 }
 
+/** Compute precision / recall / F1 for clone detection at a given threshold. */
 function computeAccuracyMetrics(allPairs, threshold) {
   if (!allPairs.length) return null;
   const predicted = allPairs.filter(p => p.similarity >= threshold);
@@ -224,6 +262,7 @@ function computeAccuracyMetrics(allPairs, threshold) {
   return { precision, recall, f1, tp, fp, fn, predicted: predicted.length, total: allPairs.length };
 }
 
+/** Map a similarity value (0–1) to a color for visual indicators. */
 function similarityColor(sim) {
   if (sim >= 0.8) return '#ef4444';
   if (sim >= 0.6) return '#f97316';
@@ -232,6 +271,7 @@ function similarityColor(sim) {
   return '#374151';
 }
 
+/** Simple syntax highlighter — applies keyword, string, number, and function coloring. */
 function highlightCode(code, language) {
   if (!code) return '';
   const pythonKW = ['def','class','if','elif','else','for','while','return','import','from','as','try','except','finally','with','yield','lambda','pass','break','continue','and','or','not','in','is','True','False','None','print','self','raise','del','global','nonlocal','assert'];
@@ -409,9 +449,13 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
       </div>
 
       <div className="sdp-tabs">
-        {['feedback', 'pairs', 'code'].map(tab => (
-          <button key={tab} className={`sdp-tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-            {tab === 'feedback' ? '📋 Feedback' : tab === 'pairs' ? '🔗 Pairs' : '💻 Code'}
+        {[
+          { id: 'feedback', label: 'Feedback', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg> },
+          { id: 'pairs', label: 'Pairs', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> },
+          { id: 'code', label: 'Code', icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> },
+        ].map(tab => (
+          <button key={tab.id} className={`sdp-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+            {tab.icon}{tab.label}
           </button>
         ))}
       </div>
@@ -1173,9 +1217,9 @@ function CodeAnalyzer() {
                   <div className="batch-view-switcher">
                     <div className="bvs-tabs">
                       {[
-                        { id: 'students', icon: '👥', label: 'Student View' },
-                        { id: 'matrix', icon: '🔥', label: 'Similarity Matrix' },
-                        { id: 'pairs', icon: '🔗', label: 'Flagged Pairs' },
+                        { id: 'students', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, label: 'Student View' },
+                        { id: 'matrix', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>, label: 'Similarity Matrix' },
+                        { id: 'pairs', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>, label: 'Flagged Pairs' },
                       ].map(tab => (
                         <button
                           key={tab.id}
@@ -1209,10 +1253,10 @@ function CodeAnalyzer() {
                           <div className="svl-filters">
                             {[
                               { id: 'all', label: 'All', color: '#9ca3af' },
-                              { id: 'high', label: '🔴 High', color: '#ef4444' },
-                              { id: 'medium', label: '🟠 Suspicious', color: '#f97316' },
-                              { id: 'low', label: '🟡 Low', color: '#eab308' },
-                              { id: 'clear', label: '✅ Clear', color: '#22c55e' },
+                              { id: 'high', label: <><svg width="10" height="10" viewBox="0 0 24 24" fill="#ef4444" stroke="none"><circle cx="12" cy="12" r="10"/></svg> High</>, color: '#ef4444' },
+                              { id: 'medium', label: <><svg width="10" height="10" viewBox="0 0 24 24" fill="#f97316" stroke="none"><circle cx="12" cy="12" r="10"/></svg> Suspicious</>, color: '#f97316' },
+                              { id: 'low', label: <><svg width="10" height="10" viewBox="0 0 24 24" fill="#eab308" stroke="none"><circle cx="12" cy="12" r="10"/></svg> Low</>, color: '#eab308' },
+                              { id: 'clear', label: <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Clear</>, color: '#22c55e' },
                             ].map(f => (
                               <button
                                 key={f.id}

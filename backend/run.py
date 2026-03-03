@@ -15,11 +15,11 @@ app = create_app()
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("🚀 Code Clone Detector API Starting...")
+    print("[*] Code Clone Detector API Starting...")
     print("=" * 50)
-    print("📍 Server: http://localhost:5000")
-    print("📍 Health Check: http://localhost:5000/api/v1/health")
-    print("📍 API Docs: See API_SPEC.md")
+    print("[>] Server: http://localhost:5000")
+    print("[>] Health Check: http://localhost:5000/api/v1/health")
+    print("[>] API Docs: See API_SPEC.md")
     print("=" * 50)
     
     app.run(
