@@ -11,17 +11,33 @@ Layer 3 — Halstead Fingerprint : Cosine similarity on Halstead complexity vect
 Fusion score = 0.30 * token_jaccard + 0.40 * ast_similarity + 0.30 * halstead_cosine
 
 Clone classification:
-  Type 1 : token >= 0.95 AND ast >= 0.95  (exact / whitespace only)
-  Type 2 : token >= 0.75 AND ast >= 0.75  (renamed identifiers)
-  Type 3 : fusion >= 0.60                 (near-miss / modified)
+  Type 1 : raw_token >= 0.95 AND ast >= 0.95  (exact / whitespace only)
+  Type 2 : norm_token >= 0.75 AND ast >= 0.75  (renamed identifiers, not Type 1)
+  Type 3 : fusion >= 0.60                      (near-miss / modified)
 
-Novel contribution:
-  Halstead metrics (volume, difficulty, effort, vocabulary) are traditionally
-  used only for code-quality measurement.  TAHD repurposes them as a DETECTION
-  signal: copied code preserves its computational complexity signature even when
-  identifiers are renamed or statements are reordered, making the Halstead vector
-  a robust third layer for catching Type-3 clones that slip past token and AST
-  checks alone.
+Type-1 vs Type-2 distinction uses *raw* (unnormalized) tokens for Type-1 and
+*normalized* tokens (identifiers → ID) for Type-2.  A renamed clone will score
+highly on normalized tokens but poorly on raw tokens, allowing proper
+classification as Type-2 rather than Type-1.
+
+Halstead metrics (volume, difficulty, effort, vocabulary) are traditionally
+used only for code-quality measurement.  TAHD repurposes them as a DETECTION
+signal: copied code preserves its computational complexity signature even when
+identifiers are renamed or statements are reordered, making the Halstead vector
+a robust third layer for catching Type-3 clones that slip past token and AST
+checks alone.
+
+References
+----------
+- Roy, C.K. & Cordy, J.R. (2007). "A Survey on Software Clone Detection
+  Research." Queen's University, Technical Report 2007-541.
+- Baxter, I.D. et al. (1998). "Clone Detection Using Abstract Syntax Trees."
+  Proceedings of ICSM '98, pp. 368–377.
+- Kamiya, T. et al. (2002). "CCFinder: A Multilinguistic Token-Based Code
+  Clone Detection System for Large Scale Source Code." IEEE TSE, 28(7).
+- Halstead, M.H. (1977). "Elements of Software Science." Elsevier.
+- Svajlenko, J. & Roy, C.K. (2015). "Evaluating Clone Detection Tools with
+  BigCloneBench." Proceedings of ICSME '15, pp. 131–140.
 
 Authors : Fusion Logic — FEU Institute of Technology, 2026
 """
@@ -93,6 +109,7 @@ class FunctionBlock:
     end_line: int
     source: str
     tokens: list = field(default_factory=list)
+    raw_tokens: list = field(default_factory=list)
     ast_sequence: list = field(default_factory=list)
     halstead: dict = field(default_factory=dict)
 
@@ -162,6 +179,30 @@ def _normalize_python_tokens(source: str) -> list[str]:
     return tokens
 
 
+def _raw_python_tokens(source: str) -> list[str]:
+    """
+    Tokenize Python source preserving identifier names and literal values.
+    Only strips comments, whitespace, and formatting tokens.
+    Used for Type-1 (exact clone) detection.
+    """
+    tokens = []
+    try:
+        reader = io.StringIO(source).readline
+        for tok in tokenize.generate_tokens(reader):
+            ttype = tok.type
+            tval  = tok.string
+
+            if ttype in (tokenize.NAME, tokenize.NUMBER,
+                         tokenize.STRING, tokenize.OP):
+                tokens.append(tval)
+            # skip COMMENT, NEWLINE, NL, INDENT, DEDENT, ENCODING, ENDMARKER
+
+    except tokenize.TokenError:
+        pass
+
+    return tokens
+
+
 def _normalize_java_tokens(source: str) -> list[str]:
     """
     Tokenize Java source with a regex lexer and normalize the same way.
@@ -208,10 +249,47 @@ def _normalize_java_tokens(source: str) -> list[str]:
     return tokens
 
 
+def _raw_java_tokens(source: str) -> list[str]:
+    """
+    Tokenize Java source preserving identifier names and literal values.
+    Only strips comments and whitespace.
+    Used for Type-1 (exact clone) detection.
+    """
+    token_spec = [
+        ("COMMENT_ML", r"/\*.*?\*/"),
+        ("COMMENT_SL", r"//[^\n]*"),
+        ("STRING",     r'"(?:\\.|[^"\\])*"'),
+        ("CHAR",       r"'(?:\\.|[^'\\])'"),
+        ("NUMBER",     r"\b\d+(?:\.\d+)?[lLfFdD]?\b"),
+        ("IDENT",      r"\b[A-Za-z_]\w*\b"),
+        ("OP3",        r">>>=|<<=|>>="),
+        ("OP2",        r"==|!=|<=|>=|&&|\|\||<<|>>>|>>|\+\+|--|[+\-*/%&|^]="),
+        ("OP1",        r"[+\-*/%&|^~!<>=?:;,.()\[\]{}]"),
+        ("SKIP",       r"\s+"),
+        ("MISMATCH",   r"."),
+    ]
+    pattern = re.compile(
+        "|".join(f"(?P<{name}>{regex})" for name, regex in token_spec),
+        re.DOTALL
+    )
+
+    tokens = []
+    for mo in pattern.finditer(source):
+        kind = mo.lastgroup
+        val  = mo.group()
+
+        if kind in ("COMMENT_ML", "COMMENT_SL", "SKIP", "MISMATCH"):
+            continue
+        else:
+            tokens.append(val)
+
+    return tokens
+
+
 def _make_ngrams(tokens: list[str], n: int = NGRAM_SIZE) -> set:
     """Convert a token list into a set of n-gram tuples."""
     if len(tokens) < n:
-        return set(tuple(tokens))  # fallback: use full sequence as one gram
+        return {tuple(tokens)} if tokens else set()
     return {tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1)}
 
 
@@ -228,9 +306,17 @@ def _jaccard(set_a: set, set_b: set) -> float:
 
 def compute_token_similarity(block_a: FunctionBlock,
                               block_b: FunctionBlock) -> float:
-    """Layer 1: Jaccard on token n-gram sets."""
+    """Layer 1: Jaccard on normalized token n-gram sets."""
     ngrams_a = _make_ngrams(block_a.tokens)
     ngrams_b = _make_ngrams(block_b.tokens)
+    return _jaccard(ngrams_a, ngrams_b)
+
+
+def compute_raw_token_similarity(block_a: FunctionBlock,
+                                  block_b: FunctionBlock) -> float:
+    """Jaccard on raw (unnormalized) token n-gram sets for Type-1 detection."""
+    ngrams_a = _make_ngrams(block_a.raw_tokens)
+    ngrams_b = _make_ngrams(block_b.raw_tokens)
     return _jaccard(ngrams_a, ngrams_b)
 
 
@@ -527,15 +613,22 @@ def compute_fusion_score(token_score: float,
 
 def classify_clone(token_score: float,
                    ast_score: float,
-                   fusion_score: float) -> int | None:
+                   fusion_score: float,
+                   raw_token_score: float = None) -> int | None:
     """
     Return clone type (1, 2, 3) or None if not a clone.
 
-    Type 1 : near-perfect token AND structural match
-    Type 2 : strong token AND structural match (renamed identifiers)
+    Type 1 : near-perfect *raw* token AND structural match (exact copy)
+    Type 2 : strong *normalized* token AND structural match (renamed identifiers)
     Type 3 : fusion score passes threshold (near-miss / modified)
+
+    The raw_token_score distinguishes Type-1 from Type-2: a renamed clone
+    will score highly on normalized tokens but poorly on raw tokens.
     """
-    if token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+    if raw_token_score is None:
+        raw_token_score = token_score
+
+    if raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
         return 1
     if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
         return 2
@@ -567,6 +660,7 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
             source=source,
         )
         fb.tokens       = _normalize_python_tokens(source)
+        fb.raw_tokens   = _raw_python_tokens(source)
         fb.ast_sequence = _python_ast_sequence(source)
         fb.halstead     = _extract_halstead_python(source)
         return [fb]
@@ -585,6 +679,7 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
             source=source,
         )
         fb.tokens       = _normalize_python_tokens(source)
+        fb.raw_tokens   = _raw_python_tokens(source)
         fb.ast_sequence = _python_ast_sequence(source)
         fb.halstead     = _extract_halstead_python(source)
         return [fb]
@@ -601,6 +696,7 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
             source=func_src,
         )
         fb.tokens       = _normalize_python_tokens(func_src)
+        fb.raw_tokens   = _raw_python_tokens(func_src)
         fb.ast_sequence = _python_ast_sequence(func_src)
         fb.halstead     = _extract_halstead_python(func_src)
         blocks.append(fb)
@@ -668,6 +764,7 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
             source=func_src,
         )
         fb.tokens       = _normalize_java_tokens(func_src)
+        fb.raw_tokens   = _raw_java_tokens(func_src)
         fb.ast_sequence = _java_ast_sequence(func_src)
         fb.halstead     = _extract_halstead_java(func_src)
         blocks.append(fb)
@@ -681,6 +778,7 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
             source=source,
         )
         fb.tokens       = _normalize_java_tokens(source)
+        fb.raw_tokens   = _raw_java_tokens(source)
         fb.ast_sequence = _java_ast_sequence(source)
         fb.halstead     = _extract_halstead_java(source)
         blocks.append(fb)
@@ -725,6 +823,8 @@ def detect_clones_in_blocks(
             if token_score < THRESH_TOKEN_PREFILTER:
                 continue   # fast skip — not similar enough to proceed
 
+            raw_token_score = compute_raw_token_similarity(block_a, block_b)
+
             # ---- Layer 2 ----
             ast_score = compute_ast_similarity(block_a, block_b)
 
@@ -734,7 +834,8 @@ def detect_clones_in_blocks(
             # ---- Fusion ----
             fusion = compute_fusion_score(token_score, ast_score,
                                           halstead_score)
-            clone_type = classify_clone(token_score, ast_score, fusion)
+            clone_type = classify_clone(token_score, ast_score, fusion,
+                                        raw_token_score)
 
             if clone_type is not None:
                 pairs.append(ClonePair(
@@ -771,11 +872,13 @@ def detect_clones_single_file(
             if token_score < THRESH_TOKEN_PREFILTER:
                 continue
 
+            raw_token_score = compute_raw_token_similarity(block_a, block_b)
             ast_score      = compute_ast_similarity(block_a, block_b)
             halstead_score = compute_halstead_similarity(block_a, block_b)
             fusion         = compute_fusion_score(token_score, ast_score,
                                                    halstead_score)
-            clone_type     = classify_clone(token_score, ast_score, fusion)
+            clone_type     = classify_clone(token_score, ast_score, fusion,
+                                            raw_token_score)
 
             if clone_type is not None:
                 pairs.append(ClonePair(
