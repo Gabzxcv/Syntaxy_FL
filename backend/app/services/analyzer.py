@@ -1,18 +1,949 @@
-import uuid
-import random
+"""
+TAHD — Token-AST-Halstead Detection Pipeline
+=============================================
+A three-layer hybrid code clone detection engine for educational
+Python and Java submissions.
+
+Layer 1 — Token Prefilter      : Jaccard similarity on normalized token n-grams
+Layer 2 — AST Structural Check : Normalized tree edit distance on AST node sequences
+Layer 3 — Halstead Fingerprint : Cosine similarity on Halstead complexity vectors
+
+Fusion score = 0.30 * token_jaccard + 0.40 * ast_similarity + 0.30 * halstead_cosine
+
+Clone classification:
+  Type 1 : token >= 0.95 AND ast >= 0.95  (exact / whitespace only)
+  Type 2 : token >= 0.75 AND ast >= 0.75  (renamed identifiers)
+  Type 3 : fusion >= 0.60                 (near-miss / modified)
+
+Novel contribution:
+  Halstead metrics (volume, difficulty, effort, vocabulary) are traditionally
+  used only for code-quality measurement.  TAHD repurposes them as a DETECTION
+  signal: copied code preserves its computational complexity signature even when
+  identifiers are renamed or statements are reordered, making the Halstead vector
+  a robust third layer for catching Type-3 clones that slip past token and AST
+  checks alone.
+
+Authors : Fusion Logic — FEU Institute of Technology, 2026
+"""
+
 import ast
+import io
+import math
+import re
+import tokenize
+import uuid
+import collections
+from dataclasses import dataclass, field
+from typing import Any
+
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
 
 SUPPORTED_LANGUAGES = {"python", "java"}
 
+# Fusion weights (must sum to 1.0)
+W_TOKEN    = 0.30
+W_AST      = 0.40
+W_HALSTEAD = 0.30
+
+# Per-layer thresholds
+THRESH_TOKEN_PREFILTER = 0.40   # minimum token Jaccard to proceed to Layer 2
+THRESH_TYPE1           = 0.95   # both token AND ast must reach this for Type 1
+THRESH_TYPE2           = 0.75   # both token AND ast must reach this for Type 2
+THRESH_FUSION_TYPE3    = 0.60   # fusion score threshold for Type 3
+
+# N-gram size for token fingerprinting
+NGRAM_SIZE = 3
+
+# Java operators and keywords used for Halstead extraction
+JAVA_OPERATORS = frozenset([
+    "+", "-", "*", "/", "%", "++", "--",
+    "==", "!=", "<", ">", "<=", ">=",
+    "&&", "||", "!", "&", "|", "^", "~", "<<", ">>", ">>>",
+    "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
+    "<<=", ">>=", ">>>=", "?", ":",
+    "new", "instanceof", "return", "if", "else", "for",
+    "while", "do", "switch", "case", "break", "continue",
+    "throw", "try", "catch", "finally",
+])
+
+JAVA_KEYWORDS = frozenset([
+    "abstract", "assert", "boolean", "break", "byte", "case", "catch",
+    "char", "class", "const", "continue", "default", "do", "double",
+    "else", "enum", "extends", "final", "finally", "float", "for",
+    "goto", "if", "implements", "import", "instanceof", "int", "interface",
+    "long", "native", "new", "package", "private", "protected", "public",
+    "return", "short", "static", "strictfp", "super", "switch",
+    "synchronized", "this", "throw", "throws", "transient", "try",
+    "void", "volatile", "while",
+])
+
+
+# ---------------------------------------------------------------------------
+# Data classes
+# ---------------------------------------------------------------------------
+
+@dataclass
+class FunctionBlock:
+    """A single function / method extracted from source code."""
+    name: str
+    start_line: int
+    end_line: int
+    source: str
+    tokens: list = field(default_factory=list)
+    ast_sequence: list = field(default_factory=list)
+    halstead: dict = field(default_factory=dict)
+
+
+@dataclass
+class ClonePair:
+    """A detected clone relationship between two function blocks."""
+    clone_id: str
+    clone_type: int           # 1, 2, or 3
+    token_score: float
+    ast_score: float
+    halstead_score: float
+    fusion_score: float
+    block_a: FunctionBlock
+    block_b: FunctionBlock
+    file_a: str = ""
+    file_b: str = ""
+
+
+# ===========================================================================
+# LAYER 1 — TOKEN PREFILTER
+# ===========================================================================
+
+def _normalize_python_tokens(source: str) -> list[str]:
+    """
+    Tokenize Python source and normalize:
+      - identifiers → ID
+      - numbers     → NUM
+      - strings     → STR
+      - keep operators and keywords as-is
+      - strip comments and whitespace tokens
+    """
+    tokens = []
+    try:
+        reader = io.StringIO(source).readline
+        for tok in tokenize.generate_tokens(reader):
+            ttype = tok.type
+            tval  = tok.string
+
+            if ttype == tokenize.NAME:
+                if tval in {"def", "class", "return", "if", "else", "elif",
+                            "for", "while", "import", "from", "try", "except",
+                            "finally", "with", "as", "pass", "break",
+                            "continue", "raise", "yield", "lambda",
+                            "True", "False", "None", "and", "or", "not",
+                            "in", "is", "del", "global", "nonlocal",
+                            "assert", "async", "await"}:
+                    tokens.append(tval)
+                else:
+                    tokens.append("ID")
+
+            elif ttype == tokenize.NUMBER:
+                tokens.append("NUM")
+
+            elif ttype == tokenize.STRING:
+                tokens.append("STR")
+
+            elif ttype == tokenize.OP:
+                tokens.append(tval)
+
+            # skip COMMENT, NEWLINE, NL, INDENT, DEDENT, ENCODING, ENDMARKER
+
+    except tokenize.TokenError:
+        # Incomplete source (e.g. function body only) — best effort
+        pass
+
+    return tokens
+
+
+def _normalize_java_tokens(source: str) -> list[str]:
+    """
+    Tokenize Java source with a regex lexer and normalize the same way.
+    No external library required.
+    """
+    token_spec = [
+        ("COMMENT_ML", r"/\*.*?\*/"),
+        ("COMMENT_SL", r"//[^\n]*"),
+        ("STRING",     r'"(?:\\.|[^"\\])*"'),
+        ("CHAR",       r"'(?:\\.|[^'\\])'"),
+        ("NUMBER",     r"\b\d+(?:\.\d+)?[lLfFdD]?\b"),
+        ("IDENT",      r"\b[A-Za-z_]\w*\b"),
+        ("OP3",        r">>>=|<<=|>>="),
+        ("OP2",        r"==|!=|<=|>=|&&|\|\||<<|>>>|>>|\+\+|--|[+\-*/%&|^]="),
+        ("OP1",        r"[+\-*/%&|^~!<>=?:;,.()\[\]{}]"),
+        ("SKIP",       r"\s+"),
+        ("MISMATCH",   r"."),
+    ]
+    pattern = re.compile(
+        "|".join(f"(?P<{name}>{regex})" for name, regex in token_spec),
+        re.DOTALL
+    )
+
+    tokens = []
+    for mo in pattern.finditer(source):
+        kind = mo.lastgroup
+        val  = mo.group()
+
+        if kind in ("COMMENT_ML", "COMMENT_SL", "SKIP"):
+            continue
+        elif kind in ("STRING", "CHAR"):
+            tokens.append("STR")
+        elif kind == "NUMBER":
+            tokens.append("NUM")
+        elif kind == "IDENT":
+            if val in JAVA_KEYWORDS:
+                tokens.append(val)
+            else:
+                tokens.append("ID")
+        elif kind in ("OP1", "OP2", "OP3"):
+            tokens.append(val)
+        # skip MISMATCH
+
+    return tokens
+
+
+def _make_ngrams(tokens: list[str], n: int = NGRAM_SIZE) -> set:
+    """Convert a token list into a set of n-gram tuples."""
+    if len(tokens) < n:
+        return set(tuple(tokens))  # fallback: use full sequence as one gram
+    return {tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1)}
+
+
+def _jaccard(set_a: set, set_b: set) -> float:
+    """Jaccard similarity between two sets."""
+    if not set_a and not set_b:
+        return 1.0
+    if not set_a or not set_b:
+        return 0.0
+    intersection = len(set_a & set_b)
+    union        = len(set_a | set_b)
+    return intersection / union
+
+
+def compute_token_similarity(block_a: FunctionBlock,
+                              block_b: FunctionBlock) -> float:
+    """Layer 1: Jaccard on token n-gram sets."""
+    ngrams_a = _make_ngrams(block_a.tokens)
+    ngrams_b = _make_ngrams(block_b.tokens)
+    return _jaccard(ngrams_a, ngrams_b)
+
+
+# ===========================================================================
+# LAYER 2 — AST STRUCTURAL SIMILARITY
+# ===========================================================================
+
+def _python_ast_sequence(source: str) -> list[str]:
+    """
+    Parse Python source into an AST and produce a linearized node-type
+    sequence via pre-order traversal.  Identifiers are stripped so only
+    structural node types remain (making Type-2 detection robust).
+    """
+    sequence = []
+    try:
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            sequence.append(type(node).__name__)
+    except SyntaxError:
+        pass
+    return sequence
+
+
+def _java_ast_sequence(source: str) -> list[str]:
+    """
+    Produce a structural node-type sequence for Java source using a
+    pattern-based approach (no external library).
+
+    We identify structural constructs (control flow, declarations,
+    expressions) and emit a normalized symbol for each.  This is not a
+    full AST but captures enough structural information for similarity
+    scoring at function level.
+    """
+    constructs = [
+        (r"\bif\s*\(",          "IF"),
+        (r"\belse\s*\{",        "ELSE"),
+        (r"\bfor\s*\(",         "FOR"),
+        (r"\bwhile\s*\(",       "WHILE"),
+        (r"\bdo\s*\{",          "DO"),
+        (r"\bswitch\s*\(",      "SWITCH"),
+        (r"\bcase\b",           "CASE"),
+        (r"\breturn\b",         "RETURN"),
+        (r"\bthrow\b",          "THROW"),
+        (r"\btry\s*\{",         "TRY"),
+        (r"\bcatch\s*\(",       "CATCH"),
+        (r"\bfinally\s*\{",     "FINALLY"),
+        (r"\bnew\s+\w+",        "NEW"),
+        (r"\binstanceof\b",     "INSTANCEOF"),
+        (r"[A-Za-z_]\w*\s*\(", "CALL"),
+        (r"[A-Za-z_]\w*\s*=(?!=)", "ASSIGN"),
+        (r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
+         r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b",
+         "TYPEDECL"),
+        (r"\{", "BLOCK_OPEN"),
+        (r"\}", "BLOCK_CLOSE"),
+    ]
+
+    # Strip comments and strings first
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    source = re.sub(r"//[^\n]*",  " ", source)
+    source = re.sub(r'"(?:\\.|[^"\\])*"', "STR", source)
+    source = re.sub(r"'(?:\\.|[^'\\])'",  "STR", source)
+
+    # Collect (position, symbol) pairs so we respect source order
+    hits = []
+    for pattern, symbol in constructs:
+        for m in re.finditer(pattern, source):
+            hits.append((m.start(), symbol))
+
+    hits.sort(key=lambda x: x[0])
+    return [sym for _, sym in hits]
+
+
+def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
+    """
+    Normalized Levenshtein distance between two sequences.
+    Returns a SIMILARITY score in [0, 1]  (1 = identical).
+    Uses the standard DP algorithm.
+    """
+    la, lb = len(seq_a), len(seq_b)
+    if la == 0 and lb == 0:
+        return 1.0
+    if la == 0 or lb == 0:
+        return 0.0
+
+    # Cap sequence length to avoid O(n²) blowup on very large files
+    MAX_LEN = 300
+    seq_a = seq_a[:MAX_LEN]
+    seq_b = seq_b[:MAX_LEN]
+    la, lb = len(seq_a), len(seq_b)
+
+    # Two-row DP
+    prev = list(range(lb + 1))
+    curr = [0] * (lb + 1)
+
+    for i in range(1, la + 1):
+        curr[0] = i
+        for j in range(1, lb + 1):
+            cost = 0 if seq_a[i-1] == seq_b[j-1] else 1
+            curr[j] = min(
+                prev[j]   + 1,     # deletion
+                curr[j-1] + 1,     # insertion
+                prev[j-1] + cost,  # substitution
+            )
+        prev, curr = curr, prev
+
+    edit_dist = prev[lb]
+    max_len   = max(la, lb)
+    return 1.0 - (edit_dist / max_len)
+
+
+def compute_ast_similarity(block_a: FunctionBlock,
+                            block_b: FunctionBlock) -> float:
+    """Layer 2: Normalized tree edit distance on AST node sequences."""
+    return _edit_distance_normalized(block_a.ast_sequence,
+                                     block_b.ast_sequence)
+
+
+# ===========================================================================
+# LAYER 3 — HALSTEAD COMPLEXITY FINGERPRINT  (the novel layer)
+# ===========================================================================
+
+def _extract_halstead_python(source: str) -> dict:
+    """
+    Extract Halstead operands and operators from Python source using the
+    tokenize module.
+
+    Operators  : OP tokens + keywords that act as operators
+    Operands   : NAME tokens (non-keyword identifiers) + NUMBER + STRING
+    """
+    OP_KEYWORDS = {"and", "or", "not", "in", "is", "del",
+                   "return", "yield", "lambda", "raise",
+                   "assert", "pass", "break", "continue"}
+
+    operators  = []
+    operands   = []
+
+    try:
+        reader = io.StringIO(source).readline
+        for tok in tokenize.generate_tokens(reader):
+            ttype = tok.type
+            tval  = tok.string
+
+            if ttype == tokenize.OP:
+                operators.append(tval)
+            elif ttype == tokenize.NAME:
+                if tval in OP_KEYWORDS:
+                    operators.append(tval)
+                elif tval not in {"def", "class", "if", "else", "elif",
+                                   "for", "while", "import", "from",
+                                   "try", "except", "finally", "with",
+                                   "as", "True", "False", "None",
+                                   "async", "await", "global", "nonlocal"}:
+                    operands.append(tval)
+            elif ttype == tokenize.NUMBER:
+                operands.append(tok.string)
+            elif ttype == tokenize.STRING:
+                operands.append("STR")
+
+    except tokenize.TokenError:
+        pass
+
+    return _halstead_metrics(operators, operands)
+
+
+def _extract_halstead_java(source: str) -> dict:
+    """
+    Extract Halstead operands and operators from Java source using the
+    regex tokenizer.
+    """
+    # Strip comments
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    source = re.sub(r"//[^\n]*",  " ", source)
+
+    operators = []
+    operands  = []
+
+    op_pattern  = re.compile(
+        r">>>=|<<=|>>=|==|!=|<=|>=|&&|\|\||<<|>>>|>>"
+        r"|[+\-*/%&|^]=|\+\+|--|[+\-*/%&|^~!<>=?:]"
+    )
+    num_pattern = re.compile(r"\b\d+(?:\.\d+)?[lLfFdD]?\b")
+    str_pattern = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
+    id_pattern  = re.compile(r"\b[A-Za-z_]\w*\b")
+
+    # Collect operators
+    for m in op_pattern.finditer(source):
+        operators.append(m.group())
+
+    # Remove strings before scanning identifiers/numbers
+    clean = str_pattern.sub("STR_LIT ", source)
+
+    for m in num_pattern.finditer(clean):
+        operands.append(m.group())
+
+    for m in id_pattern.finditer(clean):
+        val = m.group()
+        if val in JAVA_OPERATORS:
+            operators.append(val)
+        elif val in JAVA_KEYWORDS:
+            pass  # structural keywords — neither operator nor operand
+        else:
+            operands.append(val)
+
+    return _halstead_metrics(operators, operands)
+
+
+def _halstead_metrics(operators: list, operands: list) -> dict:
+    """
+    Compute Halstead metrics from raw operator/operand lists.
+
+    n1 = number of distinct operators
+    n2 = number of distinct operands
+    N1 = total operators
+    N2 = total operands
+
+    Vocabulary : n  = n1 + n2
+    Length     : N  = N1 + N2
+    Volume     : V  = N * log2(n)          [bits]
+    Difficulty : D  = (n1/2) * (N2/n2)
+    Effort     : E  = D * V
+    """
+    op_counts  = collections.Counter(operators)
+    opd_counts = collections.Counter(operands)
+
+    n1 = len(op_counts)   # distinct operators
+    n2 = len(opd_counts)  # distinct operands
+    N1 = sum(op_counts.values())
+    N2 = sum(opd_counts.values())
+
+    n = n1 + n2
+    N = N1 + N2
+
+    volume     = N * math.log2(n)     if n  > 1 else 0.0
+    difficulty = (n1 / 2) * (N2 / n2) if n2 > 0 else 0.0
+    effort     = difficulty * volume
+
+    return {
+        "n1": n1, "n2": n2, "N1": N1, "N2": N2,
+        "vocabulary": n,
+        "length": N,
+        "volume": round(volume, 4),
+        "difficulty": round(difficulty, 4),
+        "effort": round(effort, 4),
+    }
+
+
+def _halstead_vector(h: dict) -> list[float]:
+    """
+    Return a 5-dimensional feature vector from a Halstead dict.
+    We normalize each component to keep cosine similarity meaningful
+    across files of different sizes.
+    """
+    # Use log-scale for volume and effort to reduce dynamic range
+    return [
+        float(h.get("n1", 0)),
+        float(h.get("n2", 0)),
+        math.log1p(h.get("volume",     0)),
+        math.log1p(h.get("difficulty", 0)),
+        math.log1p(h.get("effort",     0)),
+    ]
+
+
+def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    """Cosine similarity between two vectors."""
+    dot   = sum(a * b for a, b in zip(vec_a, vec_b))
+    mag_a = math.sqrt(sum(a * a for a in vec_a))
+    mag_b = math.sqrt(sum(b * b for b in vec_b))
+    if mag_a == 0 or mag_b == 0:
+        return 1.0 if mag_a == mag_b else 0.0
+    return dot / (mag_a * mag_b)
+
+
+def compute_halstead_similarity(block_a: FunctionBlock,
+                                 block_b: FunctionBlock) -> float:
+    """Layer 3: Cosine similarity on Halstead feature vectors."""
+    vec_a = _halstead_vector(block_a.halstead)
+    vec_b = _halstead_vector(block_b.halstead)
+    return _cosine_similarity(vec_a, vec_b)
+
+
+# ===========================================================================
+# FUSION — combine all three scores
+# ===========================================================================
+
+def compute_fusion_score(token_score: float,
+                          ast_score: float,
+                          halstead_score: float) -> float:
+    """Weighted fusion of the three layer scores."""
+    return (W_TOKEN    * token_score
+          + W_AST      * ast_score
+          + W_HALSTEAD * halstead_score)
+
+
+def classify_clone(token_score: float,
+                   ast_score: float,
+                   fusion_score: float) -> int | None:
+    """
+    Return clone type (1, 2, 3) or None if not a clone.
+
+    Type 1 : near-perfect token AND structural match
+    Type 2 : strong token AND structural match (renamed identifiers)
+    Type 3 : fusion score passes threshold (near-miss / modified)
+    """
+    if token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+        return 1
+    if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
+        return 2
+    if fusion_score >= THRESH_FUSION_TYPE3:
+        return 3
+    return None
+
+
+# ===========================================================================
+# BLOCK EXTRACTION — split source into function-level units
+# ===========================================================================
+
+def _extract_python_blocks(source: str) -> list[FunctionBlock]:
+    """
+    Use Python's ast module to find all function definitions and extract
+    their source lines as individual FunctionBlocks.
+    """
+    blocks = []
+    lines  = source.splitlines()
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # Treat entire file as one block if unparseable
+        fb = FunctionBlock(
+            name="<module>",
+            start_line=1,
+            end_line=len(lines),
+            source=source,
+        )
+        fb.tokens       = _normalize_python_tokens(source)
+        fb.ast_sequence = _python_ast_sequence(source)
+        fb.halstead     = _extract_halstead_python(source)
+        return [fb]
+
+    func_nodes = [
+        n for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+    if not func_nodes:
+        # No functions found — treat whole file as one block
+        fb = FunctionBlock(
+            name="<module>",
+            start_line=1,
+            end_line=len(lines),
+            source=source,
+        )
+        fb.tokens       = _normalize_python_tokens(source)
+        fb.ast_sequence = _python_ast_sequence(source)
+        fb.halstead     = _extract_halstead_python(source)
+        return [fb]
+
+    for node in func_nodes:
+        start = node.lineno
+        end   = getattr(node, "end_lineno", start + 1)
+        func_src = "\n".join(lines[start - 1: end])
+
+        fb = FunctionBlock(
+            name=node.name,
+            start_line=start,
+            end_line=end,
+            source=func_src,
+        )
+        fb.tokens       = _normalize_python_tokens(func_src)
+        fb.ast_sequence = _python_ast_sequence(func_src)
+        fb.halstead     = _extract_halstead_python(func_src)
+        blocks.append(fb)
+
+    return blocks
+
+
+def _extract_java_blocks(source: str) -> list[FunctionBlock]:
+    """
+    Extract method-level blocks from Java source using a brace-counting
+    approach.  Finds method signatures and captures their bodies.
+    """
+    blocks = []
+    lines  = source.splitlines()
+
+    # Strip comments before scanning for method signatures
+    clean = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    clean = re.sub(r"//[^\n]*",  " ", clean)
+
+    # Pattern: optional modifiers + return type + name + (params) + {
+    method_pattern = re.compile(
+        r"(?:(?:public|private|protected|static|final|synchronized|"
+        r"abstract|native|strictfp)\s+)*"
+        r"(?:\w+(?:<[^>]*>)?)\s+"        # return type (with optional generics)
+        r"(\w+)\s*"                       # method name  (capture group 1)
+        r"\([^)]*\)\s*"                   # parameters
+        r"(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?"  # optional throws
+        r"\{"                             # opening brace
+    )
+
+    for m in method_pattern.finditer(clean):
+        method_name = m.group(1)
+        start_pos   = m.start()
+
+        # Count lines to start_pos
+        start_line  = clean[:start_pos].count("\n") + 1
+
+        # Walk forward counting braces to find the matching close
+        depth     = 0
+        end_pos   = start_pos
+        in_string = False
+        i = m.start()
+
+        while i < len(clean):
+            ch = clean[i]
+            if ch == '"' and (i == 0 or clean[i-1] != "\\"):
+                in_string = not in_string
+            if not in_string:
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = i
+                        break
+            i += 1
+
+        end_line = clean[:end_pos].count("\n") + 1
+        func_src = "\n".join(lines[start_line - 1: end_line])
+
+        fb = FunctionBlock(
+            name=method_name,
+            start_line=start_line,
+            end_line=end_line,
+            source=func_src,
+        )
+        fb.tokens       = _normalize_java_tokens(func_src)
+        fb.ast_sequence = _java_ast_sequence(func_src)
+        fb.halstead     = _extract_halstead_java(func_src)
+        blocks.append(fb)
+
+    if not blocks:
+        # No methods found — treat whole file as one block
+        fb = FunctionBlock(
+            name="<class>",
+            start_line=1,
+            end_line=len(lines),
+            source=source,
+        )
+        fb.tokens       = _normalize_java_tokens(source)
+        fb.ast_sequence = _java_ast_sequence(source)
+        fb.halstead     = _extract_halstead_java(source)
+        blocks.append(fb)
+
+    return blocks
+
+
+def extract_blocks(source: str, language: str) -> list[FunctionBlock]:
+    """Dispatch to language-specific block extractor."""
+    if language == "python":
+        return _extract_python_blocks(source)
+    elif language == "java":
+        return _extract_java_blocks(source)
+    return []
+
+
+# ===========================================================================
+# PAIRWISE DETECTION — compare all block pairs
+# ===========================================================================
+
+def detect_clones_in_blocks(
+    blocks_a: list[FunctionBlock],
+    blocks_b: list[FunctionBlock],
+    file_a: str = "file_a",
+    file_b: str = "file_b",
+) -> list[ClonePair]:
+    """
+    Run the full TAHD pipeline on every pair of blocks from two files.
+
+    Steps:
+      1. Token Jaccard prefilter  (skip pairs below THRESH_TOKEN_PREFILTER)
+      2. AST structural similarity
+      3. Halstead cosine similarity
+      4. Fusion score + clone classification
+    """
+    pairs = []
+
+    for block_a in blocks_a:
+        for block_b in blocks_b:
+            # ---- Layer 1 ----
+            token_score = compute_token_similarity(block_a, block_b)
+            if token_score < THRESH_TOKEN_PREFILTER:
+                continue   # fast skip — not similar enough to proceed
+
+            # ---- Layer 2 ----
+            ast_score = compute_ast_similarity(block_a, block_b)
+
+            # ---- Layer 3 ----
+            halstead_score = compute_halstead_similarity(block_a, block_b)
+
+            # ---- Fusion ----
+            fusion = compute_fusion_score(token_score, ast_score,
+                                          halstead_score)
+            clone_type = classify_clone(token_score, ast_score, fusion)
+
+            if clone_type is not None:
+                pairs.append(ClonePair(
+                    clone_id       = str(uuid.uuid4()),
+                    clone_type     = clone_type,
+                    token_score    = round(token_score,    4),
+                    ast_score      = round(ast_score,      4),
+                    halstead_score = round(halstead_score, 4),
+                    fusion_score   = round(fusion,         4),
+                    block_a        = block_a,
+                    block_b        = block_b,
+                    file_a         = file_a,
+                    file_b         = file_b,
+                ))
+
+    return pairs
+
+
+def detect_clones_single_file(
+    blocks: list[FunctionBlock],
+    filename: str = "submission",
+) -> list[ClonePair]:
+    """
+    Detect clones within a single file (all unique block pairs).
+    Useful when analyzing one student submission for internal duplication.
+    """
+    pairs = []
+    for i in range(len(blocks)):
+        for j in range(i + 1, len(blocks)):
+            block_a = blocks[i]
+            block_b = blocks[j]
+
+            token_score = compute_token_similarity(block_a, block_b)
+            if token_score < THRESH_TOKEN_PREFILTER:
+                continue
+
+            ast_score      = compute_ast_similarity(block_a, block_b)
+            halstead_score = compute_halstead_similarity(block_a, block_b)
+            fusion         = compute_fusion_score(token_score, ast_score,
+                                                   halstead_score)
+            clone_type     = classify_clone(token_score, ast_score, fusion)
+
+            if clone_type is not None:
+                pairs.append(ClonePair(
+                    clone_id       = str(uuid.uuid4()),
+                    clone_type     = clone_type,
+                    token_score    = round(token_score,    4),
+                    ast_score      = round(ast_score,      4),
+                    halstead_score = round(halstead_score, 4),
+                    fusion_score   = round(fusion,         4),
+                    block_a        = block_a,
+                    block_b        = block_b,
+                    file_a         = filename,
+                    file_b         = filename,
+                ))
+
+    return pairs
+
+
+# ===========================================================================
+# REFACTORING ENGINE — rule-based suggestions
+# ===========================================================================
+
+_REFACTOR_RULES = {
+    1: {
+        "type":    "Remove Duplicate",
+        "explain": {
+            "remember":    "These two blocks are exact copies (Type 1 clone).",
+            "understand":  "Exact duplication means any bug fix must be applied "
+                           "in every copy, increasing maintenance cost.",
+            "apply":       "Delete one copy entirely and update all call sites "
+                           "to reference the single remaining version.",
+        },
+    },
+    2: {
+        "type":    "Extract Method",
+        "explain": {
+            "remember":    "These blocks are structurally identical but use "
+                           "different variable names (Type 2 clone).",
+            "understand":  "Renamed duplicates hide shared logic, making the "
+                           "codebase harder to reason about.",
+            "apply":       "Extract the shared logic into a new method with "
+                           "parameters replacing the renamed variables.",
+        },
+    },
+    3: {
+        "type":    "Refactor Near-Miss Clone",
+        "explain": {
+            "remember":    "These blocks are similar but not identical "
+                           "(Type 3 clone — near-miss).",
+            "understand":  "Near-miss clones often indicate copied code that "
+                           "was partially adapted.  The shared core should live "
+                           "in one place.",
+            "apply":       "Identify the common sub-logic, extract it into a "
+                           "helper method, and adjust each original block to "
+                           "call it with the differing parts as arguments.",
+        },
+    },
+}
+
+
+def generate_refactoring_suggestions(
+    clone_pairs: list[ClonePair],
+    max_suggestions: int = 5,
+) -> list[dict]:
+    """
+    Generate Bloom-aligned refactoring suggestions for detected clone pairs.
+    Sorted by fusion score descending (most severe first).
+    """
+    sorted_pairs = sorted(clone_pairs,
+                          key=lambda p: p.fusion_score,
+                          reverse=True)
+
+    suggestions = []
+    for rank, pair in enumerate(sorted_pairs[:max_suggestions], start=1):
+        rule = _REFACTOR_RULES.get(pair.clone_type, _REFACTOR_RULES[3])
+
+        # Build a simple before/after illustration using the actual snippets
+        snippet_a = "\n".join(pair.block_a.source.splitlines()[:6])
+        snippet_b = "\n".join(pair.block_b.source.splitlines()[:6])
+
+        suggestions.append({
+            "suggestion_id":    str(uuid.uuid4()),
+            "priority":         rank,
+            "priority_score":   pair.fusion_score,
+            "refactoring_type": rule["type"],
+            "clone_type":       pair.clone_type,
+            "affected_clone_id": pair.clone_id,
+            "scores": {
+                "token":    pair.token_score,
+                "ast":      pair.ast_score,
+                "halstead": pair.halstead_score,
+                "fusion":   pair.fusion_score,
+            },
+            "locations": {
+                "block_a": {
+                    "file":       pair.file_a,
+                    "function":   pair.block_a.name,
+                    "start_line": pair.block_a.start_line,
+                    "end_line":   pair.block_a.end_line,
+                },
+                "block_b": {
+                    "file":       pair.file_b,
+                    "function":   pair.block_b.name,
+                    "start_line": pair.block_b.start_line,
+                    "end_line":   pair.block_b.end_line,
+                },
+            },
+            "explanation": rule["explain"],
+            "before_code":  f"# Block A ({pair.block_a.name})\n{snippet_a}\n\n"
+                            f"# Block B ({pair.block_b.name})\n{snippet_b}",
+            "after_code":   f"# Extract shared logic from both blocks into a "
+                            f"single reusable function.",
+        })
+
+    return suggestions
+
+
+# ===========================================================================
+# QUALITY METRICS
+# ===========================================================================
+
+def compute_cyclomatic_complexity(source: str, language: str) -> float:
+    """
+    McCabe's Cyclomatic Complexity  M = E - N + 2P
+    Approximated by counting decision points + 1.
+    Decision points: if, elif, else, for, while, case, except, and, or, ?
+    """
+    if language == "python":
+        keywords = ["if ", "elif ", "else:", "for ", "while ",
+                    "except", " and ", " or "]
+    else:
+        keywords = ["if ", "else ", "for ", "while ", "case ",
+                    "catch ", " && ", " || ", " ? "]
+
+    count = 1  # base complexity
+    for kw in keywords:
+        count += source.count(kw)
+
+    return float(count)
+
+
+def compute_maintainability_index(
+    halstead_volume: float,
+    cyclomatic_complexity: float,
+    lines_of_code: int,
+) -> float:
+    """
+    Maintainability Index (Microsoft variant, 0–100 scale):
+      MI = max(0, (171
+                   - 5.2 * ln(V)
+                   - 0.23 * CC
+                   - 16.2 * ln(LOC)) * 100 / 171)
+    """
+    ln_v   = math.log(max(halstead_volume, 1))
+    ln_loc = math.log(max(lines_of_code,   1))
+    mi_raw = 171 - 5.2 * ln_v - 0.23 * cyclomatic_complexity - 16.2 * ln_loc
+    return round(max(0.0, mi_raw * 100 / 171), 2)
+
+
+# ===========================================================================
+# SYNTAX VALIDATION
+# ===========================================================================
 
 def validate_syntax(code: str, language: str) -> bool:
     """
     Validate syntax for the given language.
-
-    - For Python: try to parse with ast.parse; return True on success,
-      raise SyntaxError on parse errors.
-    - For Java: stub that always returns True (tests expect a stub).
-    - For unsupported languages: raise ValueError.
+    Python: uses ast.parse (raises SyntaxError on failure).
+    Java  : stub — always True (full validation needs javac).
     """
     if language not in SUPPORTED_LANGUAGES:
         raise ValueError(f"Unsupported language: {language}")
@@ -20,103 +951,215 @@ def validate_syntax(code: str, language: str) -> bool:
     if language == "python":
         if not isinstance(code, str):
             raise SyntaxError("Code must be a string")
-        try:
-            ast.parse(code)
-            return True
-        except SyntaxError:
-            # Propagate the SyntaxError so callers/tests can catch it
-            raise
-    elif language == "java":
-        # Stub implementation for Java: assume valid
+        ast.parse(code)   # raises SyntaxError if invalid
         return True
 
-    # Defensive fallback
-    return True
+    return True  # Java stub
 
+
+# ===========================================================================
+# PUBLIC API — CodeAnalyzer  (drop-in replacement for the mock)
+# ===========================================================================
 
 class CodeAnalyzer:
+    """
+    Drop-in replacement for the mock CodeAnalyzer.
+
+    analyze(code)         → single-file TAHD analysis
+    analyze_pair(a, b)    → cross-file clone detection between two submissions
+    """
+
     def __init__(self, language: str):
         if language not in SUPPORTED_LANGUAGES:
             raise ValueError("Unsupported language")
         self.language = language
-        # Tests expect this attribute to exist and be None at creation
-        self.code = None
+        self.code: str | None = None
+
+    # ------------------------------------------------------------------
+    # Single-file analysis
+    # ------------------------------------------------------------------
 
     def analyze(self, code: str) -> dict:
         """
-        Perform a mocked analysis and return a dictionary containing:
-        - analysis_id
-        - language
-        - lines_of_code
-        - clone_percentage
-        - clones (list)
-        - cyclomatic_complexity
-        - maintainability_index
-        - refactoring_suggestions (list)
+        Analyse a single submission.
+
+        Returns the same key structure as the original mock so existing
+        API routes continue to work without changes.
         """
-        # Basic validation
         if not isinstance(code, str):
             raise ValueError("code must be a string")
 
-        # Set stored code (tests may expect analyzer.code to be set after analyze)
         self.code = code
+        lines     = code.splitlines()
+        loc       = max(1, len(lines))
 
-        # Lines of code: tests expect empty string to count as 1 line
-        raw_lines = code.splitlines()
-        lines_of_code = max(1, len(raw_lines))
+        # Extract function blocks
+        blocks = extract_blocks(code, self.language)
 
-        # Mock metrics
-        analysis = {
-            "analysis_id": str(uuid.uuid4()),
-            "language": self.language,
-            "lines_of_code": lines_of_code,
-            "clone_percentage": round(random.uniform(0.0, 50.0), 1),
-            "clones": _generate_mock_clones(lines_of_code),
-            "cyclomatic_complexity": round(random.uniform(1.0, 30.0), 1),
-            "maintainability_index": round(random.uniform(20.0, 100.0), 1),
-            "refactoring_suggestions": _generate_mock_suggestions(lines_of_code),
-        }
+        # Detect internal clones (within this one file)
+        clone_pairs = detect_clones_single_file(blocks)
 
-        return analysis
+        # Aggregate quality metrics across all blocks
+        all_halstead = [b.halstead for b in blocks]
+        total_volume = sum(h.get("volume", 0) for h in all_halstead)
+        cc           = compute_cyclomatic_complexity(code, self.language)
+        mi           = compute_maintainability_index(total_volume, cc, loc)
 
+        # Clone percentage: fraction of lines inside a detected clone
+        cloned_lines = set()
+        for pair in clone_pairs:
+            for ln in range(pair.block_a.start_line, pair.block_a.end_line + 1):
+                cloned_lines.add(ln)
+            for ln in range(pair.block_b.start_line, pair.block_b.end_line + 1):
+                cloned_lines.add(ln)
+        clone_pct = round(len(cloned_lines) / loc * 100, 1) if loc > 0 else 0.0
 
-def _generate_mock_clones(num_lines: int) -> list:
-    """Return mock clone entries; short code should return empty list."""
-    if num_lines < 6:
-        return []
+        # Serialize clone pairs for the API response
+        clones_out = []
+        for pair in clone_pairs:
+            clones_out.append({
+                "clone_id":   pair.clone_id,
+                "type":       pair.clone_type,
+                "similarity": pair.fusion_score,
+                "token_score":    pair.token_score,
+                "ast_score":      pair.ast_score,
+                "halstead_score": pair.halstead_score,
+                "locations": [
+                    {
+                        "function":   pair.block_a.name,
+                        "start_line": pair.block_a.start_line,
+                        "end_line":   pair.block_a.end_line,
+                    },
+                    {
+                        "function":   pair.block_b.name,
+                        "start_line": pair.block_b.start_line,
+                        "end_line":   pair.block_b.end_line,
+                    },
+                ],
+                "code_snippet": pair.block_a.source[:200],
+                "explanation":  _clone_type_explanation(pair.clone_type),
+            })
 
-    return [
-        {
-            "clone_id": str(uuid.uuid4()),
-            "type": 2,
-            "similarity": round(random.uniform(0.85, 0.98), 2),
-            "locations": [
-                {"start_line": max(1, num_lines // 4), "end_line": max(5, num_lines // 4 + 5)},
-                {"start_line": max(1, num_lines // 2), "end_line": max(5, num_lines // 2 + 5)},
-            ],
-            "code_snippet": "\n".join(["// mock snippet"] * min(5, num_lines)),
-        }
-    ]
+        suggestions = generate_refactoring_suggestions(clone_pairs)
 
-
-def _generate_mock_suggestions(num_lines: int) -> list:
-    """Return mock refactoring suggestions. Return empty list for very short code."""
-    if num_lines < 4:
-        return []
-
-    return [
-        {
-            "suggestion_id": str(uuid.uuid4()),
-            "priority": 1,
-            "priority_score": round(random.uniform(0.7, 0.95), 2),
-            "refactoring_type": "Extract Method",
-            "affected_clone_id": str(uuid.uuid4()),
-            "explanation": {
-                "remember": "You have duplicated this code 2 times",
-                "understand": "Code duplication makes bugs hard to fix because changes must be made in multiple places",
-                "apply": "Extract this into a reusable method called processData()",
+        return {
+            "analysis_id":            str(uuid.uuid4()),
+            "language":               self.language,
+            "lines_of_code":          loc,
+            "clone_percentage":       clone_pct,
+            "clones":                 clones_out,
+            "cyclomatic_complexity":  round(cc, 1),
+            "maintainability_index":  mi,
+            "refactoring_suggestions": suggestions,
+            "halstead_metrics": {
+                "total_volume":     round(total_volume, 2),
+                "avg_difficulty":   round(
+                    sum(h.get("difficulty", 0) for h in all_halstead)
+                    / max(len(all_halstead), 1), 2
+                ),
             },
-            "before_code": "// Mock before code\nif (x > 0) {\n    result = x * 2;\n}",
-            "after_code": "// Mock after code\nint processData(int x) {\n    return x * 2;\n}\n\nif (x > 0) {\n    result = processData(x);\n}",
+            "detection_method": "TAHD v1.0 (Token + AST + Halstead)",
         }
-    ]
+
+    # ------------------------------------------------------------------
+    # Cross-file / batch analysis
+    # ------------------------------------------------------------------
+
+    def analyze_pair(
+        self,
+        code_a: str,
+        code_b: str,
+        file_a: str = "submission_a",
+        file_b: str = "submission_b",
+    ) -> dict:
+        """
+        Compare two student submissions against each other.
+        This is the primary entry point for plagiarism / clone detection
+        between students.
+        """
+        blocks_a = extract_blocks(code_a, self.language)
+        blocks_b = extract_blocks(code_b, self.language)
+
+        clone_pairs = detect_clones_in_blocks(
+            blocks_a, blocks_b, file_a, file_b
+        )
+
+        suggestions = generate_refactoring_suggestions(clone_pairs)
+
+        # Overall similarity = average fusion score of detected pairs
+        if clone_pairs:
+            overall_sim = round(
+                sum(p.fusion_score for p in clone_pairs) / len(clone_pairs), 4
+            )
+        else:
+            overall_sim = 0.0
+
+        clones_out = []
+        for pair in clone_pairs:
+            clones_out.append({
+                "clone_id":       pair.clone_id,
+                "type":           pair.clone_type,
+                "similarity":     pair.fusion_score,
+                "token_score":    pair.token_score,
+                "ast_score":      pair.ast_score,
+                "halstead_score": pair.halstead_score,
+                "locations": [
+                    {
+                        "file":       pair.file_a,
+                        "function":   pair.block_a.name,
+                        "start_line": pair.block_a.start_line,
+                        "end_line":   pair.block_a.end_line,
+                    },
+                    {
+                        "file":       pair.file_b,
+                        "function":   pair.block_b.name,
+                        "start_line": pair.block_b.start_line,
+                        "end_line":   pair.block_b.end_line,
+                    },
+                ],
+                "explanation": _clone_type_explanation(pair.clone_type),
+            })
+
+        return {
+            "analysis_id":       str(uuid.uuid4()),
+            "language":          self.language,
+            "file_a":            file_a,
+            "file_b":            file_b,
+            "overall_similarity": overall_sim,
+            "clone_count":       len(clone_pairs),
+            "clones":            clones_out,
+            "refactoring_suggestions": suggestions,
+            "detection_method":  "TAHD v1.0 (Token + AST + Halstead)",
+        }
+
+
+# ===========================================================================
+# HELPERS
+# ===========================================================================
+
+def _clone_type_explanation(clone_type: int) -> dict:
+    """Human-readable explanation for each clone type (for the UI)."""
+    explanations = {
+        1: {
+            "type_name":   "Type 1 — Exact Clone",
+            "description": "These blocks are identical except for whitespace "
+                           "or comment differences.",
+            "why_flagged": "Token and structural signatures are nearly perfect matches.",
+        },
+        2: {
+            "type_name":   "Type 2 — Renamed Clone",
+            "description": "These blocks are structurally identical but use "
+                           "different variable or method names.",
+            "why_flagged": "AST structure matches but token surface differs due "
+                           "to identifier renaming.",
+        },
+        3: {
+            "type_name":   "Type 3 — Near-Miss Clone",
+            "description": "These blocks share significant structural and "
+                           "computational similarity despite modifications.",
+            "why_flagged": "Fusion of token, AST, and Halstead complexity "
+                           "signatures exceeds the Type-3 threshold, suggesting "
+                           "copied code that was partially modified.",
+        },
+    }
+    return explanations.get(clone_type, explanations[3])
