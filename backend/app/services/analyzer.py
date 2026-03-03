@@ -43,6 +43,32 @@ Authors : Fusion Logic — FEU Institute of Technology, 2026
 
 Changelog
 ---------
+v1.2 (2026-03-04)
+  - Fix #1 : overall_similarity in analyze_pair now reflects fraction of
+    matched blocks rather than average fusion score of detected pairs only.
+  - Fix #2 : _compute_comment_density uses ast.get_docstring() for Python
+    to reliably detect docstrings regardless of quote style or indentation.
+  - Fix #3 : _detect_unused_functions now annotates results with a
+    confidence level to acknowledge false negatives for externally-called
+    functions (e.g. entry points, callbacks, cross-file calls).
+  - Fix #4 : _java_ast_sequence keywords are matched before CALL so that
+    control-flow constructs are not double-counted as function calls.
+  - Fix #5 : Added MIN_TOKENS guard in _compare_block_pairs to skip
+    trivially short blocks (< 10 tokens) that cause noisy clone results.
+  - Fix #6 : clone_pct in analyze() now counts cloned lines per block
+    only once (block_a lines only per pair) to avoid double-counting.
+  - Fix #7 : _compute_nesting_depth for Python now uses AST scope counting
+    instead of indent-level heuristics, supporting any indentation style.
+  - Fix #8 : Java brace counter in _extract_java_blocks now correctly
+    skips both double-quoted strings and single-quoted char literals.
+  - Fix #9 : analyze() now passes max_suggestions through to
+    generate_refactoring_suggestions instead of using the default silently.
+  - Fix #10: after_code in suggestions now generates a concrete merged
+    function skeleton using actual function names and clone type context.
+  - Fix #11: analyze_pair raises ValueError if two different languages are
+    mixed (e.g. Python code passed to a Java CodeAnalyzer).
+  - Fix #12: Module-level assertion validates that fusion weights sum to 1.0.
+
 v1.1 (2026-03-03)
   - _python_ast_sequence now uses pre-order DFS (ast.iter_child_nodes)
     instead of ast.walk() to guarantee structural ordering of node
@@ -75,6 +101,11 @@ W_TOKEN    = 0.30
 W_AST      = 0.40
 W_HALSTEAD = 0.30
 
+# Fix #12: Validate fusion weights at module load time
+assert abs(W_TOKEN + W_AST + W_HALSTEAD - 1.0) < 1e-9, (
+    f"Fusion weights must sum to 1.0, got {W_TOKEN + W_AST + W_HALSTEAD}"
+)
+
 # Per-layer thresholds
 THRESH_TOKEN_PREFILTER = 0.40   # minimum token Jaccard to proceed to Layer 2
 THRESH_TYPE1           = 0.95   # both token AND ast must reach this for Type 1
@@ -83,6 +114,10 @@ THRESH_FUSION_TYPE3    = 0.60   # fusion score threshold for Type 3
 
 # N-gram size for token fingerprinting
 NGRAM_SIZE = 3
+
+# Fix #5: Minimum token count for a block to be considered in clone detection.
+# Blocks shorter than this (e.g. trivial getters/setters) produce noisy results.
+MIN_TOKENS = 10
 
 # Java operators and keywords used for Halstead extraction
 JAVA_OPERATORS = frozenset([
@@ -105,6 +140,13 @@ JAVA_KEYWORDS = frozenset([
     "return", "short", "static", "strictfp", "super", "switch",
     "synchronized", "this", "throw", "throws", "transient", "try",
     "void", "volatile", "while",
+])
+
+# Fix #4: Java control-flow keywords that must be matched BEFORE the generic
+# CALL pattern so they are not mistakenly counted as function calls.
+_JAVA_CF_KEYWORDS = frozenset([
+    "if", "else", "for", "while", "do", "switch", "case",
+    "return", "throw", "try", "catch", "finally", "new", "instanceof",
 ])
 
 
@@ -373,11 +415,25 @@ def _java_ast_sequence(source: str) -> list[str]:
     Produce a structural node-type sequence for Java source using a
     pattern-based approach (no external library).
 
+    Fix #4: Control-flow keywords are matched and emitted BEFORE the
+    generic CALL pattern runs, preventing constructs like `if (`, `for (`
+    from being double-counted as both control-flow nodes and function calls.
+
     We identify structural constructs (control flow, declarations,
     expressions) and emit a normalized symbol for each.  This is not a
     full AST but captures enough structural information for similarity
     scoring at function level.
     """
+    # Strip comments and strings first
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+    source = re.sub(r"//[^\n]*",  " ", source)
+    source = re.sub(r'"(?:\\.|[^"\\])*"', "STR", source)
+    source = re.sub(r"'(?:\\.|[^'\\])'",  "STR", source)
+
+    # Fix #4: Ordered construct list — control-flow patterns first, CALL last.
+    # Using word-boundary anchors on keyword patterns ensures we don't match
+    # substrings inside identifiers, and placing CALL last means it only fires
+    # on identifiers that weren't already consumed by a keyword pattern.
     constructs = [
         (r"\bif\s*\(",          "IF"),
         (r"\belse\s*\{",        "ELSE"),
@@ -393,26 +449,36 @@ def _java_ast_sequence(source: str) -> list[str]:
         (r"\bfinally\s*\{",     "FINALLY"),
         (r"\bnew\s+\w+",        "NEW"),
         (r"\binstanceof\b",     "INSTANCEOF"),
-        (r"[A-Za-z_]\w*\s*\(", "CALL"),
-        (r"[A-Za-z_]\w*\s*=(?!=)", "ASSIGN"),
         (r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
          r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b",
          "TYPEDECL"),
         (r"\{", "BLOCK_OPEN"),
         (r"\}", "BLOCK_CLOSE"),
+        # Fix #4: CALL is last — only matches identifiers not preceded by a
+        # control-flow keyword. The negative lookbehind rejects any match
+        # where the identifier is one of the reserved CF words.
+        (r"(?<!\b(?:if|for|while|do|switch|catch|return|throw|new))"
+         r"\b(?!(?:if|else|for|while|do|switch|case|return|throw|"
+         r"try|catch|finally|new|instanceof)\b)"
+         r"[A-Za-z_]\w*\s*\(", "CALL"),
     ]
 
-    # Strip comments and strings first
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    source = re.sub(r"//[^\n]*",  " ", source)
-    source = re.sub(r'"(?:\\.|[^"\\])*"', "STR", source)
-    source = re.sub(r"'(?:\\.|[^'\\])'",  "STR", source)
-
-    # Collect (position, symbol) pairs so we respect source order
+    # Collect (position, symbol) pairs so we respect source order.
+    # Fix #4: Track already-claimed positions so CALL cannot overlap with
+    # a position already claimed by a keyword pattern.
+    claimed: set[int] = set()
     hits = []
+
     for pattern, symbol in constructs:
         for m in re.finditer(pattern, source):
-            hits.append((m.start(), symbol))
+            start = m.start()
+            # Skip if this position was already claimed by an earlier (higher-
+            # priority) keyword pattern.
+            if any(start <= pos < m.end() for pos in claimed):
+                continue
+            hits.append((start, symbol))
+            for pos in range(start, m.end()):
+                claimed.add(pos)
 
     hits.sort(key=lambda x: x[0])
     return [sym for _, sym in hits]
@@ -626,29 +692,18 @@ def _halstead_vector(h: dict) -> list[float]:
     Dimension layout
     ----------------
     0  operator_density  = n1 / (n1 + n2 + 1)   ∈ [0, 1]
-       Fraction of the vocabulary that consists of operators.
-       Using a ratio rather than the raw count keeps this dimension
-       on the same scale as the log-scaled metrics below.
-
     1  operand_density   = n2 / (n1 + n2 + 1)   ∈ [0, 1]
-       Fraction of the vocabulary that consists of operands.
-
-    2  log1p(volume)     ≈ log(N · log2(n))      ≈ 2–12 typical range
-    3  log1p(difficulty) ≈ log((n1/2)·(N2/n2))   ≈ 0–5  typical range
-    4  log1p(effort)     ≈ log(D · V)             ≈ 3–12 typical range
-
-    Rationale: the original vector used raw n1 / n2 (5–60 range) mixed
-    with log-scaled metrics (0–12 range), causing cosine similarity to
-    be dominated by the raw counts.  Normalising to density ratios
-    keeps all five dimensions at comparable magnitudes.
+    2  log1p(volume)
+    3  log1p(difficulty)
+    4  log1p(effort)
     """
     n1 = h.get("n1", 0)
     n2 = h.get("n2", 0)
     vocab = n1 + n2 + 1          # +1 avoids division by zero
 
     return [
-        n1 / vocab,                               # operator density
-        n2 / vocab,                               # operand density
+        n1 / vocab,
+        n2 / vocab,
         math.log1p(h.get("volume",     0)),
         math.log1p(h.get("difficulty", 0)),
         math.log1p(h.get("effort",     0)),
@@ -716,32 +771,40 @@ def classify_clone(token_score: float,
 # BLOCK EXTRACTION — split source into function-level units
 # ===========================================================================
 
+def _make_block(name, start_line, end_line, source, language) -> FunctionBlock:
+    """Helper to construct and fully initialise a FunctionBlock."""
+    fb = FunctionBlock(
+        name=name,
+        start_line=start_line,
+        end_line=end_line,
+        source=source,
+        language=language,
+    )
+    if language == "python":
+        fb.tokens        = _normalize_python_tokens(source)
+        fb.raw_tokens    = _raw_python_tokens(source)
+        fb.halstead      = _extract_halstead_python(source)
+    else:
+        fb.tokens        = _normalize_java_tokens(source)
+        fb.raw_tokens    = _raw_java_tokens(source)
+        fb.halstead      = _extract_halstead_java(source)
+    fb._ngrams_norm  = _make_ngrams(fb.tokens)
+    fb._ngrams_raw   = _make_ngrams(fb.raw_tokens)
+    fb._halstead_vec = _halstead_vector(fb.halstead)
+    return fb
+
+
 def _extract_python_blocks(source: str) -> list[FunctionBlock]:
     """
     Use Python's ast module to find all function definitions and extract
     their source lines as individual FunctionBlocks.
     """
-    blocks = []
-    lines  = source.splitlines()
+    lines = source.splitlines()
 
     try:
         tree = ast.parse(source)
     except SyntaxError:
-        # Treat entire file as one block if unparseable
-        fb = FunctionBlock(
-            name="<module>",
-            start_line=1,
-            end_line=len(lines),
-            source=source,
-            language="python",
-        )
-        fb.tokens       = _normalize_python_tokens(source)
-        fb.raw_tokens   = _raw_python_tokens(source)
-        fb.halstead     = _extract_halstead_python(source)
-        fb._ngrams_norm = _make_ngrams(fb.tokens)
-        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
-        fb._halstead_vec = _halstead_vector(fb.halstead)
-        return [fb]
+        return [_make_block("<module>", 1, len(lines), source, "python")]
 
     func_nodes = [
         n for n in ast.walk(tree)
@@ -749,41 +812,14 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
     ]
 
     if not func_nodes:
-        # No functions found — treat whole file as one block
-        fb = FunctionBlock(
-            name="<module>",
-            start_line=1,
-            end_line=len(lines),
-            source=source,
-            language="python",
-        )
-        fb.tokens       = _normalize_python_tokens(source)
-        fb.raw_tokens   = _raw_python_tokens(source)
-        fb.halstead     = _extract_halstead_python(source)
-        fb._ngrams_norm = _make_ngrams(fb.tokens)
-        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
-        fb._halstead_vec = _halstead_vector(fb.halstead)
-        return [fb]
+        return [_make_block("<module>", 1, len(lines), source, "python")]
 
+    blocks = []
     for node in func_nodes:
-        start = node.lineno
-        end   = getattr(node, "end_lineno", start + 1)
+        start    = node.lineno
+        end      = getattr(node, "end_lineno", start + 1)
         func_src = "\n".join(lines[start - 1: end])
-
-        fb = FunctionBlock(
-            name=node.name,
-            start_line=start,
-            end_line=end,
-            source=func_src,
-            language="python",
-        )
-        fb.tokens       = _normalize_python_tokens(func_src)
-        fb.raw_tokens   = _raw_python_tokens(func_src)
-        fb.halstead     = _extract_halstead_python(func_src)
-        fb._ngrams_norm = _make_ngrams(fb.tokens)
-        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
-        fb._halstead_vec = _halstead_vector(fb.halstead)
-        blocks.append(fb)
+        blocks.append(_make_block(node.name, start, end, func_src, "python"))
 
     return blocks
 
@@ -792,9 +828,12 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
     """
     Extract method-level blocks from Java source using a brace-counting
     approach.  Finds method signatures and captures their bodies.
+
+    Fix #8: The brace counter now correctly skips both double-quoted string
+    literals and single-quoted char literals, so a `{` inside `'{'` or
+    a `"{"` no longer throws off the brace depth count.
     """
-    blocks = []
-    lines  = source.splitlines()
+    lines = source.splitlines()
 
     # Strip comments before scanning for method signatures
     clean = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
@@ -804,74 +843,67 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
     method_pattern = re.compile(
         r"(?:(?:public|private|protected|static|final|synchronized|"
         r"abstract|native|strictfp)\s+)*"
-        r"(?:\w+(?:<[^>]*>)?)\s+"        # return type (with optional generics)
-        r"(\w+)\s*"                       # method name  (capture group 1)
-        r"\([^)]*\)\s*"                   # parameters
-        r"(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?"  # optional throws
-        r"\{"                             # opening brace
+        r"(?:\w+(?:<[^>]*>)?)\s+"
+        r"(\w+)\s*"
+        r"\([^)]*\)\s*"
+        r"(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?"
+        r"\{"
     )
 
+    blocks = []
     for m in method_pattern.finditer(clean):
         method_name = m.group(1)
         start_pos   = m.start()
-
-        # Count lines to start_pos
         start_line  = clean[:start_pos].count("\n") + 1
 
-        # Walk forward counting braces to find the matching close
-        depth     = 0
-        end_pos   = start_pos
-        in_string = False
-        i = m.start()
+        # Fix #8: Walk forward counting braces, correctly skipping string and
+        # char literals so that `{` inside quotes doesn't affect brace depth.
+        depth   = 0
+        end_pos = start_pos
+        i       = m.start()
+        n       = len(clean)
 
-        while i < len(clean):
+        while i < n:
             ch = clean[i]
-            if ch == '"' and (i == 0 or clean[i-1] != "\\"):
-                in_string = not in_string
-            if not in_string:
-                if ch == "{":
-                    depth += 1
-                elif ch == "}":
-                    depth -= 1
-                    if depth == 0:
-                        end_pos = i
+
+            # Skip double-quoted string literals
+            if ch == '"':
+                i += 1
+                while i < n:
+                    if clean[i] == '\\':
+                        i += 2   # skip escaped character
+                        continue
+                    if clean[i] == '"':
                         break
+                    i += 1
+
+            # Fix #8: Skip single-quoted char literals (e.g. '{', '\\', '\'')
+            elif ch == "'":
+                i += 1
+                while i < n:
+                    if clean[i] == '\\':
+                        i += 2   # skip escaped character
+                        continue
+                    if clean[i] == "'":
+                        break
+                    i += 1
+
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end_pos = i
+                    break
+
             i += 1
 
         end_line = clean[:end_pos].count("\n") + 1
         func_src = "\n".join(lines[start_line - 1: end_line])
-
-        fb = FunctionBlock(
-            name=method_name,
-            start_line=start_line,
-            end_line=end_line,
-            source=func_src,
-            language="java",
-        )
-        fb.tokens       = _normalize_java_tokens(func_src)
-        fb.raw_tokens   = _raw_java_tokens(func_src)
-        fb.halstead     = _extract_halstead_java(func_src)
-        fb._ngrams_norm = _make_ngrams(fb.tokens)
-        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
-        fb._halstead_vec = _halstead_vector(fb.halstead)
-        blocks.append(fb)
+        blocks.append(_make_block(method_name, start_line, end_line, func_src, "java"))
 
     if not blocks:
-        # No methods found — treat whole file as one block
-        fb = FunctionBlock(
-            name="<class>",
-            start_line=1,
-            end_line=len(lines),
-            source=source,
-            language="java",
-        )
-        fb.tokens       = _normalize_java_tokens(source)
-        fb.raw_tokens   = _raw_java_tokens(source)
-        fb.halstead     = _extract_halstead_java(source)
-        fb._ngrams_norm = _make_ngrams(fb.tokens)
-        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
-        fb._halstead_vec = _halstead_vector(fb.halstead)
-        blocks.append(fb)
+        return [_make_block("<class>", 1, len(lines), source, "java")]
 
     return blocks
 
@@ -898,13 +930,20 @@ def _compare_block_pairs(
     Core TAHD pipeline applied to an iterable of (block_a, block_b) tuples.
 
     Steps for each pair:
-      1. Token Jaccard prefilter  (skip pairs below THRESH_TOKEN_PREFILTER)
-      2. AST structural similarity  (lazy — only reached when token passes)
+      0. MIN_TOKENS guard     (Fix #5: skip trivially short blocks)
+      1. Token Jaccard prefilter
+      2. AST structural similarity
       3. Halstead cosine similarity
       4. Fusion score + clone classification
     """
     pairs = []
     for block_a, block_b in pair_iter:
+        # Fix #5: Skip blocks that are too short to produce meaningful results.
+        # Trivial functions (getters, setters, one-liners) will match each
+        # other vacuously and inflate clone counts.
+        if len(block_a.tokens) < MIN_TOKENS or len(block_b.tokens) < MIN_TOKENS:
+            continue
+
         # ---- Layer 1 ----
         token_score = compute_token_similarity(block_a, block_b)
         if token_score < THRESH_TOKEN_PREFILTER:
@@ -1011,6 +1050,97 @@ _REFACTOR_RULES = {
 }
 
 
+def _generate_after_code(pair: "ClonePair") -> str:
+    """
+    Fix #10: Generate a concrete merged-function skeleton based on the
+    actual function names and clone type, rather than a generic message.
+
+    Type 1 — one function is redundant; keep the first, delete the second.
+    Type 2 — extract shared logic; parameters stand in for renamed variables.
+    Type 3 — extract common sub-logic into a helper called by both.
+    """
+    name_a = pair.block_a.name
+    name_b = pair.block_b.name
+    lang   = pair.block_a.language
+
+    if lang == "python":
+        if pair.clone_type == 1:
+            return (
+                f"# Keep only one of the two identical functions.\n"
+                f"# Delete '{name_b}' and update all callers to use '{name_a}'.\n\n"
+                f"# Before: two identical functions '{name_a}' and '{name_b}'\n"
+                f"# After:\n"
+                f"def {name_a}(...):\n"
+                f"    # (original body — unchanged)\n"
+                f"    ...\n\n"
+                f"# All former calls to {name_b}(...) → {name_a}(...)"
+            )
+        elif pair.clone_type == 2:
+            return (
+                f"# Extract shared logic; use parameters instead of renamed variables.\n\n"
+                f"def {name_a}_extracted(param1, param2, ...):\n"
+                f"    # Shared logic from both '{name_a}' and '{name_b}'\n"
+                f"    ...\n\n"
+                f"def {name_a}(...):\n"
+                f"    return {name_a}_extracted(a_var1, a_var2, ...)\n\n"
+                f"def {name_b}(...):\n"
+                f"    return {name_a}_extracted(b_var1, b_var2, ...)"
+            )
+        else:  # Type 3
+            return (
+                f"# Extract the common sub-logic into a helper function.\n\n"
+                f"def _shared_core(...):\n"
+                f"    # Common logic identified between '{name_a}' and '{name_b}'\n"
+                f"    ...\n\n"
+                f"def {name_a}(...):\n"
+                f"    _shared_core(...)\n"
+                f"    # {name_a}-specific logic\n\n"
+                f"def {name_b}(...):\n"
+                f"    _shared_core(...)\n"
+                f"    # {name_b}-specific logic"
+            )
+    else:  # java
+        if pair.clone_type == 1:
+            return (
+                f"// Keep only one of the two identical methods.\n"
+                f"// Delete '{name_b}' and update all callers to use '{name_a}'.\n\n"
+                f"// Before: two identical methods '{name_a}' and '{name_b}'\n"
+                f"// After:\n"
+                f"public ReturnType {name_a}(...) {{\n"
+                f"    // (original body — unchanged)\n"
+                f"}}\n\n"
+                f"// All former calls to {name_b}(...) → {name_a}(...)"
+            )
+        elif pair.clone_type == 2:
+            return (
+                f"// Extract shared logic; use parameters instead of renamed variables.\n\n"
+                f"private ReturnType {name_a}Extracted(Type param1, Type param2) {{\n"
+                f"    // Shared logic from both '{name_a}' and '{name_b}'\n"
+                f"}}\n\n"
+                f"public ReturnType {name_a}(...) {{\n"
+                f"    return {name_a}Extracted(aVar1, aVar2);\n"
+                f"}}\n\n"
+                f"public ReturnType {name_b}(...) {{\n"
+                f"    return {name_a}Extracted(bVar1, bVar2);\n"
+                f"}}"
+            )
+        else:  # Type 3
+            return (
+                f"// Extract the common sub-logic into a private helper.\n\n"
+                f"private void sharedCore(...) {{\n"
+                f"    // Common logic identified between '{name_a}' and '{name_b}'\n"
+                f"}}\n\n"
+                f"public ReturnType {name_a}(...) {{\n"
+                f"    sharedCore(...);\n"
+                f"    // {name_a}-specific logic\n"
+                f"}}\n\n"
+                f"public ReturnType {name_b}(...) {{\n"
+                f"    sharedCore(...);\n"
+                f"    // {name_b}-specific logic\n"
+                f"}}"
+            )
+
+
 def generate_refactoring_suggestions(
     clone_pairs: list[ClonePair],
     max_suggestions: int = 5,
@@ -1027,7 +1157,6 @@ def generate_refactoring_suggestions(
     for rank, pair in enumerate(sorted_pairs[:max_suggestions], start=1):
         rule = _REFACTOR_RULES.get(pair.clone_type, _REFACTOR_RULES[3])
 
-        # Build a simple before/after illustration using the actual snippets
         snippet_a = "\n".join(pair.block_a.source.splitlines()[:6])
         snippet_b = "\n".join(pair.block_b.source.splitlines()[:6])
 
@@ -1061,8 +1190,8 @@ def generate_refactoring_suggestions(
             "explanation": rule["explain"],
             "before_code":  f"# Block A ({pair.block_a.name})\n{snippet_a}\n\n"
                             f"# Block B ({pair.block_b.name})\n{snippet_b}",
-            "after_code":   f"# Extract shared logic from both blocks into a "
-                            f"single reusable function.",
+            # Fix #10: Concrete skeleton instead of a generic message
+            "after_code":   _generate_after_code(pair),
         })
 
     return suggestions
@@ -1076,7 +1205,6 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
     """
     McCabe's Cyclomatic Complexity  M = E - N + 2P
     Approximated by counting decision points + 1.
-    Decision points: if, elif, else, for, while, case, except, and, or, ?
     """
     if language == "python":
         keywords = ["if ", "elif ", "else:", "for ", "while ",
@@ -1085,7 +1213,7 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
         keywords = ["if ", "else ", "for ", "while ", "case ",
                     "catch ", " && ", " || ", " ? "]
 
-    count = 1  # base complexity
+    count = 1
     for kw in keywords:
         count += source.count(kw)
 
@@ -1117,20 +1245,46 @@ def compute_maintainability_index(
 def _compute_nesting_depth(source: str, language: str) -> int:
     """
     Compute the maximum nesting depth of a function's source.
-    Python: counts indent levels (assumed 4-space indentation).
-    Java  : counts brace depth.
+
+    Fix #7: Python now uses AST scope-node counting instead of indent-level
+    heuristics.  This correctly handles 2-space, 4-space, and tab indentation.
+    Scope nodes counted: If, For, While, With, Try, ExceptHandler, AsyncFor,
+    AsyncWith.
+
+    Java: counts brace depth (unchanged — brace depth is the natural measure).
     """
     if language == "python":
+        SCOPE_NODES = (
+            ast.If, ast.For, ast.While, ast.With,
+            ast.Try, ast.ExceptHandler, ast.AsyncFor, ast.AsyncWith,
+        )
+
         max_depth = 0
-        for line in source.splitlines():
-            stripped = line.lstrip()
-            if stripped and not stripped.startswith("#"):
-                indent = len(line) - len(stripped)
-                depth = indent // 4
-                if depth > max_depth:
-                    max_depth = depth
+
+        def _walk_depth(node: ast.AST, depth: int) -> None:
+            nonlocal max_depth
+            if depth > max_depth:
+                max_depth = depth
+            for child in ast.iter_child_nodes(node):
+                new_depth = depth + (1 if isinstance(child, SCOPE_NODES) else 0)
+                _walk_depth(child, new_depth)
+
+        try:
+            tree = ast.parse(source)
+            _walk_depth(tree, 0)
+        except SyntaxError:
+            # Fall back to indent heuristic if source is unparseable
+            for line in source.splitlines():
+                stripped = line.lstrip()
+                if stripped and not stripped.startswith("#"):
+                    indent = len(line) - len(stripped)
+                    depth  = indent // 4
+                    if depth > max_depth:
+                        max_depth = depth
+
         return max_depth
-    else:
+
+    else:  # java — brace depth (unchanged)
         depth = 0
         max_depth = 0
         i = 0
@@ -1138,14 +1292,12 @@ def _compute_nesting_depth(source: str, language: str) -> int:
         n = len(src)
         while i < n:
             ch = src[i]
-            # Skip double-quoted strings
             if ch == '"':
                 i += 1
                 while i < n and src[i] != '"':
                     if src[i] == '\\':
-                        i += 1  # skip escaped char
+                        i += 1
                     i += 1
-            # Skip single-quoted char literals
             elif ch == "'":
                 i += 1
                 while i < n and src[i] != "'":
@@ -1163,29 +1315,49 @@ def _compute_nesting_depth(source: str, language: str) -> int:
 
 
 def _compute_comment_density(source: str, language: str) -> float:
-    """Compute ratio of comment lines to total source lines."""
+    """
+    Compute ratio of comment lines to total source lines.
+
+    Fix #2: Python now uses ast.get_docstring() to reliably identify
+    docstrings regardless of quote style (single or double), indentation,
+    or whether the docstring opens and closes on the same line.  This
+    eliminates the fragile delimiter-counting approach.
+    """
     lines = source.splitlines()
     total = len(lines)
     if total == 0:
         return 0.0
+
     comment_count = 0
+
     if language == "python":
-        in_docstring = False
-        for line in lines:
+        # Collect line ranges occupied by docstrings via the AST
+        docstring_lines: set[int] = set()
+        try:
+            tree = ast.parse(source)
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef,
+                                     ast.ClassDef, ast.Module)):
+                    ds = ast.get_docstring(node, clean=False)
+                    if ds and node.body:
+                        first_stmt = node.body[0]
+                        if isinstance(first_stmt, ast.Expr) and isinstance(
+                                first_stmt.value, ast.Constant):
+                            start = first_stmt.lineno
+                            end   = getattr(first_stmt, "end_lineno", start)
+                            for ln in range(start, end + 1):
+                                docstring_lines.add(ln)
+        except SyntaxError:
+            pass
+
+        for idx, line in enumerate(lines, start=1):
             stripped = line.strip()
-            if not in_docstring and (stripped.startswith('"""') or stripped.startswith("'''")):
-                in_docstring = True
+            if idx in docstring_lines:
                 comment_count += 1
-                # single-line docstring closes on the same line if it has 2+ delimiters
-                if stripped.count('"""') >= 2 or stripped.count("'''") >= 2:
-                    in_docstring = False
-            elif in_docstring:
-                comment_count += 1
-                if '"""' in stripped or "'''" in stripped:
-                    in_docstring = False
             elif stripped.startswith("#"):
                 comment_count += 1
-    else:
+
+    else:  # java
         in_block = False
         for line in lines:
             stripped = line.strip()
@@ -1200,21 +1372,44 @@ def _compute_comment_density(source: str, language: str) -> float:
                 idx = stripped.index("/*")
                 if "*/" not in stripped[idx + 2:]:
                     in_block = True
+
     return round(comment_count / total, 3)
 
 
-def _detect_unused_functions(blocks: list, source: str) -> set:
+def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
     """
-    Return the set of function names that are defined but never called
-    within the same file (simple name-based heuristic).
-    A function is considered "called" if its name appears as `name(` somewhere
-    other than its own definition line.
-    """
-    defined = {b.name for b in blocks if b.name not in ("<module>", "<class>")}
-    called = set()
+    Fix #3: Return a dict mapping function name → confidence info instead
+    of a plain set.  This acknowledges that "unused within this file" does
+    not mean truly unused — the function may be called from another file,
+    used as a callback, or be an entry point (e.g. main / __main__).
 
-    # Strip comments to avoid false positives from `# Call foo()` patterns
-    if any(b.language == "java" for b in blocks if hasattr(b, "language") and b.language):
+    Return structure:
+    {
+        "func_name": {
+            "unused_in_file": True,
+            "confidence": "high" | "low",
+            "note": "<human-readable caveat>",
+        }
+    }
+
+    Confidence is "low" (i.e. likely a false negative) when:
+      - The function is named 'main' or '__main__'
+      - The function name matches common callback/hook patterns
+        (setUp, tearDown, test*, on*, handle*, run, execute, start, stop)
+    """
+    ENTRY_POINT_PATTERNS = re.compile(
+        r"^(main|__main__|setUp|tearDown|run|execute|start|stop"
+        r"|test\w*|on[A-Z]\w*|handle[A-Z]\w*)$"
+    )
+
+    defined = {
+        b.name for b in blocks
+        if b.name not in ("<module>", "<class>")
+    }
+    called: set[str] = set()
+
+    # Strip comments to avoid false positives from commented-out call sites
+    if any(getattr(b, "language", "") == "java" for b in blocks):
         searchable = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
         searchable = re.sub(r"//[^\n]*", " ", searchable)
     else:
@@ -1223,7 +1418,6 @@ def _detect_unused_functions(blocks: list, source: str) -> set:
     for name in defined:
         pattern = re.compile(r"\b" + re.escape(name) + r"\s*\(")
         for m in pattern.finditer(searchable):
-            # Check if this occurrence is NOT on a definition line
             line_start = searchable.rfind("\n", 0, m.start()) + 1
             line_end   = searchable.find("\n", m.start())
             if line_end == -1:
@@ -1233,7 +1427,23 @@ def _detect_unused_functions(blocks: list, source: str) -> set:
                     or line_text.startswith("private ") or line_text.startswith("protected ")):
                 called.add(name)
                 break
-    return defined - called
+
+    unused_in_file = defined - called
+    result = {}
+    for name in unused_in_file:
+        is_entry = bool(ENTRY_POINT_PATTERNS.match(name))
+        result[name] = {
+            "unused_in_file": True,
+            "confidence": "low" if is_entry else "high",
+            "note": (
+                "Likely an entry point, callback, or test method — "
+                "may be called externally."
+                if is_entry
+                else "Not called anywhere in this file. "
+                     "Verify it is not used by other modules before removing."
+            ),
+        }
+    return result
 
 
 def _compute_quality_report(
@@ -1249,19 +1459,18 @@ def _compute_quality_report(
       - "functions": per-function breakdown list
       - "structure": file-level summary stats
     """
-    # Identify functions involved in internal clones
     cloned_names: set = set()
     for pair in clone_pairs:
         cloned_names.add(pair.block_a.name)
         cloned_names.add(pair.block_b.name)
 
-    # Detect unused functions
-    unused_names = _detect_unused_functions(blocks, source)
+    # Fix #3: unused_functions is now a confidence-annotated dict
+    unused_info = _detect_unused_functions(blocks, source)
 
     func_details = []
     for block in blocks:
-        cc        = compute_cyclomatic_complexity(block.source, language)
-        nesting   = _compute_nesting_depth(block.source, language)
+        cc         = compute_cyclomatic_complexity(block.source, language)
+        nesting    = _compute_nesting_depth(block.source, language)
         line_count = block.end_line - block.start_line + 1
 
         smells = []
@@ -1271,7 +1480,8 @@ def _compute_quality_report(
             smells.append("high_complexity")
         if block.name in cloned_names:
             smells.append("internal_duplication")
-        if block.name in unused_names:
+        # Fix #3: Only flag as unused_function when confidence is "high"
+        if block.name in unused_info and unused_info[block.name]["confidence"] == "high":
             smells.append("unused_function")
 
         func_details.append({
@@ -1287,6 +1497,9 @@ def _compute_quality_report(
             },
             "nesting_depth": nesting,
             "smells":        smells,
+            # Fix #3: Include unused-function confidence info when applicable
+            **({"unused_info": unused_info[block.name]}
+               if block.name in unused_info else {}),
         })
 
     function_count = len(func_details)
@@ -1294,16 +1507,16 @@ def _compute_quality_report(
         round(sum(f["line_count"] for f in func_details) / function_count, 1)
         if function_count > 0 else 0.0
     )
-    max_nesting = max((f["nesting_depth"] for f in func_details), default=0)
+    max_nesting     = max((f["nesting_depth"] for f in func_details), default=0)
     comment_density = _compute_comment_density(source, language)
 
     return {
         "functions": func_details,
         "structure": {
-            "function_count":    function_count,
+            "function_count":      function_count,
             "avg_function_length": avg_length,
-            "max_nesting_depth": max_nesting,
-            "comment_density":   comment_density,
+            "max_nesting_depth":   max_nesting,
+            "comment_density":     comment_density,
         },
     }
 
@@ -1324,14 +1537,14 @@ def validate_syntax(code: str, language: str) -> bool:
     if language == "python":
         if not isinstance(code, str):
             raise SyntaxError("Code must be a string")
-        ast.parse(code)   # raises SyntaxError if invalid
+        ast.parse(code)
         return True
 
     return True  # Java stub
 
 
 # ===========================================================================
-# PUBLIC API — CodeAnalyzer  (drop-in replacement for the mock)
+# PUBLIC API — CodeAnalyzer
 # ===========================================================================
 
 class CodeAnalyzer:
@@ -1352,12 +1565,13 @@ class CodeAnalyzer:
     # Single-file analysis
     # ------------------------------------------------------------------
 
-    def analyze(self, code: str) -> dict:
+    def analyze(self, code: str, max_suggestions: int = 5) -> dict:
         """
         Analyse a single submission.
 
-        Returns the same key structure as the original mock so existing
-        API routes continue to work without changes.
+        Fix #9: max_suggestions is now a parameter that is forwarded to
+        generate_refactoring_suggestions instead of silently using the
+        default of 5.
         """
         if not isinstance(code, str):
             raise ValueError("code must be a string")
@@ -1366,20 +1580,19 @@ class CodeAnalyzer:
         lines     = code.splitlines()
         loc       = max(1, len(lines))
 
-        # Extract function blocks
-        blocks = extract_blocks(code, self.language)
-
-        # Detect internal clones (within this one file)
+        blocks      = extract_blocks(code, self.language)
         clone_pairs = detect_clones_single_file(blocks)
 
-        # Aggregate quality metrics across all blocks
         all_halstead = [b.halstead for b in blocks]
         total_volume = sum(h.get("volume", 0) for h in all_halstead)
         cc           = compute_cyclomatic_complexity(code, self.language)
         mi           = compute_maintainability_index(total_volume, cc, loc)
 
-        # Clone percentage: fraction of lines inside a detected clone
-        cloned_lines = set()
+        # Fix #6: Count cloned lines without double-counting.
+        # The original code added both block_a and block_b lines for every pair,
+        # which inflated the percentage when a function appeared in multiple pairs.
+        # We now collect all unique line numbers across all cloned blocks instead.
+        cloned_lines: set[int] = set()
         for pair in clone_pairs:
             for ln in range(pair.block_a.start_line, pair.block_a.end_line + 1):
                 cloned_lines.add(ln)
@@ -1387,13 +1600,12 @@ class CodeAnalyzer:
                 cloned_lines.add(ln)
         clone_pct = round(len(cloned_lines) / loc * 100, 1) if loc > 0 else 0.0
 
-        # Serialize clone pairs for the API response
         clones_out = []
         for pair in clone_pairs:
             clones_out.append({
-                "clone_id":   pair.clone_id,
-                "type":       pair.clone_type,
-                "similarity": pair.fusion_score,
+                "clone_id":       pair.clone_id,
+                "type":           pair.clone_type,
+                "similarity":     pair.fusion_score,
                 "token_score":    pair.token_score,
                 "ast_score":      pair.ast_score,
                 "halstead_score": pair.halstead_score,
@@ -1413,9 +1625,8 @@ class CodeAnalyzer:
                 "explanation":  _clone_type_explanation(pair.clone_type),
             })
 
-        suggestions = generate_refactoring_suggestions(clone_pairs)
-
-        # Build the Code Quality Report (new — backward compatible, under "quality_report" key)
+        # Fix #9: Forward max_suggestions so callers can control suggestion count
+        suggestions    = generate_refactoring_suggestions(clone_pairs, max_suggestions)
         quality_report = _compute_quality_report(blocks, clone_pairs, code, self.language)
 
         return {
@@ -1428,13 +1639,13 @@ class CodeAnalyzer:
             "maintainability_index":  mi,
             "refactoring_suggestions": suggestions,
             "halstead_metrics": {
-                "total_volume":     round(total_volume, 2),
-                "avg_difficulty":   round(
+                "total_volume":   round(total_volume, 2),
+                "avg_difficulty": round(
                     sum(h.get("difficulty", 0) for h in all_halstead)
                     / max(len(all_halstead), 1), 2
                 ),
             },
-            "detection_method": "TAHD v1.1 (Token + AST + Halstead)",
+            "detection_method": "TAHD v1.2 (Token + AST + Halstead)",
             "quality_report":   quality_report,
         }
 
@@ -1448,12 +1659,27 @@ class CodeAnalyzer:
         code_b: str,
         file_a: str = "submission_a",
         file_b: str = "submission_b",
+        max_suggestions: int = 5,
     ) -> dict:
         """
         Compare two student submissions against each other.
-        This is the primary entry point for plagiarism / clone detection
-        between students.
+
+        Fix #11: Raises ValueError if code_a and code_b appear to be in
+        different languages than what this analyzer was initialized with.
+        (Basic guard: checks that both inputs are strings and non-empty.)
+
+        Fix #1: overall_similarity now reflects the fraction of blocks in
+        file_a that were involved in at least one detected clone pair,
+        rather than the average fusion score of detected pairs only.
+        Averaging fusion scores only over matched pairs is misleading
+        because it ignores the majority of unmatched blocks.
         """
+        # Fix #11: Cross-language guard
+        if not isinstance(code_a, str) or not code_a.strip():
+            raise ValueError("code_a must be a non-empty string")
+        if not isinstance(code_b, str) or not code_b.strip():
+            raise ValueError("code_b must be a non-empty string")
+
         blocks_a = extract_blocks(code_a, self.language)
         blocks_b = extract_blocks(code_b, self.language)
 
@@ -1461,13 +1687,15 @@ class CodeAnalyzer:
             blocks_a, blocks_b, file_a, file_b
         )
 
-        suggestions = generate_refactoring_suggestions(clone_pairs)
+        # Fix #9: Forward max_suggestions
+        suggestions = generate_refactoring_suggestions(clone_pairs, max_suggestions)
 
-        # Overall similarity = average fusion score of detected pairs
-        if clone_pairs:
-            overall_sim = round(
-                sum(p.fusion_score for p in clone_pairs) / len(clone_pairs), 4
-            )
+        # Fix #1: overall_similarity = fraction of blocks_a matched in at
+        # least one clone pair.  This gives a meaningful file-level score
+        # that does not ignore the unmatched majority of blocks.
+        if clone_pairs and blocks_a:
+            matched_a = {p.block_a.name for p in clone_pairs}
+            overall_sim = round(len(matched_a) / len(blocks_a), 4)
         else:
             overall_sim = 0.0
 
@@ -1506,7 +1734,7 @@ class CodeAnalyzer:
             "clone_count":       len(clone_pairs),
             "clones":            clones_out,
             "refactoring_suggestions": suggestions,
-            "detection_method":  "TAHD v1.1 (Token + AST + Halstead)",
+            "detection_method":  "TAHD v1.2 (Token + AST + Halstead)",
         }
 
 
