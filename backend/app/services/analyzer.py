@@ -214,6 +214,12 @@ _JAVA_LINE_COMMENT_RE  = re.compile(r"//[^\n]*")
 _JAVA_STRING_LIT_RE    = re.compile(r'"(?:\\.|[^"\\])*"')
 _JAVA_CHAR_LIT_RE      = re.compile(r"'(?:\\.|[^'\\])'")
 
+# Pre-compiled Python comment/string-stripping patterns
+_PY_COMMENT_RE       = re.compile(r'#[^\n]*')
+_PY_TRIPLE_DQ_RE     = re.compile(r'""".*?"""', re.DOTALL)
+_PY_TRIPLE_SQ_RE     = re.compile(r"'''.*?'''", re.DOTALL)
+_PY_DOUBLE_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
+_PY_SINGLE_STRING_RE = re.compile(r"'(?:\\.|[^'\\])*'")
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -1205,19 +1211,19 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
     """
     if language == "python":
         # Strip Python comments and string literals
-        clean = re.sub(r'#[^\n]*', ' ', source)
-        clean = re.sub(r'""".*?"""', 'STR', clean, flags=re.DOTALL)
-        clean = re.sub(r"'''.*?'''", 'STR', clean, flags=re.DOTALL)
-        clean = re.sub(r'"(?:\\.|[^"\\])*"', 'STR', clean)
-        clean = re.sub(r"'(?:\\.|[^'\\])*'", 'STR', clean)
+        clean = _PY_COMMENT_RE.sub(' ', source)
+        clean = _PY_TRIPLE_DQ_RE.sub('STR', clean)
+        clean = _PY_TRIPLE_SQ_RE.sub('STR', clean)
+        clean = _PY_DOUBLE_STRING_RE.sub('STR', clean)
+        clean = _PY_SINGLE_STRING_RE.sub('STR', clean)
         keywords = ["if ", "elif ", "else:", "for ", "while ",
                     "except", " and ", " or "]
     else:
         # Strip Java comments and string literals
         clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
         clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
-        clean = re.sub(r'"(?:\\.|[^"\\])*"', 'STR', clean)
-        clean = re.sub(r"'(?:\\.|[^'\\])'", 'STR', clean)
+        clean = _JAVA_STRING_LIT_RE.sub('STR', clean)
+        clean = _JAVA_CHAR_LIT_RE.sub('STR', clean)
         keywords = ["if ", "else ", "for ", "while ", "case ",
                     "catch ", " && ", " || ", " ? "]
 
