@@ -574,37 +574,38 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
         <div className="sdp-body">
           {!file.result ? (
             <div className="sdp-clear-state">
-              <p>Run batch analysis to populate code quality metrics.</p>
+              <p>Metrics not available. Run batch analysis to compute code quality metrics.</p>
             </div>
           ) : (
-            <div>
-              <div className="sdp-section-label" style={{marginBottom:12}}>Code Quality Metrics</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                {[
-                  { label: 'Lines of Code', value: file.result.lines_of_code ?? file.content.split('\n').filter(l=>l.trim()).length, unit: 'LOC' },
-                  { label: 'Cyclomatic Complexity', value: file.result.cyclomatic_complexity ?? '—', unit: '' },
-                  { label: 'Maintainability Index', value: file.result.maintainability_index != null ? file.result.maintainability_index.toFixed(1) : '—', unit: '/100' },
-                  { label: 'Halstead Volume', value: file.result.halstead_metrics?.total_volume != null ? file.result.halstead_metrics.total_volume.toFixed(1) : '—', unit: '' },
-                ].map(m => (
-                  <div key={m.label} className="sdp-feedback-card" style={{margin:0}}>
-                    <div className="sdp-section-label">{m.label}</div>
-                    <div style={{fontFamily:"'Outfit',sans-serif",fontSize:22,fontWeight:700,color:'#818cf8',marginTop:4}}>
-                      {m.value}<span style={{fontSize:12,color:'#6b7280',marginLeft:4}}>{m.unit}</span>
-                    </div>
-                  </div>
-                ))}
+            <div className="sdp-metrics-grid">
+              <div className="sdp-metric-item">
+                <span className="sdp-metric-value" style={{color: (file.result.cyclomatic_complexity??0) > 20 ? '#ef4444' : (file.result.cyclomatic_complexity??0) > 10 ? '#f97316' : '#6366f1'}}>
+                  {file.result.cyclomatic_complexity ?? '—'}
+                </span>
+                <span className="sdp-metric-label">Cyclomatic Complexity</span>
+                <span className="sdp-metric-hint">Measures number of independent code paths</span>
               </div>
-              {file.result.clone_percentage != null && (
-                <div className="sdp-feedback-card" style={{marginTop:10}}>
-                  <div className="sdp-section-label">Internal Clone Density</div>
-                  <div style={{display:'flex',alignItems:'center',gap:10,marginTop:4}}>
-                    <div style={{flex:1,height:6,background:'rgba(255,255,255,0.06)',borderRadius:4,overflow:'hidden'}}>
-                      <div style={{width:`${Math.min(file.result.clone_percentage,100)}%`,height:'100%',background:file.result.clone_percentage>50?'#ef4444':file.result.clone_percentage>25?'#f59e0b':'#22c55e',borderRadius:4}}/>
-                    </div>
-                    <span style={{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:700,color:'#f3f4f6',minWidth:42}}>{file.result.clone_percentage}%</span>
-                  </div>
-                </div>
-              )}
+              <div className="sdp-metric-item">
+                <span className="sdp-metric-value" style={{color: (file.result.maintainability_index??0) >= 60 ? '#22c55e' : (file.result.maintainability_index??0) >= 30 ? '#f97316' : '#ef4444'}}>
+                  {file.result.maintainability_index != null ? file.result.maintainability_index.toFixed(1) : '—'}
+                </span>
+                <span className="sdp-metric-label">Maintainability Index</span>
+                <span className="sdp-metric-hint">Higher is better (0–100 scale)</span>
+              </div>
+              <div className="sdp-metric-item">
+                <span className="sdp-metric-value" style={{color:'#9ca3af'}}>
+                  {file.result.lines_of_code ?? file.result.total_lines ?? file.content.split('\n').filter(l=>l.trim()).length}
+                </span>
+                <span className="sdp-metric-label">Lines of Code</span>
+                <span className="sdp-metric-hint">Non-blank, non-comment lines</span>
+              </div>
+              <div className="sdp-metric-item">
+                <span className="sdp-metric-value" style={{color:'#a78bfa'}}>
+                  {file.result.halstead_metrics?.total_volume != null ? file.result.halstead_metrics.total_volume.toFixed(1) : '—'}
+                </span>
+                <span className="sdp-metric-label">Halstead Volume</span>
+                <span className="sdp-metric-hint">Measures program size and complexity</span>
+              </div>
             </div>
           )}
         </div>
@@ -900,6 +901,31 @@ function CodeAnalyzer() {
   }
 
   function loadSample() { setCode(language==='python'?PYTHON_SAMPLE:JAVA_SAMPLE); setUploadedFileName(''); }
+
+  function exportCSV() {
+    const escapeCSV = v => `"${String(v).replace(/"/g, '""')}"`;
+    const rows = [['Student A', 'Student B', 'Clone Type', 'Overall Sim %', 'Token Sim %', 'Structural Sim %', 'Concepts']];
+    flaggedPairs.forEach(pair => {
+      const concepts = tagConcepts(pair).map(c => c.label).join('; ');
+      rows.push([
+        shortName(pair.fileA.name),
+        shortName(pair.fileB.name),
+        pair.cloneType,
+        (pair.similarity * 100).toFixed(1),
+        (pair.rawSim * 100).toFixed(1),
+        (pair.normSim * 100).toFixed(1),
+        concepts,
+      ]);
+    });
+    const csv = rows.map(r => r.map(escapeCSV).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'flagged_pairs.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   function getFragment(codeText,start,end) { return codeText.split('\n').slice(Math.max(0,start-1),end).join('\n'); }
   function getSeverityClass(pct) { return pct>50?'high':pct>25?'medium':'low'; }
 
@@ -1218,6 +1244,12 @@ function CodeAnalyzer() {
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
                         Clear
                       </button>
+                      {batchDone && flaggedPairs.length > 0 && (
+                        <button className="action-btn secondary" onClick={exportCSV} title="Download flagged pairs as CSV">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export CSV
+                        </button>
+                      )}
                     </>
                   )}
                 </div>

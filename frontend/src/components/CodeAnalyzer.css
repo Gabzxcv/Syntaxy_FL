@@ -524,6 +524,13 @@
 .sdp-code-view { font-family: 'Monaco','Menlo',monospace; font-size: 12px; line-height: 1.6; color: #d1d5db; padding: 16px 20px; margin: 0; overflow-x: auto; max-height: 500px; overflow-y: auto; }
 .sdp-clear-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px; text-align: center; color: #6b7280; font-size: 14px; }
 
+/* Metrics tab */
+.sdp-metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sdp-metric-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.sdp-metric-value { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 700; }
+.sdp-metric-label { font-size: 12px; font-weight: 600; color: #9ca3af; }
+.sdp-metric-hint { font-size: 11px; color: #4b5563; line-height: 1.4; }
+
 /* Feedback card */
 .sdp-feedback-card {
   background: rgba(99,102,241,0.06);
