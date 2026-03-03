@@ -1164,6 +1164,8 @@ function CodeAnalyzer() {
     const userId = user?.id || user?.username || 'default';
     const h = JSON.parse(localStorage.getItem(`activityHistory_${userId}`) || '[]');
     h.unshift({ id: Date.now(), type, icon: '', description, time: new Date().toISOString(), status: status || 'success' });
+    // Cap history to 200 entries to prevent unbounded localStorage growth
+    if (h.length > 200) h.length = 200;
     localStorage.setItem(`activityHistory_${userId}`, JSON.stringify(h));
   }, [user]);
 
@@ -1425,7 +1427,9 @@ function CodeAnalyzer() {
     const existing = JSON.parse(localStorage.getItem('studentResults') || '[]');
     const newNames = new Set(studentResults.map(r => r.fileName));
     const deduped = existing.filter(r => !newNames.has(r.fileName));
-    localStorage.setItem('studentResults', JSON.stringify([...studentResults, ...deduped]));
+    // Cap stored results to 500 entries to prevent unbounded localStorage growth
+    const merged = [...studentResults, ...deduped].slice(0, 500);
+    localStorage.setItem('studentResults', JSON.stringify(merged));
 
     logActivity('analysis', `Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
   }, [extractedFiles, user, logActivity]);
