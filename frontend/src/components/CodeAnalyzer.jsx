@@ -1,3 +1,16 @@
+/**
+ * CodeAnalyzer — main analysis page for the Syntaxy platform.
+ *
+ * Two modes:
+ *   1. Single File  – paste/upload one file, detect internal clones
+ *   2. Batch / Class – upload a zip of student submissions, compare every
+ *                      pair and surface educational feedback
+ *
+ * Clone detection types:
+ *   Type-1 (Exact)     : identical code, only whitespace/comments differ
+ *   Type-2 (Renamed)   : same structure, different variable/function names
+ *   Type-3 (Near-miss) : partially modified, but still structurally similar
+ */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JSZip from 'jszip';
@@ -137,6 +150,10 @@ function generateStudentFeedback(studentFile, pairsInvolving) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Look up display metadata (label, color, description) for a clone type.
+ * Accepts strings like "Type-1", "1", "near-miss", etc.
+ */
 function resolveCloneMeta(typeStr) {
   if (!typeStr) return CLONE_TYPE_META['Type-1'];
   const s = typeStr.toString().toLowerCase();
@@ -145,10 +162,16 @@ function resolveCloneMeta(typeStr) {
   return CLONE_TYPE_META['Type-1'];
 }
 
+/** Extract just the file name (without path or extension) for display. */
 function shortName(fileName) {
   return fileName.split('/').pop().replace(/\.(py|java|txt)$/i, '');
 }
 
+/**
+ * Compute Jaccard similarity between two code strings.
+ * Tokenizes both strings into word-sets and returns
+ * |intersection| / |union|, a value between 0 (no overlap) and 1 (identical).
+ */
 function computeSimilarity(codeA, codeB) {
   const tokenize = s => new Set(s.toLowerCase().replace(/[^a-z0-9_\s]/g, ' ').split(/\s+/).filter(t => t.length > 1));
   const A = tokenize(codeA);
@@ -158,6 +181,11 @@ function computeSimilarity(codeA, codeB) {
   return union === 0 ? 0 : intersection / union;
 }
 
+/**
+ * Normalize code by stripping comments, replacing strings/numbers/identifiers
+ * with generic tokens (STR, NUM, ID). This makes structural comparison
+ * insensitive to variable renaming — useful for detecting Type-2 clones.
+ */
 function normalizeCode(code) {
   return code
     .replace(/\/\/.*$/gm, '').replace(/#.*$/gm, '')
@@ -167,6 +195,13 @@ function normalizeCode(code) {
     .replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Classify a file pair as a clone type based on similarity scores.
+ *   Type-1 (exact):   raw token similarity >= 95%
+ *   Type-2 (renamed): normalized similarity >= 85%
+ *   Type-3 (near-miss): raw similarity >= 40%
+ * Returns null if similarities are too low to be considered a clone.
+ */
 function classifyPairType(raw, normalized) {
   if (raw >= 0.95) return 'Type-1';
   if (normalized >= 0.85) return 'Type-2';
@@ -174,6 +209,7 @@ function classifyPairType(raw, normalized) {
   return null;
 }
 
+/** Build a list of human-readable reasons explaining why a pair was flagged. */
 function generateExplanation(pair) {
   const { rawSim, normSim, cloneType, fileA, fileB } = pair;
   const nameA = shortName(fileA.name);
@@ -200,6 +236,7 @@ function generateExplanation(pair) {
   return reasons;
 }
 
+/** Aggregate dataset-level statistics (file count, LOC, tokens) for the batch summary. */
 function computeDatasetStats(files) {
   if (!files.length) return null;
   const locs = files.map(f => f.content.split('\n').filter(l => l.trim()).length);
@@ -211,6 +248,7 @@ function computeDatasetStats(files) {
   return { count: files.length, avgLOC, maxLOC, minLOC, langCounts, totalTokens };
 }
 
+/** Compute precision / recall / F1 for clone detection at a given threshold. */
 function computeAccuracyMetrics(allPairs, threshold) {
   if (!allPairs.length) return null;
   const predicted = allPairs.filter(p => p.similarity >= threshold);
@@ -224,6 +262,7 @@ function computeAccuracyMetrics(allPairs, threshold) {
   return { precision, recall, f1, tp, fp, fn, predicted: predicted.length, total: allPairs.length };
 }
 
+/** Map a similarity value (0–1) to a color for visual indicators. */
 function similarityColor(sim) {
   if (sim >= 0.8) return '#ef4444';
   if (sim >= 0.6) return '#f97316';
@@ -232,6 +271,7 @@ function similarityColor(sim) {
   return '#374151';
 }
 
+/** Simple syntax highlighter — applies keyword, string, number, and function coloring. */
 function highlightCode(code, language) {
   if (!code) return '';
   const pythonKW = ['def','class','if','elif','else','for','while','return','import','from','as','try','except','finally','with','yield','lambda','pass','break','continue','and','or','not','in','is','True','False','None','print','self','raise','del','global','nonlocal','assert'];
