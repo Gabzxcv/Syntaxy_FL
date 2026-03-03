@@ -1133,17 +1133,32 @@ def _compute_nesting_depth(source: str, language: str) -> int:
     else:
         depth = 0
         max_depth = 0
-        in_string = False
-        for ch in source:
+        i = 0
+        src = source
+        n = len(src)
+        while i < n:
+            ch = src[i]
+            # Skip double-quoted strings
             if ch == '"':
-                in_string = not in_string
-            if not in_string:
-                if ch == "{":
-                    depth += 1
-                    if depth > max_depth:
-                        max_depth = depth
-                elif ch == "}":
-                    depth = max(0, depth - 1)
+                i += 1
+                while i < n and src[i] != '"':
+                    if src[i] == '\\':
+                        i += 1  # skip escaped char
+                    i += 1
+            # Skip single-quoted char literals
+            elif ch == "'":
+                i += 1
+                while i < n and src[i] != "'":
+                    if src[i] == '\\':
+                        i += 1
+                    i += 1
+            elif ch == "{":
+                depth += 1
+                if depth > max_depth:
+                    max_depth = depth
+            elif ch == "}":
+                depth = max(0, depth - 1)
+            i += 1
         return max_depth
 
 
@@ -1197,15 +1212,23 @@ def _detect_unused_functions(blocks: list, source: str) -> set:
     """
     defined = {b.name for b in blocks if b.name not in ("<module>", "<class>")}
     called = set()
+
+    # Strip comments to avoid false positives from `# Call foo()` patterns
+    if any(b.language == "java" for b in blocks if hasattr(b, "language") and b.language):
+        searchable = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+        searchable = re.sub(r"//[^\n]*", " ", searchable)
+    else:
+        searchable = re.sub(r"#[^\n]*", " ", source)
+
     for name in defined:
         pattern = re.compile(r"\b" + re.escape(name) + r"\s*\(")
-        for m in pattern.finditer(source):
+        for m in pattern.finditer(searchable):
             # Check if this occurrence is NOT on a definition line
-            line_start = source.rfind("\n", 0, m.start()) + 1
-            line_end   = source.find("\n", m.start())
+            line_start = searchable.rfind("\n", 0, m.start()) + 1
+            line_end   = searchable.find("\n", m.start())
             if line_end == -1:
-                line_end = len(source)
-            line_text = source[line_start:line_end].lstrip()
+                line_end = len(searchable)
+            line_text = searchable[line_start:line_end].lstrip()
             if not (line_text.startswith("def ") or line_text.startswith("public ")
                     or line_text.startswith("private ") or line_text.startswith("protected ")):
                 called.add(name)

@@ -577,36 +577,68 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
               <p>Metrics not available. Run batch analysis to compute code quality metrics.</p>
             </div>
           ) : (
-            <div className="sdp-metrics-grid">
-              <div className="sdp-metric-item">
-                <span className="sdp-metric-value" style={{color: (file.result.cyclomatic_complexity??0) > 20 ? '#ef4444' : (file.result.cyclomatic_complexity??0) > 10 ? '#f97316' : '#6366f1'}}>
-                  {file.result.cyclomatic_complexity ?? '—'}
-                </span>
-                <span className="sdp-metric-label">Cyclomatic Complexity</span>
-                <span className="sdp-metric-hint">Measures number of independent code paths</span>
+            <>
+              <div className="sdp-metrics-grid">
+                <div className="sdp-metric-item">
+                  <span className="sdp-metric-value" style={{color: (file.result.cyclomatic_complexity??0) > 20 ? '#ef4444' : (file.result.cyclomatic_complexity??0) > 10 ? '#f97316' : '#6366f1'}}>
+                    {file.result.cyclomatic_complexity ?? '—'}
+                  </span>
+                  <span className="sdp-metric-label">Cyclomatic Complexity</span>
+                  <span className="sdp-metric-hint">Measures number of independent code paths</span>
+                </div>
+                <div className="sdp-metric-item">
+                  <span className="sdp-metric-value" style={{color: (file.result.maintainability_index??0) >= 60 ? '#22c55e' : (file.result.maintainability_index??0) >= 30 ? '#f97316' : '#ef4444'}}>
+                    {file.result.maintainability_index != null ? file.result.maintainability_index.toFixed(1) : '—'}
+                  </span>
+                  <span className="sdp-metric-label">Maintainability Index</span>
+                  <span className="sdp-metric-hint">Higher is better (0–100 scale)</span>
+                </div>
+                <div className="sdp-metric-item">
+                  <span className="sdp-metric-value" style={{color:'#9ca3af'}}>
+                    {file.result.lines_of_code ?? file.result.total_lines ?? file.content.split('\n').filter(l=>l.trim()).length}
+                  </span>
+                  <span className="sdp-metric-label">Lines of Code</span>
+                  <span className="sdp-metric-hint">Non-blank, non-comment lines</span>
+                </div>
+                <div className="sdp-metric-item">
+                  <span className="sdp-metric-value" style={{color:'#a78bfa'}}>
+                    {file.result.halstead_metrics?.total_volume != null ? file.result.halstead_metrics.total_volume.toFixed(1) : '—'}
+                  </span>
+                  <span className="sdp-metric-label">Halstead Volume</span>
+                  <span className="sdp-metric-hint">Measures program size and complexity</span>
+                </div>
+                {file.result.quality_report?.structure && (<>
+                  <div className="sdp-metric-item">
+                    <span className="sdp-metric-value" style={{color:'#6366f1'}}>
+                      {file.result.quality_report.structure.function_count}
+                    </span>
+                    <span className="sdp-metric-label">Functions</span>
+                    <span className="sdp-metric-hint">Number of defined functions/methods</span>
+                  </div>
+                  <div className="sdp-metric-item">
+                    <span className="sdp-metric-value" style={{color: (file.result.quality_report.structure.avg_function_length??0) > 30 ? '#ef4444' : (file.result.quality_report.structure.avg_function_length??0) > 20 ? '#f97316' : '#22c55e'}}>
+                      {file.result.quality_report.structure.avg_function_length}
+                    </span>
+                    <span className="sdp-metric-label">Avg Function Length</span>
+                    <span className="sdp-metric-hint">Average lines per function</span>
+                  </div>
+                  <div className="sdp-metric-item">
+                    <span className="sdp-metric-value" style={{color: (file.result.quality_report.structure.max_nesting_depth??0) > 3 ? '#ef4444' : (file.result.quality_report.structure.max_nesting_depth??0) > 2 ? '#f97316' : '#22c55e'}}>
+                      {file.result.quality_report.structure.max_nesting_depth}
+                    </span>
+                    <span className="sdp-metric-label">Max Nesting Depth</span>
+                    <span className="sdp-metric-hint">Deepest nesting level in the file</span>
+                  </div>
+                  <div className="sdp-metric-item">
+                    <span className="sdp-metric-value" style={{color:'#9ca3af'}}>
+                      {file.result.quality_report.structure.comment_density != null ? `${(file.result.quality_report.structure.comment_density * 100).toFixed(1)}%` : '—'}
+                    </span>
+                    <span className="sdp-metric-label">Comment Density</span>
+                    <span className="sdp-metric-hint">Ratio of comment lines to total lines</span>
+                  </div>
+                </>)}
               </div>
-              <div className="sdp-metric-item">
-                <span className="sdp-metric-value" style={{color: (file.result.maintainability_index??0) >= 60 ? '#22c55e' : (file.result.maintainability_index??0) >= 30 ? '#f97316' : '#ef4444'}}>
-                  {file.result.maintainability_index != null ? file.result.maintainability_index.toFixed(1) : '—'}
-                </span>
-                <span className="sdp-metric-label">Maintainability Index</span>
-                <span className="sdp-metric-hint">Higher is better (0–100 scale)</span>
-              </div>
-              <div className="sdp-metric-item">
-                <span className="sdp-metric-value" style={{color:'#9ca3af'}}>
-                  {file.result.lines_of_code ?? file.result.total_lines ?? file.content.split('\n').filter(l=>l.trim()).length}
-                </span>
-                <span className="sdp-metric-label">Lines of Code</span>
-                <span className="sdp-metric-hint">Non-blank, non-comment lines</span>
-              </div>
-              <div className="sdp-metric-item">
-                <span className="sdp-metric-value" style={{color:'#a78bfa'}}>
-                  {file.result.halstead_metrics?.total_volume != null ? file.result.halstead_metrics.total_volume.toFixed(1) : '—'}
-                </span>
-                <span className="sdp-metric-label">Halstead Volume</span>
-                <span className="sdp-metric-hint">Measures program size and complexity</span>
-              </div>
-            </div>
+            </>
           )}
         </div>
       )}
@@ -616,6 +648,111 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
           <pre className="sdp-code-view">
             <code dangerouslySetInnerHTML={{ __html: highlightCode(file.content, file.lang || 'python') }} />
           </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Quality Report Panel ─────────────────────────────────────────────────────
+
+const SMELL_META = {
+  long_function:        { label: '⚠️ Long Function',       color: '#f97316' },
+  high_complexity:      { label: '⚠️ High Complexity',     color: '#ef4444' },
+  internal_duplication: { label: '⚠️ Duplicate',           color: '#ef4444' },
+  unused_function:      { label: '⚠️ Unused',              color: '#6b7280' },
+};
+
+function metricColor(value, thresholds) {
+  if (value <= thresholds[0]) return '#22c55e';
+  if (value <= thresholds[1]) return '#f97316';
+  return '#ef4444';
+}
+
+function QualityReportPanel({ data }) {
+  if (!data) {
+    return (
+      <div className="qr-empty">
+        <p>Quality report not available. Analyze the code to generate a report.</p>
+      </div>
+    );
+  }
+  const { functions = [], structure = {} } = data;
+
+  return (
+    <div className="quality-report-panel">
+      {/* Structure summary */}
+      <div className="qr-structure-row">
+        {[
+          { label: 'Functions', value: structure.function_count ?? 0, unit: '' },
+          { label: 'Avg Length', value: structure.avg_function_length ?? 0, unit: ' lines' },
+          { label: 'Max Nesting', value: structure.max_nesting_depth ?? 0, unit: '' },
+          { label: 'Comment Density', value: structure.comment_density != null ? `${(structure.comment_density * 100).toFixed(1)}%` : '—', unit: '' },
+        ].map(stat => (
+          <div key={stat.label} className="qr-stat-card">
+            <span className="qr-stat-value">{stat.value}{stat.unit}</span>
+            <span className="qr-stat-label">{stat.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Per-function breakdown */}
+      {functions.length === 0 ? (
+        <div className="qr-empty"><p>No functions found in this file.</p></div>
+      ) : (
+        <div className="qr-table-wrapper">
+          <table className="qr-table">
+            <thead>
+              <tr>
+                <th>Function</th>
+                <th>Lines</th>
+                <th>Complexity</th>
+                <th>Volume</th>
+                <th>Nesting</th>
+                <th>Smells</th>
+              </tr>
+            </thead>
+            <tbody>
+              {functions.map((fn, i) => (
+                <tr key={i} className="qr-row">
+                  <td className="qr-fn-name">{fn.name}</td>
+                  <td>
+                    <span className="qr-metric" style={{ color: metricColor(fn.line_count, [20, 30]) }}>
+                      {fn.line_count}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="qr-metric" style={{ color: metricColor(fn.cyclomatic_complexity, [5, 10]) }}>
+                      {fn.cyclomatic_complexity}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="qr-metric" style={{ color: metricColor(fn.halstead?.volume ?? 0, [100, 200]) }}>
+                      {fn.halstead?.volume != null ? fn.halstead.volume.toFixed(1) : '—'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="qr-metric" style={{ color: metricColor(fn.nesting_depth, [2, 3]) }}>
+                      {fn.nesting_depth}
+                    </span>
+                  </td>
+                  <td className="qr-smells-cell">
+                    {fn.smells && fn.smells.length > 0
+                      ? fn.smells.map(s => {
+                          const m = SMELL_META[s] || { label: s, color: '#9ca3af' };
+                          return (
+                            <span key={s} className="qr-smell-badge" style={{ color: m.color, borderColor: m.color + '50' }}>
+                              {m.label}
+                            </span>
+                          );
+                        })
+                      : <span className="qr-clean-badge">✓ Clean</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -1102,7 +1239,14 @@ function CodeAnalyzer() {
                         <span className="result-title">Analysis Results</span>
                         {analysisData.mock&&<span className="mock-badge">MOCK MODE</span>}
                       </div>
-                      <span className="result-time">{analysisData.execution_time_ms}ms</span>
+                      <div className="result-header-right">
+                        <span className="result-time">{analysisData.execution_time_ms}ms</span>
+                        <div className="result-tabs">
+                          <button className={`result-tab${activeTab==='results'?' active':''}`} onClick={()=>setActiveTab('results')}>Results</button>
+                          <button className={`result-tab${activeTab==='diff'?' active':''}`} onClick={()=>setActiveTab('diff')}>Diff View</button>
+                          <button className={`result-tab${activeTab==='quality'?' active':''}`} onClick={()=>setActiveTab('quality')}>Quality Report</button>
+                        </div>
+                      </div>
                     </div>
                     <div className="metrics-rings-row">
                       <MetricRing value={analysisData.clone_percentage} max={100} color={analysisData.clone_percentage>50?'#ef4444':analysisData.clone_percentage>25?'#f97316':'#22c55e'} label={`${analysisData.clone_percentage}%`} sublabel="Clone Rate"/>
@@ -1116,92 +1260,111 @@ function CodeAnalyzer() {
                         ))}
                       </div>
                     </div>
-                    {analysisData.clones&&analysisData.clones.length>0&&(
+
+                    {/* ── Results tab ── */}
+                    {activeTab==='results'&&(
                       <>
-                        <div className="clone-type-legend">
-                          {Object.entries(CLONE_TYPE_META).map(([k,m])=>(
-                            <div key={k} className="legend-item" style={{borderColor:m.border,background:m.bg}}>
-                              <span className="legend-dot" style={{background:m.color}}/><span className="legend-type" style={{color:m.color}}>{m.label}</span>
-                              <span className="legend-name">{m.fullName}</span><span className="legend-desc">{m.description}</span>
+                        {analysisData.clones&&analysisData.clones.length>0?(
+                          <>
+                            <div className="clone-type-legend">
+                              {Object.entries(CLONE_TYPE_META).map(([k,m])=>(
+                                <div key={k} className="legend-item" style={{borderColor:m.border,background:m.bg}}>
+                                  <span className="legend-dot" style={{background:m.color}}/><span className="legend-type" style={{color:m.color}}>{m.label}</span>
+                                  <span className="legend-name">{m.fullName}</span><span className="legend-desc">{m.description}</span>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                        <div className="clones-section">
-                          <div className="clones-section-header">
-                            <h4 className="subsection-title">Clones Detected ({analysisData.clones.length})</h4>
-                            <div className="result-tabs">
-                              <button className={`result-tab${activeTab==='results'?' active':''}`} onClick={()=>setActiveTab('results')}>Results</button>
-                              <button className={`result-tab${activeTab==='diff'?' active':''}`} onClick={()=>setActiveTab('diff')}>Diff View</button>
-                            </div>
-                          </div>
-                          {activeTab==='results'&&(
-                            <div className="clones-list">
-                              {analysisData.clones.map((clone,i)=>{
-                                const meta=resolveCloneMeta(clone.type); const isExp=expandedClone===i;
-                                return (
-                                  <div key={i} className="clone-card" style={{borderColor:meta.border,background:meta.bg}}>
-                                    <div className="clone-header" onClick={()=>setExpandedClone(isExp?null:i)} style={{cursor:'pointer'}}>
-                                      <div className="clone-header-left">
-                                        <span className="clone-type-badge" style={{background:meta.color,color:'#fff'}}>{meta.label}</span>
-                                        <span className="clone-type-name" style={{color:meta.color}}>{meta.fullName}</span>
-                                      </div>
-                                      <div className="clone-header-right">
-                                        <div className="similarity-score-wrapper">
-                                          <div className="similarity-bar-bg"><div className="similarity-bar-fill" style={{width:`${(clone.similarity*100).toFixed(0)}%`,background:meta.color}}/></div>
-                                          <span className="similarity-pct" style={{color:meta.color}}>{(clone.similarity*100).toFixed(1)}%</span>
-                                          <span className="similarity-label">similarity</span>
+                            <div className="clones-section">
+                              <div className="clones-section-header">
+                                <h4 className="subsection-title">Clones Detected ({analysisData.clones.length})</h4>
+                              </div>
+                              <div className="clones-list">
+                                {analysisData.clones.map((clone,i)=>{
+                                  const meta=resolveCloneMeta(clone.type); const isExp=expandedClone===i;
+                                  return (
+                                    <div key={i} className="clone-card" style={{borderColor:meta.border,background:meta.bg}}>
+                                      <div className="clone-header" onClick={()=>setExpandedClone(isExp?null:i)} style={{cursor:'pointer'}}>
+                                        <div className="clone-header-left">
+                                          <span className="clone-type-badge" style={{background:meta.color,color:'#fff'}}>{meta.label}</span>
+                                          <span className="clone-type-name" style={{color:meta.color}}>{meta.fullName}</span>
                                         </div>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isExp?'rotate(180deg)':'none',transition:'transform 0.2s',color:'#6b7280'}}><polyline points="6 9 12 15 18 9"/></svg>
+                                        <div className="clone-header-right">
+                                          <div className="similarity-score-wrapper">
+                                            <div className="similarity-bar-bg"><div className="similarity-bar-fill" style={{width:`${(clone.similarity*100).toFixed(0)}%`,background:meta.color}}/></div>
+                                            <span className="similarity-pct" style={{color:meta.color}}>{(clone.similarity*100).toFixed(1)}%</span>
+                                            <span className="similarity-label">similarity</span>
+                                          </div>
+                                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isExp?'rotate(180deg)':'none',transition:'transform 0.2s',color:'#6b7280'}}><polyline points="6 9 12 15 18 9"/></svg>
+                                        </div>
                                       </div>
+                                      <div className="clone-locations">
+                                        {clone.locations.map((l,j)=>(
+                                          <span key={j} className="clone-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Lines {l.start_line}–{l.end_line}</span>
+                                        ))}
+                                      </div>
+                                      {isExp&&<div className="clone-inline-diff"><CodeDiff language={language} labelA={`Fragment A (Lines ${clone.locations[0]?.start_line}–${clone.locations[0]?.end_line})`} labelB={`Fragment B (Lines ${clone.locations[1]?.start_line}–${clone.locations[1]?.end_line})`} codeA={clone.fragmentA||getFragment(code,clone.locations[0]?.start_line,clone.locations[0]?.end_line)} codeB={clone.fragmentB||getFragment(code,clone.locations[1]?.start_line,clone.locations[1]?.end_line)}/></div>}
                                     </div>
-                                    <div className="clone-locations">
-                                      {clone.locations.map((l,j)=>(
-                                        <span key={j} className="clone-location"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Lines {l.start_line}–{l.end_line}</span>
-                                      ))}
-                                    </div>
-                                    {isExp&&<div className="clone-inline-diff"><CodeDiff language={language} labelA={`Fragment A (Lines ${clone.locations[0]?.start_line}–${clone.locations[0]?.end_line})`} labelB={`Fragment B (Lines ${clone.locations[1]?.start_line}–${clone.locations[1]?.end_line})`} codeA={clone.fragmentA||getFragment(code,clone.locations[0]?.start_line,clone.locations[0]?.end_line)} codeB={clone.fragmentB||getFragment(code,clone.locations[1]?.start_line,clone.locations[1]?.end_line)}/></div>}
-                                  </div>
-                                );
-                              })}
+                                  );
+                                })}
+                              </div>
                             </div>
-                          )}
-                          {activeTab==='diff'&&(
-                            <div className="diff-all-view">
-                              {analysisData.clones.map((clone,i)=>{
-                                const meta=resolveCloneMeta(clone.type);
-                                return (
-                                  <div key={i} className="diff-clone-block">
-                                    <div className="diff-clone-title">
-                                      <span className="clone-type-badge" style={{background:meta.color,color:'#fff'}}>{meta.label}</span>
-                                      <span style={{color:meta.color,fontWeight:600}}>{meta.fullName}</span>
-                                      <span className="diff-similarity" style={{color:meta.color}}>{(clone.similarity*100).toFixed(1)}% similar</span>
-                                    </div>
-                                    <CodeDiff language={language} labelA={`Fragment A · Lines ${clone.locations[0]?.start_line}–${clone.locations[0]?.end_line}`} labelB={`Fragment B · Lines ${clone.locations[1]?.start_line}–${clone.locations[1]?.end_line}`} codeA={clone.fragmentA||getFragment(code,clone.locations[0]?.start_line,clone.locations[0]?.end_line)} codeB={clone.fragmentB||getFragment(code,clone.locations[1]?.start_line,clone.locations[1]?.end_line)}/>
-                                  </div>
-                                );
-                              })}
+                          </>
+                        ):(
+                          <div className="no-clones-msg">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="No clones detected"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                            <p>No internal clones detected in this file.</p>
+                          </div>
+                        )}
+                        {analysisData.refactoring_suggestions?.length>0&&(
+                          <div className="suggestions-section">
+                            <h4 className="subsection-title">Refactoring Suggestions</h4>
+                            <div className="suggestion-cards">
+                              {analysisData.refactoring_suggestions.map((s,i)=>(
+                                <div key={i} className="analyzer-suggestion-card">
+                                  <div className="analyzer-suggestion-type">{s.refactoring_type}</div>
+                                  <div className="analyzer-suggestion-text">{s.explanation.remember}</div>
+                                  <div className="analyzer-suggestion-text">{s.explanation.apply}</div>
+                                </div>
+                              ))}
                             </div>
-                          )}
-                        </div>
+                            <button className="action-btn primary refactoring-link-btn" onClick={()=>{localStorage.setItem('refactoringCode',code);localStorage.setItem('refactoringLanguage',language);navigate('/refactoring');}}>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:6}}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                              Open in Refactoring Tool
+                            </button>
+                          </div>
+                        )}
                       </>
                     )}
-                    {analysisData.refactoring_suggestions?.length>0&&(
-                      <div className="suggestions-section">
-                        <h4 className="subsection-title">Refactoring Suggestions</h4>
-                        <div className="suggestion-cards">
-                          {analysisData.refactoring_suggestions.map((s,i)=>(
-                            <div key={i} className="analyzer-suggestion-card">
-                              <div className="analyzer-suggestion-type">{s.refactoring_type}</div>
-                              <div className="analyzer-suggestion-text">{s.explanation.remember}</div>
-                              <div className="analyzer-suggestion-text">{s.explanation.apply}</div>
-                            </div>
-                          ))}
+
+                    {/* ── Diff View tab ── */}
+                    {activeTab==='diff'&&(
+                      analysisData.clones&&analysisData.clones.length>0?(
+                        <div className="diff-all-view">
+                          {analysisData.clones.map((clone,i)=>{
+                            const meta=resolveCloneMeta(clone.type);
+                            return (
+                              <div key={i} className="diff-clone-block">
+                                <div className="diff-clone-title">
+                                  <span className="clone-type-badge" style={{background:meta.color,color:'#fff'}}>{meta.label}</span>
+                                  <span style={{color:meta.color,fontWeight:600}}>{meta.fullName}</span>
+                                  <span className="diff-similarity" style={{color:meta.color}}>{(clone.similarity*100).toFixed(1)}% similar</span>
+                                </div>
+                                <CodeDiff language={language} labelA={`Fragment A · Lines ${clone.locations[0]?.start_line}–${clone.locations[0]?.end_line}`} labelB={`Fragment B · Lines ${clone.locations[1]?.start_line}–${clone.locations[1]?.end_line}`} codeA={clone.fragmentA||getFragment(code,clone.locations[0]?.start_line,clone.locations[0]?.end_line)} codeB={clone.fragmentB||getFragment(code,clone.locations[1]?.start_line,clone.locations[1]?.end_line)}/>
+                              </div>
+                            );
+                          })}
                         </div>
-                        <button className="action-btn primary refactoring-link-btn" onClick={()=>{localStorage.setItem('refactoringCode',code);localStorage.setItem('refactoringLanguage',language);navigate('/refactoring');}}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:6}}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                          Open in Refactoring Tool
-                        </button>
-                      </div>
+                      ):(
+                        <div className="no-clones-msg">
+                          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-label="No clones to display"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                          <p>No clones to display in diff view.</p>
+                        </div>
+                      )
+                    )}
+
+                    {/* ── Quality Report tab ── */}
+                    {activeTab==='quality'&&(
+                      <QualityReportPanel data={analysisData.quality_report} />
                     )}
                   </div>
                 )}
