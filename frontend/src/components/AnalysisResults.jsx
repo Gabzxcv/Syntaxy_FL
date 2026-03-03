@@ -238,7 +238,7 @@ function AnalysisResults() {
             </button>
             <div>
               <h2 className="page-title">Analysis Results</h2>
-              <p className="page-subtitle">TAHD-powered code analysis and cross-student similarity detection</p>
+              <p className="page-subtitle">Code clone detection and similarity analysis results</p>
             </div>
           </div>
         </header>
@@ -299,7 +299,7 @@ function AnalysisResults() {
             <section className="settings-section">
               <h3 className="section-title">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                TAHD Analysis History
+                Analysis History
               </h3>
 
               <div style={{ overflowX: 'auto' }}>

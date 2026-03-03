@@ -841,7 +841,7 @@ function CodeAnalyzer() {
             </button>
             <div>
               <h2 className="page-title">Code Analyzer</h2>
-              <p className="page-subtitle">Detect code clones and compare student submissions</p>
+              <p className="page-subtitle">Detect code clones and get refactoring suggestions</p>
             </div>
           </div>
           <div className="mode-toggle">
