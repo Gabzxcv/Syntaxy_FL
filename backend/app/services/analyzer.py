@@ -54,6 +54,7 @@ v1.1 (2026-03-03)
 
 import ast
 import io
+import itertools
 import math
 import re
 import tokenize
@@ -118,10 +119,16 @@ class FunctionBlock:
     start_line: int
     end_line: int
     source: str
+    language: str = ""
     tokens: list = field(default_factory=list)
     raw_tokens: list = field(default_factory=list)
     ast_sequence: list = field(default_factory=list)
     halstead: dict = field(default_factory=dict)
+    # Performance caches — computed once, reused across all pair comparisons
+    _ngrams_norm: object = field(default=None, init=False, repr=False, compare=False)
+    _ngrams_raw: object = field(default=None, init=False, repr=False, compare=False)
+    _halstead_vec: object = field(default=None, init=False, repr=False, compare=False)
+    _ast_ready: bool = field(default=False, init=False, repr=False, compare=False)
 
 
 @dataclass
@@ -317,16 +324,16 @@ def _jaccard(set_a: set, set_b: set) -> float:
 def compute_token_similarity(block_a: FunctionBlock,
                               block_b: FunctionBlock) -> float:
     """Layer 1: Jaccard on normalized token n-gram sets."""
-    ngrams_a = _make_ngrams(block_a.tokens)
-    ngrams_b = _make_ngrams(block_b.tokens)
+    ngrams_a = block_a._ngrams_norm if block_a._ngrams_norm is not None else _make_ngrams(block_a.tokens)
+    ngrams_b = block_b._ngrams_norm if block_b._ngrams_norm is not None else _make_ngrams(block_b.tokens)
     return _jaccard(ngrams_a, ngrams_b)
 
 
 def compute_raw_token_similarity(block_a: FunctionBlock,
                                   block_b: FunctionBlock) -> float:
     """Jaccard on raw (unnormalized) token n-gram sets for Type-1 detection."""
-    ngrams_a = _make_ngrams(block_a.raw_tokens)
-    ngrams_b = _make_ngrams(block_b.raw_tokens)
+    ngrams_a = block_a._ngrams_raw if block_a._ngrams_raw is not None else _make_ngrams(block_a.raw_tokens)
+    ngrams_b = block_b._ngrams_raw if block_b._ngrams_raw is not None else _make_ngrams(block_b.raw_tokens)
     return _jaccard(ngrams_a, ngrams_b)
 
 
@@ -415,12 +422,19 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
     """
     Normalized Levenshtein distance between two sequences.
     Returns a SIMILARITY score in [0, 1]  (1 = identical).
-    Uses the standard DP algorithm.
+    Uses the standard DP algorithm with two optimizations:
+    1. Diagonal band: if length ratio > 2:1 the sequences cannot be clones.
+    2. Early exit: if the minimum DP value in a row reaches max_len the
+       final similarity will be 0.0, so we bail immediately.
     """
     la, lb = len(seq_a), len(seq_b)
     if la == 0 and lb == 0:
         return 1.0
     if la == 0 or lb == 0:
+        return 0.0
+
+    # Diagonal band optimization: length ratio > 2:1 → can't be clones
+    if la > 2 * lb or lb > 2 * la:
         return 0.0
 
     # Cap sequence length to avoid O(n²) blowup on very large files
@@ -429,12 +443,15 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
     seq_b = seq_b[:MAX_LEN]
     la, lb = len(seq_a), len(seq_b)
 
+    max_len = max(la, lb)
+
     # Two-row DP
     prev = list(range(lb + 1))
     curr = [0] * (lb + 1)
 
     for i in range(1, la + 1):
         curr[0] = i
+        min_in_row = curr[0]
         for j in range(1, lb + 1):
             cost = 0 if seq_a[i-1] == seq_b[j-1] else 1
             curr[j] = min(
@@ -442,16 +459,32 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
                 curr[j-1] + 1,     # insertion
                 prev[j-1] + cost,  # substitution
             )
+            if curr[j] < min_in_row:
+                min_in_row = curr[j]
+        # Early exit: minimum edit distance already at max_len → similarity = 0.0
+        if min_in_row >= max_len:
+            return 0.0
         prev, curr = curr, prev
 
     edit_dist = prev[lb]
-    max_len   = max(la, lb)
     return 1.0 - (edit_dist / max_len)
+
+
+def _ensure_ast_sequence(block: FunctionBlock) -> None:
+    """Lazily compute and cache the AST node sequence for a block."""
+    if not block._ast_ready and block.source:
+        if block.language == "java":
+            block.ast_sequence = _java_ast_sequence(block.source)
+        else:
+            block.ast_sequence = _python_ast_sequence(block.source)
+        block._ast_ready = True
 
 
 def compute_ast_similarity(block_a: FunctionBlock,
                             block_b: FunctionBlock) -> float:
     """Layer 2: Normalized tree edit distance on AST node sequences."""
+    _ensure_ast_sequence(block_a)
+    _ensure_ast_sequence(block_b)
     return _edit_distance_normalized(block_a.ast_sequence,
                                      block_b.ast_sequence)
 
@@ -635,8 +668,8 @@ def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
 def compute_halstead_similarity(block_a: FunctionBlock,
                                  block_b: FunctionBlock) -> float:
     """Layer 3: Cosine similarity on Halstead feature vectors."""
-    vec_a = _halstead_vector(block_a.halstead)
-    vec_b = _halstead_vector(block_b.halstead)
+    vec_a = block_a._halstead_vec if block_a._halstead_vec is not None else _halstead_vector(block_a.halstead)
+    vec_b = block_b._halstead_vec if block_b._halstead_vec is not None else _halstead_vector(block_b.halstead)
     return _cosine_similarity(vec_a, vec_b)
 
 
@@ -700,11 +733,14 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
             start_line=1,
             end_line=len(lines),
             source=source,
+            language="python",
         )
         fb.tokens       = _normalize_python_tokens(source)
         fb.raw_tokens   = _raw_python_tokens(source)
-        fb.ast_sequence = _python_ast_sequence(source)
         fb.halstead     = _extract_halstead_python(source)
+        fb._ngrams_norm = _make_ngrams(fb.tokens)
+        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
+        fb._halstead_vec = _halstead_vector(fb.halstead)
         return [fb]
 
     func_nodes = [
@@ -719,11 +755,14 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
             start_line=1,
             end_line=len(lines),
             source=source,
+            language="python",
         )
         fb.tokens       = _normalize_python_tokens(source)
         fb.raw_tokens   = _raw_python_tokens(source)
-        fb.ast_sequence = _python_ast_sequence(source)
         fb.halstead     = _extract_halstead_python(source)
+        fb._ngrams_norm = _make_ngrams(fb.tokens)
+        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
+        fb._halstead_vec = _halstead_vector(fb.halstead)
         return [fb]
 
     for node in func_nodes:
@@ -736,11 +775,14 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
             start_line=start,
             end_line=end,
             source=func_src,
+            language="python",
         )
         fb.tokens       = _normalize_python_tokens(func_src)
         fb.raw_tokens   = _raw_python_tokens(func_src)
-        fb.ast_sequence = _python_ast_sequence(func_src)
         fb.halstead     = _extract_halstead_python(func_src)
+        fb._ngrams_norm = _make_ngrams(fb.tokens)
+        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
+        fb._halstead_vec = _halstead_vector(fb.halstead)
         blocks.append(fb)
 
     return blocks
@@ -804,11 +846,14 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
             start_line=start_line,
             end_line=end_line,
             source=func_src,
+            language="java",
         )
         fb.tokens       = _normalize_java_tokens(func_src)
         fb.raw_tokens   = _raw_java_tokens(func_src)
-        fb.ast_sequence = _java_ast_sequence(func_src)
         fb.halstead     = _extract_halstead_java(func_src)
+        fb._ngrams_norm = _make_ngrams(fb.tokens)
+        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
+        fb._halstead_vec = _halstead_vector(fb.halstead)
         blocks.append(fb)
 
     if not blocks:
@@ -818,11 +863,14 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
             start_line=1,
             end_line=len(lines),
             source=source,
+            language="java",
         )
         fb.tokens       = _normalize_java_tokens(source)
         fb.raw_tokens   = _raw_java_tokens(source)
-        fb.ast_sequence = _java_ast_sequence(source)
         fb.halstead     = _extract_halstead_java(source)
+        fb._ngrams_norm = _make_ngrams(fb.tokens)
+        fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
+        fb._halstead_vec = _halstead_vector(fb.halstead)
         blocks.append(fb)
 
     return blocks
@@ -841,6 +889,57 @@ def extract_blocks(source: str, language: str) -> list[FunctionBlock]:
 # PAIRWISE DETECTION — compare all block pairs
 # ===========================================================================
 
+def _compare_block_pairs(
+    pair_iter,
+    file_a: str,
+    file_b: str,
+) -> list[ClonePair]:
+    """
+    Core TAHD pipeline applied to an iterable of (block_a, block_b) tuples.
+
+    Steps for each pair:
+      1. Token Jaccard prefilter  (skip pairs below THRESH_TOKEN_PREFILTER)
+      2. AST structural similarity  (lazy — only reached when token passes)
+      3. Halstead cosine similarity
+      4. Fusion score + clone classification
+    """
+    pairs = []
+    for block_a, block_b in pair_iter:
+        # ---- Layer 1 ----
+        token_score = compute_token_similarity(block_a, block_b)
+        if token_score < THRESH_TOKEN_PREFILTER:
+            continue   # fast skip — not similar enough to proceed
+
+        raw_token_score = compute_raw_token_similarity(block_a, block_b)
+
+        # ---- Layer 2 (lazy AST computed on first access) ----
+        ast_score = compute_ast_similarity(block_a, block_b)
+
+        # ---- Layer 3 ----
+        halstead_score = compute_halstead_similarity(block_a, block_b)
+
+        # ---- Fusion ----
+        fusion = compute_fusion_score(token_score, ast_score, halstead_score)
+        clone_type = classify_clone(token_score, ast_score, fusion,
+                                    raw_token_score)
+
+        if clone_type is not None:
+            pairs.append(ClonePair(
+                clone_id       = str(uuid.uuid4()),
+                clone_type     = clone_type,
+                token_score    = round(token_score,    4),
+                ast_score      = round(ast_score,      4),
+                halstead_score = round(halstead_score, 4),
+                fusion_score   = round(fusion,         4),
+                block_a        = block_a,
+                block_b        = block_b,
+                file_a         = file_a,
+                file_b         = file_b,
+            ))
+
+    return pairs
+
+
 def detect_clones_in_blocks(
     blocks_a: list[FunctionBlock],
     blocks_b: list[FunctionBlock],
@@ -849,51 +948,11 @@ def detect_clones_in_blocks(
 ) -> list[ClonePair]:
     """
     Run the full TAHD pipeline on every pair of blocks from two files.
-
-    Steps:
-      1. Token Jaccard prefilter  (skip pairs below THRESH_TOKEN_PREFILTER)
-      2. AST structural similarity
-      3. Halstead cosine similarity
-      4. Fusion score + clone classification
+    Delegates to _compare_block_pairs with itertools.product.
     """
-    pairs = []
-
-    for block_a in blocks_a:
-        for block_b in blocks_b:
-            # ---- Layer 1 ----
-            token_score = compute_token_similarity(block_a, block_b)
-            if token_score < THRESH_TOKEN_PREFILTER:
-                continue   # fast skip — not similar enough to proceed
-
-            raw_token_score = compute_raw_token_similarity(block_a, block_b)
-
-            # ---- Layer 2 ----
-            ast_score = compute_ast_similarity(block_a, block_b)
-
-            # ---- Layer 3 ----
-            halstead_score = compute_halstead_similarity(block_a, block_b)
-
-            # ---- Fusion ----
-            fusion = compute_fusion_score(token_score, ast_score,
-                                          halstead_score)
-            clone_type = classify_clone(token_score, ast_score, fusion,
-                                        raw_token_score)
-
-            if clone_type is not None:
-                pairs.append(ClonePair(
-                    clone_id       = str(uuid.uuid4()),
-                    clone_type     = clone_type,
-                    token_score    = round(token_score,    4),
-                    ast_score      = round(ast_score,      4),
-                    halstead_score = round(halstead_score, 4),
-                    fusion_score   = round(fusion,         4),
-                    block_a        = block_a,
-                    block_b        = block_b,
-                    file_a         = file_a,
-                    file_b         = file_b,
-                ))
-
-    return pairs
+    return _compare_block_pairs(
+        itertools.product(blocks_a, blocks_b), file_a, file_b
+    )
 
 
 def detect_clones_single_file(
@@ -903,40 +962,11 @@ def detect_clones_single_file(
     """
     Detect clones within a single file (all unique block pairs).
     Useful when analyzing one student submission for internal duplication.
+    Delegates to _compare_block_pairs with itertools.combinations.
     """
-    pairs = []
-    for i in range(len(blocks)):
-        for j in range(i + 1, len(blocks)):
-            block_a = blocks[i]
-            block_b = blocks[j]
-
-            token_score = compute_token_similarity(block_a, block_b)
-            if token_score < THRESH_TOKEN_PREFILTER:
-                continue
-
-            raw_token_score = compute_raw_token_similarity(block_a, block_b)
-            ast_score      = compute_ast_similarity(block_a, block_b)
-            halstead_score = compute_halstead_similarity(block_a, block_b)
-            fusion         = compute_fusion_score(token_score, ast_score,
-                                                   halstead_score)
-            clone_type     = classify_clone(token_score, ast_score, fusion,
-                                            raw_token_score)
-
-            if clone_type is not None:
-                pairs.append(ClonePair(
-                    clone_id       = str(uuid.uuid4()),
-                    clone_type     = clone_type,
-                    token_score    = round(token_score,    4),
-                    ast_score      = round(ast_score,      4),
-                    halstead_score = round(halstead_score, 4),
-                    fusion_score   = round(fusion,         4),
-                    block_a        = block_a,
-                    block_b        = block_b,
-                    file_a         = filename,
-                    file_b         = filename,
-                ))
-
-    return pairs
+    return _compare_block_pairs(
+        itertools.combinations(blocks, 2), filename, filename
+    )
 
 
 # ===========================================================================
@@ -1081,6 +1111,204 @@ def compute_maintainability_index(
 
 
 # ===========================================================================
+# CODE QUALITY REPORT HELPERS
+# ===========================================================================
+
+def _compute_nesting_depth(source: str, language: str) -> int:
+    """
+    Compute the maximum nesting depth of a function's source.
+    Python: counts indent levels (assumed 4-space indentation).
+    Java  : counts brace depth.
+    """
+    if language == "python":
+        max_depth = 0
+        for line in source.splitlines():
+            stripped = line.lstrip()
+            if stripped and not stripped.startswith("#"):
+                indent = len(line) - len(stripped)
+                depth = indent // 4
+                if depth > max_depth:
+                    max_depth = depth
+        return max_depth
+    else:
+        depth = 0
+        max_depth = 0
+        i = 0
+        src = source
+        n = len(src)
+        while i < n:
+            ch = src[i]
+            # Skip double-quoted strings
+            if ch == '"':
+                i += 1
+                while i < n and src[i] != '"':
+                    if src[i] == '\\':
+                        i += 1  # skip escaped char
+                    i += 1
+            # Skip single-quoted char literals
+            elif ch == "'":
+                i += 1
+                while i < n and src[i] != "'":
+                    if src[i] == '\\':
+                        i += 1
+                    i += 1
+            elif ch == "{":
+                depth += 1
+                if depth > max_depth:
+                    max_depth = depth
+            elif ch == "}":
+                depth = max(0, depth - 1)
+            i += 1
+        return max_depth
+
+
+def _compute_comment_density(source: str, language: str) -> float:
+    """Compute ratio of comment lines to total source lines."""
+    lines = source.splitlines()
+    total = len(lines)
+    if total == 0:
+        return 0.0
+    comment_count = 0
+    if language == "python":
+        in_docstring = False
+        for line in lines:
+            stripped = line.strip()
+            if not in_docstring and (stripped.startswith('"""') or stripped.startswith("'''")):
+                in_docstring = True
+                comment_count += 1
+                # single-line docstring closes on the same line if it has 2+ delimiters
+                if stripped.count('"""') >= 2 or stripped.count("'''") >= 2:
+                    in_docstring = False
+            elif in_docstring:
+                comment_count += 1
+                if '"""' in stripped or "'''" in stripped:
+                    in_docstring = False
+            elif stripped.startswith("#"):
+                comment_count += 1
+    else:
+        in_block = False
+        for line in lines:
+            stripped = line.strip()
+            if in_block:
+                comment_count += 1
+                if "*/" in stripped:
+                    in_block = False
+            elif stripped.startswith("//"):
+                comment_count += 1
+            elif "/*" in stripped:
+                comment_count += 1
+                idx = stripped.index("/*")
+                if "*/" not in stripped[idx + 2:]:
+                    in_block = True
+    return round(comment_count / total, 3)
+
+
+def _detect_unused_functions(blocks: list, source: str) -> set:
+    """
+    Return the set of function names that are defined but never called
+    within the same file (simple name-based heuristic).
+    A function is considered "called" if its name appears as `name(` somewhere
+    other than its own definition line.
+    """
+    defined = {b.name for b in blocks if b.name not in ("<module>", "<class>")}
+    called = set()
+
+    # Strip comments to avoid false positives from `# Call foo()` patterns
+    if any(b.language == "java" for b in blocks if hasattr(b, "language") and b.language):
+        searchable = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
+        searchable = re.sub(r"//[^\n]*", " ", searchable)
+    else:
+        searchable = re.sub(r"#[^\n]*", " ", source)
+
+    for name in defined:
+        pattern = re.compile(r"\b" + re.escape(name) + r"\s*\(")
+        for m in pattern.finditer(searchable):
+            # Check if this occurrence is NOT on a definition line
+            line_start = searchable.rfind("\n", 0, m.start()) + 1
+            line_end   = searchable.find("\n", m.start())
+            if line_end == -1:
+                line_end = len(searchable)
+            line_text = searchable[line_start:line_end].lstrip()
+            if not (line_text.startswith("def ") or line_text.startswith("public ")
+                    or line_text.startswith("private ") or line_text.startswith("protected ")):
+                called.add(name)
+                break
+    return defined - called
+
+
+def _compute_quality_report(
+    blocks: list,
+    clone_pairs: list,
+    source: str,
+    language: str,
+) -> dict:
+    """
+    Build the full Code Quality Report for a single-file analysis.
+
+    Returns a dict with:
+      - "functions": per-function breakdown list
+      - "structure": file-level summary stats
+    """
+    # Identify functions involved in internal clones
+    cloned_names: set = set()
+    for pair in clone_pairs:
+        cloned_names.add(pair.block_a.name)
+        cloned_names.add(pair.block_b.name)
+
+    # Detect unused functions
+    unused_names = _detect_unused_functions(blocks, source)
+
+    func_details = []
+    for block in blocks:
+        cc        = compute_cyclomatic_complexity(block.source, language)
+        nesting   = _compute_nesting_depth(block.source, language)
+        line_count = block.end_line - block.start_line + 1
+
+        smells = []
+        if line_count > 30:
+            smells.append("long_function")
+        if cc > 10:
+            smells.append("high_complexity")
+        if block.name in cloned_names:
+            smells.append("internal_duplication")
+        if block.name in unused_names:
+            smells.append("unused_function")
+
+        func_details.append({
+            "name":                  block.name,
+            "start_line":            block.start_line,
+            "end_line":              block.end_line,
+            "line_count":            line_count,
+            "cyclomatic_complexity": round(cc, 1),
+            "halstead": {
+                "volume":     block.halstead.get("volume",     0),
+                "difficulty": block.halstead.get("difficulty", 0),
+                "effort":     block.halstead.get("effort",     0),
+            },
+            "nesting_depth": nesting,
+            "smells":        smells,
+        })
+
+    function_count = len(func_details)
+    avg_length = (
+        round(sum(f["line_count"] for f in func_details) / function_count, 1)
+        if function_count > 0 else 0.0
+    )
+    max_nesting = max((f["nesting_depth"] for f in func_details), default=0)
+    comment_density = _compute_comment_density(source, language)
+
+    return {
+        "functions": func_details,
+        "structure": {
+            "function_count":    function_count,
+            "avg_function_length": avg_length,
+            "max_nesting_depth": max_nesting,
+            "comment_density":   comment_density,
+        },
+    }
+
+
+# ===========================================================================
 # SYNTAX VALIDATION
 # ===========================================================================
 
@@ -1187,6 +1415,9 @@ class CodeAnalyzer:
 
         suggestions = generate_refactoring_suggestions(clone_pairs)
 
+        # Build the Code Quality Report (new — backward compatible, under "quality_report" key)
+        quality_report = _compute_quality_report(blocks, clone_pairs, code, self.language)
+
         return {
             "analysis_id":            str(uuid.uuid4()),
             "language":               self.language,
@@ -1204,6 +1435,7 @@ class CodeAnalyzer:
                 ),
             },
             "detection_method": "TAHD v1.1 (Token + AST + Halstead)",
+            "quality_report":   quality_report,
         }
 
     # ------------------------------------------------------------------
