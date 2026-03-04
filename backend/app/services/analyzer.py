@@ -43,6 +43,41 @@ Authors : Fusion Logic — FEU Institute of Technology, 2026
 
 Changelog
 ---------
+v1.4 (2026-03-04)
+  - Fix #20: _halstead_vector() dims 5–6 (operator_ratio, token_density) wrapped
+    in math.log1p() to bound previously unbounded ratios and restore balance in
+    cosine similarity computation.
+  - Fix #21: classify_clone() now falls back to threshold-based Type-1 check after
+    exact list equality fails, catching near-exact matches with only literal diffs.
+  - Fix #22: _make_ngrams() switched from set to multiset (dict/Counter); _jaccard()
+    updated to multiset Jaccard to avoid false positives from repeated n-grams.
+  - Fix #23: Type-3 classification now requires at least one structural layer to show
+    meaningful similarity (ast >= 0.30 or token >= 0.35) to prevent false positives.
+  - Fix #25: _compare_block_pairs() skips pairs where max/min token length ratio > 3
+    (blocks with vastly different sizes cannot be clones).
+  - Fix #26: BLOCK_OPEN / BLOCK_CLOSE removed from _JAVA_AST_CONSTRUCTS — they inflate
+    similarity between any two Java methods and reduce discriminative power.
+  - Fix #27: _python_ast_sequence() emits type-qualified Constant nodes
+    (e.g. Constant_int, Constant_str) to distinguish literal types.
+  - Fix #28: analyze_pair() uses (name, start_line) tuple instead of just name to
+    identify matched blocks, correctly handling overloaded/same-named functions.
+  - Fix #30: _deduplicate_clone_pairs() added; called in detect_clones_in_blocks()
+    and detect_clones_single_file() to keep only best match per block.
+  - Fix #32: _strip_decorators() helper strips Python decorators and Java annotations
+    before tokenization in _make_block(), preventing false Type-2 downgrades.
+  - Fix #33: _detect_unused_functions() now also checks for bare-name references
+    (callbacks, dict values, assignments, method refs) beyond direct call syntax.
+  - Fix #35: _extract_java_blocks() regex updated to support two-level nested
+    generics in return types (e.g. Map<String, List<Integer>>).
+  - Fix #37: _strip_imports() helper removes import statements before tokenization
+    in _make_block() to prevent import order/style differences from affecting scores.
+  - Fix #38: _extract_python_blocks() uses node.end_lineno directly (Python 3.8+
+    always provides it); removed inaccurate getattr fallback.
+  - Fix #39: ClonePair gains a confidence field (0.0–1.0); _compare_block_pairs()
+    computes it as margin above the matched threshold; propagated to API responses.
+  - Fix #40: compute_cyclomatic_complexity() now counts elif separately before
+    counting if, preventing elif from being double-counted as an additional if.
+
 v1.3 (2026-03-04)
   - Fix #1 (v1.3): lexTokens() in frontend now preserves operators as tokens
     instead of stripping them, preventing false positives between functions
@@ -210,8 +245,6 @@ _JAVA_AST_CONSTRUCTS = [
     (re.compile(r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
                 r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b"),
      "TYPEDECL"),
-    (re.compile(r"\{"), "BLOCK_OPEN"),
-    (re.compile(r"\}"), "BLOCK_CLOSE"),
     # Fix #4: CALL is last — the claimed-positions mechanism prevents
     # overlap with higher-priority keyword patterns.  The negative
     # lookahead rejects identifiers that are reserved keywords.
@@ -278,6 +311,7 @@ class ClonePair:
     block_b: FunctionBlock
     file_a: str = ""
     file_b: str = ""
+    confidence: float = 0.0   # how confident the classification is (0.0-1.0)
 
 
 # ===========================================================================
@@ -401,22 +435,30 @@ def _raw_java_tokens(source: str) -> list[str]:
     return tokens
 
 
-def _make_ngrams(tokens: list[str], n: int = NGRAM_SIZE) -> set:
-    """Convert a token list into a set of n-gram tuples."""
+def _make_ngrams(tokens: list[str], n: int = NGRAM_SIZE) -> dict:
+    """Convert a token list into a multiset (Counter) of n-gram tuples."""
     if len(tokens) < n:
-        return {tuple(tokens)} if tokens else set()
-    return {tuple(tokens[i:i+n]) for i in range(len(tokens) - n + 1)}
+        if tokens:
+            key = tuple(tokens)
+            return {key: 1}
+        return {}
+    counts = {}
+    for i in range(len(tokens) - n + 1):
+        gram = tuple(tokens[i:i+n])
+        counts[gram] = counts.get(gram, 0) + 1
+    return counts
 
 
-def _jaccard(set_a: set, set_b: set) -> float:
-    """Jaccard similarity between two sets."""
-    if not set_a and not set_b:
+def _jaccard(counter_a: dict, counter_b: dict) -> float:
+    """Multiset Jaccard similarity between two Counters."""
+    if not counter_a and not counter_b:
         return 1.0
-    if not set_a or not set_b:
+    if not counter_a or not counter_b:
         return 0.0
-    intersection = len(set_a & set_b)
-    union        = len(set_a | set_b)
-    return intersection / union
+    all_keys = set(counter_a) | set(counter_b)
+    inter = sum(min(counter_a.get(k, 0), counter_b.get(k, 0)) for k in all_keys)
+    union = sum(max(counter_a.get(k, 0), counter_b.get(k, 0)) for k in all_keys)
+    return inter / union if union else 1.0
 
 
 def compute_token_similarity(block_a: FunctionBlock,
@@ -453,7 +495,10 @@ def _python_ast_sequence(source: str) -> list[str]:
     sequence = []
 
     def _visit(node: ast.AST) -> None:
-        sequence.append(type(node).__name__)
+        name = type(node).__name__
+        if name == "Constant" and hasattr(node, "value"):
+            name = f"Constant_{type(node.value).__name__}"
+        sequence.append(name)
         for child in ast.iter_child_nodes(node):
             _visit(child)
 
@@ -740,8 +785,8 @@ def _halstead_vector(h: dict) -> list[float]:
         math.log1p(h.get("volume",     0)),
         math.log1p(h.get("difficulty", 0)),
         math.log1p(h.get("effort",     0)),
-        N1 / (N2 + 1),
-        N / (vocab),
+        math.log1p(N1 / (N2 + 1)),
+        math.log1p(N / vocab),
         (n1 + n2) / (N + 1),
     ]
 
@@ -802,19 +847,43 @@ def classify_clone(token_score: float,
     if raw_tokens_a is not None and raw_tokens_b is not None:
         if raw_tokens_a == raw_tokens_b:
             return 1
+        # Fallback: threshold-based for near-exact matches with literal differences
+        if raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+            return 1
     elif raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
         return 1
 
     if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
         return 2
     if fusion_score >= THRESH_FUSION_TYPE3:
-        return 3
+        # Guard: at least one structural layer must show meaningful similarity
+        if ast_score >= 0.30 or token_score >= 0.35:
+            return 3
     return None
 
 
 # ===========================================================================
 # BLOCK EXTRACTION — split source into function-level units
 # ===========================================================================
+
+def _strip_decorators(source: str, language: str) -> str:
+    """Strip decorators (Python) and annotations (Java) before tokenization."""
+    if language == "python":
+        lines = source.splitlines()
+        return '\n'.join(l for l in lines if not l.strip().startswith('@'))
+    else:
+        return re.sub(r'@\w+(?:\([^)]*\))?\s*', '', source)
+
+
+def _strip_imports(source: str, language: str) -> str:
+    """Remove import statements before tokenization — they don't affect logic."""
+    if language == "python":
+        return '\n'.join(l for l in source.splitlines()
+                         if not l.strip().startswith(('import ', 'from ')))
+    else:
+        return '\n'.join(l for l in source.splitlines()
+                         if not l.strip().startswith('import '))
+
 
 def _make_block(name, start_line, end_line, source, language) -> FunctionBlock:
     """Helper to construct and fully initialise a FunctionBlock."""
@@ -825,14 +894,16 @@ def _make_block(name, start_line, end_line, source, language) -> FunctionBlock:
         source=source,
         language=language,
     )
+    # Clean source for tokenization only (preserve original source for display)
+    clean_source = _strip_decorators(_strip_imports(source, language), language)
     if language == "python":
-        fb.tokens        = _normalize_python_tokens(source)
-        fb.raw_tokens    = _raw_python_tokens(source)
-        fb.halstead      = _extract_halstead_python(source)
+        fb.tokens        = _normalize_python_tokens(clean_source)
+        fb.raw_tokens    = _raw_python_tokens(clean_source)
+        fb.halstead      = _extract_halstead_python(clean_source)
     else:
-        fb.tokens        = _normalize_java_tokens(source)
-        fb.raw_tokens    = _raw_java_tokens(source)
-        fb.halstead      = _extract_halstead_java(source)
+        fb.tokens        = _normalize_java_tokens(clean_source)
+        fb.raw_tokens    = _raw_java_tokens(clean_source)
+        fb.halstead      = _extract_halstead_java(clean_source)
     fb._ngrams_norm  = _make_ngrams(fb.tokens)
     fb._ngrams_raw   = _make_ngrams(fb.raw_tokens)
     fb._halstead_vec = _halstead_vector(fb.halstead)
@@ -862,7 +933,7 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
     blocks = []
     for node in func_nodes:
         start    = node.lineno
-        end      = getattr(node, "end_lineno", start + 1)
+        end      = node.end_lineno  # Available since Python 3.8
         func_src = "\n".join(lines[start - 1: end])
         blocks.append(_make_block(node.name, start, end, func_src, "python"))
 
@@ -888,7 +959,7 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
     method_pattern = re.compile(
         r"(?:(?:public|private|protected|static|final|synchronized|"
         r"abstract|native|strictfp)\s+)*"
-        r"(?:\w+(?:<[^>]*>)?)\s+"
+        r"(?:\w+(?:<(?:[^<>]|<[^<>]*>)*>)?)\s+"
         r"(\w+)\s*"
         r"\([^)]*\)\s*"
         r"(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?"
@@ -976,6 +1047,7 @@ def _compare_block_pairs(
 
     Steps for each pair:
       0. MIN_TOKENS guard     (Fix #5: skip trivially short blocks)
+      0b. Length ratio guard  (Fix #25: skip vastly different-sized blocks)
       1. Token Jaccard prefilter
       2. AST structural similarity
       3. Halstead cosine similarity
@@ -987,6 +1059,12 @@ def _compare_block_pairs(
         # Trivial functions (getters, setters, one-liners) will match each
         # other vacuously and inflate clone counts.
         if len(block_a.tokens) < MIN_TOKENS or len(block_b.tokens) < MIN_TOKENS:
+            continue
+
+        # Fix #25: Length ratio guard — blocks with vastly different sizes
+        # are not clones (a 12-token getter cannot clone a 200-token function).
+        len_a, len_b = len(block_a.tokens), len(block_b.tokens)
+        if max(len_a, len_b) > 3 * min(len_a, len_b):
             continue
 
         # ---- Layer 1 ----
@@ -1010,6 +1088,16 @@ def _compare_block_pairs(
                                     raw_tokens_b=block_b.raw_tokens)
 
         if clone_type is not None:
+            # Fix #39: Compute confidence as margin above threshold
+            if clone_type == 1:
+                confidence = min(1.0, (min(raw_token_score, ast_score) - THRESH_TYPE1)
+                                 / max(1.0 - THRESH_TYPE1, 1e-9) + 0.5)
+            elif clone_type == 2:
+                confidence = min(1.0, (min(token_score, ast_score) - THRESH_TYPE2)
+                                 / max(1.0 - THRESH_TYPE2, 1e-9) + 0.5)
+            else:
+                confidence = min(1.0, (fusion - THRESH_FUSION_TYPE3)
+                                 / max(1.0 - THRESH_FUSION_TYPE3, 1e-9) + 0.5)
             pairs.append(ClonePair(
                 clone_id       = str(uuid.uuid4()),
                 clone_type     = clone_type,
@@ -1021,9 +1109,27 @@ def _compare_block_pairs(
                 block_b        = block_b,
                 file_a         = file_a,
                 file_b         = file_b,
+                confidence     = round(max(0.0, confidence), 4),
             ))
 
     return pairs
+
+
+def _deduplicate_clone_pairs(pairs: list) -> list:
+    """Keep only the best match for each block to prevent one function
+    from appearing in multiple clone pairs."""
+    pairs_sorted = sorted(pairs, key=lambda p: p.fusion_score, reverse=True)
+    used_a: set = set()
+    used_b: set = set()
+    result = []
+    for p in pairs_sorted:
+        key_a = (p.block_a.name, p.block_a.start_line)
+        key_b = (p.block_b.name, p.block_b.start_line)
+        if key_a not in used_a and key_b not in used_b:
+            result.append(p)
+            used_a.add(key_a)
+            used_b.add(key_b)
+    return result
 
 
 def detect_clones_in_blocks(
@@ -1036,9 +1142,10 @@ def detect_clones_in_blocks(
     Run the full TAHD pipeline on every pair of blocks from two files.
     Delegates to _compare_block_pairs with itertools.product.
     """
-    return _compare_block_pairs(
+    pairs = _compare_block_pairs(
         itertools.product(blocks_a, blocks_b), file_a, file_b
     )
+    return _deduplicate_clone_pairs(pairs)
 
 
 def detect_clones_single_file(
@@ -1050,9 +1157,10 @@ def detect_clones_single_file(
     Useful when analyzing one student submission for internal duplication.
     Delegates to _compare_block_pairs with itertools.combinations.
     """
-    return _compare_block_pairs(
+    pairs = _compare_block_pairs(
         itertools.combinations(blocks, 2), filename, filename
     )
+    return _deduplicate_clone_pairs(pairs)
 
 
 # ===========================================================================
@@ -1263,8 +1371,14 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
         clean = _PY_TRIPLE_SQ_RE.sub('STR', clean)
         clean = _PY_DOUBLE_STRING_RE.sub('STR', clean)
         clean = _PY_SINGLE_STRING_RE.sub('STR', clean)
-        keywords = ["if ", "elif ", "else:", "for ", "while ",
-                    "except", " and ", " or "]
+        # Count elif separately, then replace so 'if ' count doesn't double-count them
+        count = 1
+        count += clean.count("elif ")
+        clean_no_elif = clean.replace("elif ", "ELIF_ ")
+        count += clean_no_elif.count("if ")
+        for kw in ["else:", "for ", "while ", "except", " and ", " or "]:
+            count += clean.count(kw)
+        return float(count)
     else:
         # Strip Java comments and string literals
         clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
@@ -1273,12 +1387,10 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
         clean = _JAVA_CHAR_LIT_RE.sub('STR', clean)
         keywords = ["if ", "else ", "for ", "while ", "case ",
                     "catch ", " && ", " || ", " ? "]
-
-    count = 1
-    for kw in keywords:
-        count += clean.count(kw)
-
-    return float(count)
+        count = 1
+        for kw in keywords:
+            count += clean.count(kw)
+        return float(count)
 
 
 def compute_maintainability_index(
@@ -1491,6 +1603,25 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
                 called.add(name)
                 break
 
+        # Fix #33: Also check for bare-name references (callbacks, dict values,
+        # variable assignments, Java method references, etc.)
+        if name not in called:
+            bare_pattern = re.compile(r"(?<!\bdef\s)(?<!\bclass\s)\b" + re.escape(name) + r"\b")
+            matches = list(bare_pattern.finditer(searchable))
+            # Filter out the definition line itself
+            non_def = []
+            for m in matches:
+                line_start = searchable.rfind("\n", 0, m.start()) + 1
+                line_end   = searchable.find("\n", m.start())
+                if line_end == -1:
+                    line_end = len(searchable)
+                line_text = searchable[line_start:line_end].lstrip()
+                if not (line_text.startswith("def ") or line_text.startswith("public ")
+                        or line_text.startswith("private ") or line_text.startswith("protected ")):
+                    non_def.append(m)
+            if len(non_def) >= 1:
+                called.add(name)
+
     unused_in_file = defined - called
     result = {}
     for name in unused_in_file:
@@ -1672,6 +1803,7 @@ class CodeAnalyzer:
                 "token_score":    pair.token_score,
                 "ast_score":      pair.ast_score,
                 "halstead_score": pair.halstead_score,
+                "confidence":     pair.confidence,
                 "locations": [
                     {
                         "function":   pair.block_a.name,
@@ -1757,7 +1889,7 @@ class CodeAnalyzer:
         # least one clone pair.  This gives a meaningful file-level score
         # that does not ignore the unmatched majority of blocks.
         if clone_pairs and blocks_a:
-            matched_a = {p.block_a.name for p in clone_pairs}
+            matched_a = {(p.block_a.name, p.block_a.start_line) for p in clone_pairs}
             overall_sim = round(len(matched_a) / len(blocks_a), 4)
         else:
             overall_sim = 0.0
@@ -1771,6 +1903,7 @@ class CodeAnalyzer:
                 "token_score":    pair.token_score,
                 "ast_score":      pair.ast_score,
                 "halstead_score": pair.halstead_score,
+                "confidence":     pair.confidence,
                 "locations": [
                     {
                         "file":       pair.file_a,

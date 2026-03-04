@@ -175,16 +175,16 @@ class TestNgramFix:
     """Test _make_ngrams edge cases"""
 
     def test_short_sequence_returns_single_tuple(self):
-        """Tokens shorter than n should return set with one tuple"""
+        """Tokens shorter than n should return dict with one tuple key"""
         from app.services.analyzer import _make_ngrams
         result = _make_ngrams(['a', 'b'], n=3)
-        assert result == {('a', 'b')}
+        assert result == {('a', 'b'): 1}
 
     def test_empty_sequence_returns_empty_set(self):
-        """Empty token list should return empty set"""
+        """Empty token list should return empty dict"""
         from app.services.analyzer import _make_ngrams
         result = _make_ngrams([], n=3)
-        assert result == set()
+        assert result == {}
 
 
 class TestMetricsCalculation:
