@@ -43,6 +43,27 @@ Authors : Fusion Logic — FEU Institute of Technology, 2026
 
 Changelog
 ---------
+v1.3 (2026-03-04)
+  - Fix #1 (v1.3): lexTokens() in frontend now preserves operators as tokens
+    instead of stripping them, preventing false positives between functions
+    with identical structure but different operators.
+  - Fix #2 (v1.3): Frontend Type-1 threshold raised from 0.70 to 0.95 to
+    match backend THRESH_TYPE1; Type-2 structural threshold updated from
+    0.72 to 0.75 to match backend THRESH_TYPE2.
+  - Fix #3 (v1.3): Frontend breakdown variable now declared at loop-iteration
+    scope to prevent ReferenceError in the fallback path.
+  - Fix #4 (v1.3): THRESH_TOKEN_PREFILTER lowered from 0.40 to 0.30 to
+    improve Type-3 recall for heavily modified clones.
+  - Fix #5 (v1.3): classify_clone() now accepts raw_tokens_a / raw_tokens_b
+    and uses exact list equality for Type-1 detection instead of a threshold,
+    matching the formal definition (exact copy modulo whitespace/comments).
+  - Fix #6 (v1.3): _halstead_vector() expanded from 5 to 8 independent
+    dimensions (added operator_ratio, token_density, vocab_richness) to
+    reduce redundancy and improve cosine similarity quality.
+  - Fix #7 (v1.3): MAX_LEN raised from 300 to 500; sequences beyond MAX_LEN
+    now use head+tail sampling to preserve structural visibility across the
+    full function body.
+
 v1.2 (2026-03-04)
   - Fix #1 : overall_similarity in analyze_pair now reflects fraction of
     matched blocks rather than average fusion score of detected pairs only.
@@ -107,7 +128,7 @@ assert abs(W_TOKEN + W_AST + W_HALSTEAD - 1.0) < 1e-9, (
 )
 
 # Per-layer thresholds
-THRESH_TOKEN_PREFILTER = 0.40   # minimum token Jaccard to proceed to Layer 2
+THRESH_TOKEN_PREFILTER = 0.30   # minimum token Jaccard to proceed to Layer 2 (lowered from 0.40 for better Type-3 recall)
 THRESH_TYPE1           = 0.95   # both token AND ast must reach this for Type 1
 THRESH_TYPE2           = 0.75   # both token AND ast must reach this for Type 2
 THRESH_FUSION_TYPE3    = 0.60   # fusion score threshold for Type 3
@@ -511,10 +532,16 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
     if la > 2 * lb or lb > 2 * la:
         return 0.0
 
-    # Cap sequence length to avoid O(n²) blowup on very large files
-    MAX_LEN = 300
-    seq_a = seq_a[:MAX_LEN]
-    seq_b = seq_b[:MAX_LEN]
+    # Cap sequence length to avoid O(n²) blowup on very large files.
+    # For sequences longer than MAX_LEN, sample from both head and tail
+    # to preserve visibility into the entire function structure.
+    MAX_LEN = 500
+    if len(seq_a) > MAX_LEN:
+        half = MAX_LEN // 2
+        seq_a = seq_a[:half] + seq_a[-half:]
+    if len(seq_b) > MAX_LEN:
+        half = MAX_LEN // 2
+        seq_b = seq_b[:half] + seq_b[-half:]
     la, lb = len(seq_a), len(seq_b)
 
     max_len = max(la, lb)
@@ -686,7 +713,7 @@ def _halstead_metrics(operators: list, operands: list) -> dict:
 
 def _halstead_vector(h: dict) -> list[float]:
     """
-    Return a 5-dimensional feature vector from a Halstead dict for
+    Return an 8-dimensional feature vector from a Halstead dict for
     cosine-similarity comparison.
 
     Dimension layout
@@ -696,10 +723,16 @@ def _halstead_vector(h: dict) -> list[float]:
     2  log1p(volume)
     3  log1p(difficulty)
     4  log1p(effort)
+    5  operator_ratio    = N1 / (N2 + 1)         (operator-to-operand usage ratio)
+    6  token_density     = N / (vocabulary + 1)   (total tokens / unique tokens)
+    7  vocab_richness    = vocabulary / (N + 1)   (unique tokens / total tokens)
     """
     n1 = h.get("n1", 0)
     n2 = h.get("n2", 0)
+    N1 = h.get("N1", 0)
+    N2 = h.get("N2", 0)
     vocab = n1 + n2 + 1          # +1 avoids division by zero
+    N = N1 + N2
 
     return [
         n1 / vocab,
@@ -707,6 +740,9 @@ def _halstead_vector(h: dict) -> list[float]:
         math.log1p(h.get("volume",     0)),
         math.log1p(h.get("difficulty", 0)),
         math.log1p(h.get("effort",     0)),
+        N1 / (N2 + 1),
+        N / (vocab),
+        (n1 + n2) / (N + 1),
     ]
 
 
@@ -744,22 +780,31 @@ def compute_fusion_score(token_score: float,
 def classify_clone(token_score: float,
                    ast_score: float,
                    fusion_score: float,
-                   raw_token_score: float = None) -> int | None:
+                   raw_token_score: float = None,
+                   raw_tokens_a: list = None,
+                   raw_tokens_b: list = None) -> int | None:
     """
     Return clone type (1, 2, 3) or None if not a clone.
 
-    Type 1 : near-perfect *raw* token AND structural match (exact copy)
+    Type 1 : exact raw token sequence match (whitespace/comments already stripped)
     Type 2 : strong *normalized* token AND structural match (renamed identifiers)
     Type 3 : fusion score passes threshold (near-miss / modified)
 
     The raw_token_score distinguishes Type-1 from Type-2: a renamed clone
     will score highly on normalized tokens but poorly on raw tokens.
+    When raw_tokens_a and raw_tokens_b are provided, an exact list comparison
+    is used for Type-1 rather than a threshold check.
     """
     if raw_token_score is None:
         raw_token_score = token_score
 
-    if raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+    # Type-1: exact raw token sequence match (whitespace/comments already stripped)
+    if raw_tokens_a is not None and raw_tokens_b is not None:
+        if raw_tokens_a == raw_tokens_b:
+            return 1
+    elif raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
         return 1
+
     if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
         return 2
     if fusion_score >= THRESH_FUSION_TYPE3:
@@ -960,7 +1005,9 @@ def _compare_block_pairs(
         # ---- Fusion ----
         fusion = compute_fusion_score(token_score, ast_score, halstead_score)
         clone_type = classify_clone(token_score, ast_score, fusion,
-                                    raw_token_score)
+                                    raw_token_score,
+                                    raw_tokens_a=block_a.raw_tokens,
+                                    raw_tokens_b=block_b.raw_tokens)
 
         if clone_type is not None:
             pairs.append(ClonePair(
@@ -1661,7 +1708,7 @@ class CodeAnalyzer:
                     / max(len(all_halstead), 1), 2
                 ),
             },
-            "detection_method": "TAHD v1.2 (Token + AST + Halstead)",
+            "detection_method": "TAHD v1.3 (Token + AST + Halstead)",
             "quality_report":   quality_report,
         }
 
@@ -1753,7 +1800,7 @@ class CodeAnalyzer:
             "clone_count":       len(clone_pairs),
             "clones":            clones_out,
             "refactoring_suggestions": suggestions,
-            "detection_method":  "TAHD v1.2 (Token + AST + Halstead)",
+            "detection_method":  "TAHD v1.3 (Token + AST + Halstead)",
             "dominant_clone_type":   dominant_type,
             "clone_type_breakdown":  dict(type_counts),   # e.g. {1: 1, 2: 1, 3: 1}
         }
