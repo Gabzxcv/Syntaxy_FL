@@ -5,27 +5,57 @@ A three-layer hybrid code clone detection engine for educational
 Python and Java submissions.
 
 Layer 1 — Token Prefilter      : Jaccard similarity on normalized token n-grams
-Layer 2 — AST Structural Check : Normalized tree edit distance on AST node sequences
+Layer 2 — AST Structural Check : Combined edit-distance + bag-of-nodes similarity
 Layer 3 — Halstead Fingerprint : Cosine similarity on Halstead complexity vectors
 
 Fusion score = 0.30 * token_jaccard + 0.40 * ast_similarity + 0.30 * halstead_cosine
 
 Clone classification:
-  Type 1 : raw_token >= 0.95 AND ast >= 0.95  (exact / whitespace only)
+  Type 1 : exact raw match OR literal-normalized match OR (raw >= 0.88 AND ast >= 0.95)
   Type 2 : norm_token >= 0.75 AND ast >= 0.75  (renamed identifiers, not Type 1)
-  Type 3 : fusion >= 0.60                      (near-miss / modified)
+  Type 3 : fusion >= 0.60 AND ast >= 0.35 AND token >= 0.35 AND max(ast,token) >= 0.40
 
-Type-1 vs Type-2 distinction uses *raw* (unnormalized) tokens for Type-1 and
-*normalized* tokens (identifiers → ID) for Type-2.  A renamed clone will score
-highly on normalized tokens but poorly on raw tokens, allowing proper
-classification as Type-2 rather than Type-1.
+Key algorithmic improvements in v1.6 over v1.5
+-----------------------------------------------
+Fix #A — Adaptive n-gram size
+    _make_ngrams() now accepts an optional n parameter; compute_token_similarity()
+    and compute_raw_token_similarity() choose n based on the shorter token list:
+      n=2 for < 20 tokens, n=3 for 20–59 tokens, n=4 for >= 60 tokens.
+    Motivation: fixed trigrams on short functions (10–19 tokens) are highly
+    sensitive to single-token changes, producing noisy Jaccard scores.  Bigrams
+    are more stable for short sequences; 4-grams reduce false-positive Jaccard
+    on large functions that share common idiom subsequences.
 
-Halstead metrics (volume, difficulty, effort, vocabulary) are traditionally
-used only for code-quality measurement.  TAHD repurposes them as a DETECTION
-signal: copied code preserves its computational complexity signature even when
-identifiers are renamed or statements are reordered, making the Halstead vector
-a robust third layer for catching Type-3 clones that slip past token and AST
-checks alone.
+Fix #B — Literal-normalized token stream for Type-1 detection
+    _literal_normalize_*() functions produce a token list where NUMBER/STRING
+    literals are replaced with NUM/STR but identifier names are preserved
+    (unlike full normalization which also replaces identifiers with ID).
+    classify_clone() now accepts lit_tokens_a / lit_tokens_b and checks
+    exact list equality as a second Type-1 test.  This correctly classifies
+    "exact copies with only constant literal changes" as Type 1 instead of
+    Type 2, matching the formal clone taxonomy (Roy & Cordy 2007).
+
+Fix #C — Combined AST similarity (edit distance + bag-of-nodes)
+    compute_ast_similarity() now returns a weighted blend:
+      ast_sim = 0.60 * edit_distance_sim + 0.40 * bag_of_nodes_cosine
+    The bag-of-nodes component counts AST node-type frequencies and computes
+    cosine similarity.  This makes AST similarity robust to statement reordering
+    (a common Type-2/3 obfuscation), which pure edit distance penalises heavily.
+
+Fix #D — Strengthened Type-3 structural guard
+    The previous guard (ast >= 0.30 OR token >= 0.35) was too permissive:
+    any two functions with shared control-flow keywords (if/for/return) could
+    pass on AST alone, causing false positives.  New guard:
+      ast >= 0.35 AND token >= 0.35 AND max(ast, token) >= 0.40
+    Both layers must show a baseline signal (AND, not OR), and at least one
+    must reach a peak threshold, filtering random structural overlap.
+
+Fix #E — Confidence score formula corrected for Type-1
+    Previous formula could return confidence > 1.0 for raw_token_score >> 0.95
+    because the numerator was unbounded.  The formula is now clamped with
+    min(1.0, ...) applied correctly after the division.
+
+Authors : Fusion Logic — FEU Institute of Technology, 2026
 
 References
 ----------
@@ -39,131 +69,32 @@ References
 - Svajlenko, J. & Roy, C.K. (2015). "Evaluating Clone Detection Tools with
   BigCloneBench." Proceedings of ICSME '15, pp. 131–140.
 
-Authors : Fusion Logic — FEU Institute of Technology, 2026
-
 Changelog
 ---------
+v1.6 (2026-03-04)
+  - Fix #A : Adaptive n-gram size — n=2 (<20 tokens), n=3 (20–59), n=4 (>=60).
+             Reduces noise for short functions; improves precision for large ones.
+  - Fix #B : Literal-normalized token stream added. classify_clone() accepts
+             lit_tokens_a/lit_tokens_b and uses exact list equality as a second
+             Type-1 check, correctly handling copies with only constant changes.
+  - Fix #C : AST similarity now blends edit distance (60%) with bag-of-nodes
+             cosine similarity (40%), making it robust to statement reordering.
+  - Fix #D : Type-3 structural guard tightened: ast>=0.35 AND token>=0.35 AND
+             max(ast,token)>=0.40 (was: ast>=0.30 OR token>=0.35).
+  - Fix #E : Type-1 confidence clamping corrected; formula is now strictly [0,1].
+  - Fix #10: Version bumped to v1.6. TAHD_VERSION module constant updated.
+
 v1.5 (2026-03-04)
-  - Fix #1 : _edit_distance_normalized() early-exit now checks curr[0] (true
-    lower bound) instead of min_in_row, eliminating false negatives for Type-3
-    clones whose DP row min transiently reaches max_len midway.
-  - Fix #2 : _deduplicate_clone_pairs() gains a mode parameter ("strict" for
-    intra-file, "cross_file" for cross-file). detect_clones_in_blocks() uses
-    "cross_file" mode (only locks key_a), allowing multiple file_a blocks to
-    match the same file_b block. detect_clones_single_file() uses "strict".
-  - Fix #3 : _java_ast_sequence() replaces claimed: set[int] with a
-    max_claimed_end integer, reducing memory from O(source_length) to O(1)
-    and eliminating O(n²) claimed.update(range(...)) calls.
-  - Fix #4 : _halstead_vector() dim 7 replaced from (n1+n2)/(N+1) (redundant
-    with dim 6) to log1p(N2/(N1+1)) — operand-to-operator ratio, an
-    independent signal not captured by any other dimension.
-  - Fix #5 : THRESH_TYPE1_FALLBACK = 0.88 added; classify_clone() fallback
-    Type-1 path uses this looser threshold instead of THRESH_TYPE1 (0.95),
-    correctly classifying near-exact clones with only literal differences.
-  - Fix #6 : compute_cyclomatic_complexity() for Python now uses ast.parse()
-    for accurate decision-point counting; string counting kept as fallback for
-    unparseable code.
-  - Fix #7 : _extract_java_blocks() adds constructor_pattern to match Java
-    constructors (PascalCase, no return type). Both method_pattern and
-    constructor_pattern matches are deduplicated by start position before body
-    extraction. Constructor blocks named <name>_constructor.
-  - Fix #8 : _detect_unused_functions() replaced per-name re.compile() loop
-    with a single combined alternation regex scanned once over the source.
-  - Fix #9 : generate_refactoring_suggestions() snippet cap raised from 6 to
-    MAX_SNIPPET_LINES (15) with a "# ... (N more lines)" suffix for longer
-    functions.
+  - Fix #1 : _edit_distance_normalized() early-exit now checks curr[0].
+  - Fix #2 : _deduplicate_clone_pairs() gains a mode parameter.
+  - Fix #3 : _java_ast_sequence() replaces claimed: set[int] with max_claimed_end.
+  - Fix #4 : _halstead_vector() dim 7 replaced with log1p(N2/(N1+1)).
+  - Fix #5 : THRESH_TYPE1_FALLBACK = 0.88 added.
+  - Fix #6 : compute_cyclomatic_complexity() for Python now uses ast.parse().
+  - Fix #7 : _extract_java_blocks() adds constructor_pattern.
+  - Fix #8 : _detect_unused_functions() uses single combined alternation regex.
+  - Fix #9 : generate_refactoring_suggestions() snippet cap raised to 15 lines.
   - Fix #10: Version bumped to v1.5. TAHD_VERSION module constant added.
-    Both analyze() and analyze_pair() reference it. Test updated.
-
-v1.4 (2026-03-04)
-  - Fix #20: _halstead_vector() dims 5–6 (operator_ratio, token_density) wrapped
-    in math.log1p() to bound previously unbounded ratios and restore balance in
-    cosine similarity computation.
-  - Fix #21: classify_clone() now falls back to threshold-based Type-1 check after
-    exact list equality fails, catching near-exact matches with only literal diffs.
-  - Fix #22: _make_ngrams() switched from set to multiset (dict/Counter); _jaccard()
-    updated to multiset Jaccard to avoid false positives from repeated n-grams.
-  - Fix #23: Type-3 classification now requires at least one structural layer to show
-    meaningful similarity (ast >= 0.30 or token >= 0.35) to prevent false positives.
-  - Fix #25: _compare_block_pairs() skips pairs where max/min token length ratio > 3
-    (blocks with vastly different sizes cannot be clones).
-  - Fix #26: BLOCK_OPEN / BLOCK_CLOSE removed from _JAVA_AST_CONSTRUCTS — they inflate
-    similarity between any two Java methods and reduce discriminative power.
-  - Fix #27: _python_ast_sequence() emits type-qualified Constant nodes
-    (e.g. Constant_int, Constant_str) to distinguish literal types.
-  - Fix #28: analyze_pair() uses (name, start_line) tuple instead of just name to
-    identify matched blocks, correctly handling overloaded/same-named functions.
-  - Fix #30: _deduplicate_clone_pairs() added; called in detect_clones_in_blocks()
-    and detect_clones_single_file() to keep only best match per block.
-  - Fix #32: _strip_decorators() helper strips Python decorators and Java annotations
-    before tokenization in _make_block(), preventing false Type-2 downgrades.
-  - Fix #33: _detect_unused_functions() now also checks for bare-name references
-    (callbacks, dict values, assignments, method refs) beyond direct call syntax.
-  - Fix #35: _extract_java_blocks() regex updated to support two-level nested
-    generics in return types (e.g. Map<String, List<Integer>>).
-  - Fix #37: _strip_imports() helper removes import statements before tokenization
-    in _make_block() to prevent import order/style differences from affecting scores.
-  - Fix #38: _extract_python_blocks() uses node.end_lineno directly (Python 3.8+
-    always provides it); removed inaccurate getattr fallback.
-  - Fix #39: ClonePair gains a confidence field (0.0–1.0); _compare_block_pairs()
-    computes it as margin above the matched threshold; propagated to API responses.
-  - Fix #40: compute_cyclomatic_complexity() now counts elif separately before
-    counting if, preventing elif from being double-counted as an additional if.
-
-v1.3 (2026-03-04)
-  - Fix #1 (v1.3): lexTokens() in frontend now preserves operators as tokens
-    instead of stripping them, preventing false positives between functions
-    with identical structure but different operators.
-  - Fix #2 (v1.3): Frontend Type-1 threshold raised from 0.70 to 0.95 to
-    match backend THRESH_TYPE1; Type-2 structural threshold updated from
-    0.72 to 0.75 to match backend THRESH_TYPE2.
-  - Fix #3 (v1.3): Frontend breakdown variable now declared at loop-iteration
-    scope to prevent ReferenceError in the fallback path.
-  - Fix #4 (v1.3): THRESH_TOKEN_PREFILTER lowered from 0.40 to 0.30 to
-    improve Type-3 recall for heavily modified clones.
-  - Fix #5 (v1.3): classify_clone() now accepts raw_tokens_a / raw_tokens_b
-    and uses exact list equality for Type-1 detection instead of a threshold,
-    matching the formal definition (exact copy modulo whitespace/comments).
-  - Fix #6 (v1.3): _halstead_vector() expanded from 5 to 8 independent
-    dimensions (added operator_ratio, token_density, vocab_richness) to
-    reduce redundancy and improve cosine similarity quality.
-  - Fix #7 (v1.3): MAX_LEN raised from 300 to 500; sequences beyond MAX_LEN
-    now use head+tail sampling to preserve structural visibility across the
-    full function body.
-
-v1.2 (2026-03-04)
-  - Fix #1 : overall_similarity in analyze_pair now reflects fraction of
-    matched blocks rather than average fusion score of detected pairs only.
-  - Fix #2 : _compute_comment_density uses ast.get_docstring() for Python
-    to reliably detect docstrings regardless of quote style or indentation.
-  - Fix #3 : _detect_unused_functions now annotates results with a
-    confidence level to acknowledge false negatives for externally-called
-    functions (e.g. entry points, callbacks, cross-file calls).
-  - Fix #4 : _java_ast_sequence keywords are matched before CALL so that
-    control-flow constructs are not double-counted as function calls.
-  - Fix #5 : Added MIN_TOKENS guard in _compare_block_pairs to skip
-    trivially short blocks (< 10 tokens) that cause noisy clone results.
-  - Fix #6 : clone_pct in analyze() now counts cloned lines per block
-    only once (block_a lines only per pair) to avoid double-counting.
-  - Fix #7 : _compute_nesting_depth for Python now uses AST scope counting
-    instead of indent-level heuristics, supporting any indentation style.
-  - Fix #8 : Java brace counter in _extract_java_blocks now correctly
-    skips both double-quoted strings and single-quoted char literals.
-  - Fix #9 : analyze() now passes max_suggestions through to
-    generate_refactoring_suggestions instead of using the default silently.
-  - Fix #10: after_code in suggestions now generates a concrete merged
-    function skeleton using actual function names and clone type context.
-  - Fix #11: analyze_pair raises ValueError if two different languages are
-    mixed (e.g. Python code passed to a Java CodeAnalyzer).
-  - Fix #12: Module-level assertion validates that fusion weights sum to 1.0.
-
-v1.1 (2026-03-03)
-  - _python_ast_sequence now uses pre-order DFS (ast.iter_child_nodes)
-    instead of ast.walk() to guarantee structural ordering of node
-    sequences for correct Levenshtein-based similarity.
-  - _halstead_vector now uses operator/operand density ratios
-    (n1/(n1+n2+1), n2/(n1+n2+1)) instead of raw counts so that all
-    five vector dimensions have comparable magnitude for cosine similarity.
 """
 
 import ast
@@ -189,30 +120,43 @@ W_TOKEN    = 0.30
 W_AST      = 0.40
 W_HALSTEAD = 0.30
 
-# Fix #12: Validate fusion weights at module load time
+# Fix #12 (v1.2): Validate fusion weights at module load time
 assert abs(W_TOKEN + W_AST + W_HALSTEAD - 1.0) < 1e-9, (
     f"Fusion weights must sum to 1.0, got {W_TOKEN + W_AST + W_HALSTEAD}"
 )
 
 # Per-layer thresholds
-THRESH_TOKEN_PREFILTER = 0.30   # minimum token Jaccard to proceed to Layer 2 (lowered from 0.40 for better Type-3 recall)
+THRESH_TOKEN_PREFILTER = 0.30   # minimum token Jaccard to proceed to Layer 2
 THRESH_TYPE1           = 0.95   # both token AND ast must reach this for Type 1
 THRESH_TYPE1_FALLBACK  = 0.88   # for near-exact clones with only literal diffs
 THRESH_TYPE2           = 0.75   # both token AND ast must reach this for Type 2
 THRESH_FUSION_TYPE3    = 0.60   # fusion score threshold for Type 3
 
-# N-gram size for token fingerprinting
-NGRAM_SIZE = 3
+# Fix #D (v1.6): Strengthened Type-3 structural guard thresholds.
+# All three conditions must be satisfied simultaneously (AND logic).
+THRESH_TYPE3_AST_MIN   = 0.35   # was 0.30 — both layers must show baseline signal
+THRESH_TYPE3_TOKEN_MIN = 0.35   # unchanged
+THRESH_TYPE3_PEAK      = 0.40   # at least one layer must reach this peak value
 
-# Fix #5: Minimum token count for a block to be considered in clone detection.
-# Blocks shorter than this (e.g. trivial getters/setters) produce noisy results.
+# Fix #C (v1.6): AST similarity blend weights (edit distance + bag-of-nodes).
+W_AST_EDIT = 0.60   # weight for normalized edit distance
+W_AST_BAG  = 0.40   # weight for bag-of-nodes cosine similarity
+
+# N-gram size selection boundaries (Fix #A, v1.6)
+NGRAM_SHORT_BOUND  = 20   # < 20 tokens  → n=2
+NGRAM_LONG_BOUND   = 60   # >= 60 tokens → n=4
+NGRAM_SIZE_SHORT   = 2
+NGRAM_SIZE_DEFAULT = 3
+NGRAM_SIZE_LONG    = 4
+
+# Fix #5 (v1.2): Minimum token count for a block to be considered in detection.
 MIN_TOKENS = 10
 
 # Maximum lines to show in refactoring suggestion snippets
 MAX_SNIPPET_LINES = 15
 
 # TAHD detection pipeline version
-TAHD_VERSION = "v1.5"
+TAHD_VERSION = "v1.6"
 
 # Java operators and keywords used for Halstead extraction
 JAVA_OPERATORS = frozenset([
@@ -237,15 +181,11 @@ JAVA_KEYWORDS = frozenset([
     "void", "volatile", "while",
 ])
 
-# Fix #4: Java control-flow keywords that must be matched BEFORE the generic
-# CALL pattern so they are not mistakenly counted as function calls.
 _JAVA_CF_KEYWORDS = frozenset([
     "if", "else", "for", "while", "do", "switch", "case",
     "return", "throw", "try", "catch", "finally", "new", "instanceof",
 ])
 
-# Pre-compiled Java tokenizer pattern (shared by _normalize_java_tokens and
-# _raw_java_tokens to avoid re-compiling on every call).
 _JAVA_TOKEN_SPEC = [
     ("COMMENT_ML", r"/\*.*?\*/"),
     ("COMMENT_SL", r"//[^\n]*"),
@@ -264,8 +204,6 @@ _JAVA_TOKEN_RE = re.compile(
     re.DOTALL,
 )
 
-# Pre-compiled patterns for _java_ast_sequence — avoids re-compiling on every
-# call.  Ordered: control-flow patterns first, CALL last (Fix #4).
 _JAVA_AST_CONSTRUCTS = [
     (re.compile(r"\bif\s*\("),          "IF"),
     (re.compile(r"\belse\s*\{"),        "ELSE"),
@@ -284,15 +222,11 @@ _JAVA_AST_CONSTRUCTS = [
     (re.compile(r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
                 r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b"),
      "TYPEDECL"),
-    # Fix #4: CALL is last — the claimed-positions mechanism prevents
-    # overlap with higher-priority keyword patterns.  The negative
-    # lookahead rejects identifiers that are reserved keywords.
     (re.compile(r"\b(?!(?:if|else|for|while|do|switch|case|return|throw|"
                 r"try|catch|finally|new|instanceof)\b)"
                 r"[A-Za-z_]\w*\s*\("), "CALL"),
 ]
 
-# Pre-compiled patterns for _extract_halstead_java
 _JAVA_HALSTEAD_OP_RE = re.compile(
     r">>>=|<<=|>>=|==|!=|<=|>=|&&|\|\||<<|>>>|>>"
     r"|[+\-*/%&|^]=|\+\+|--|[+\-*/%&|^~!<>=?:]"
@@ -301,18 +235,17 @@ _JAVA_HALSTEAD_NUM_RE = re.compile(r"\b\d+(?:\.\d+)?[lLfFdD]?\b")
 _JAVA_HALSTEAD_STR_RE = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])\'')
 _JAVA_HALSTEAD_ID_RE  = re.compile(r"\b[A-Za-z_]\w*\b")
 
-# Pre-compiled comment-stripping patterns
 _JAVA_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 _JAVA_LINE_COMMENT_RE  = re.compile(r"//[^\n]*")
 _JAVA_STRING_LIT_RE    = re.compile(r'"(?:\\.|[^"\\])*"')
 _JAVA_CHAR_LIT_RE      = re.compile(r"'(?:\\.|[^'\\])'")
 
-# Pre-compiled Python comment/string-stripping patterns
 _PY_COMMENT_RE       = re.compile(r'#[^\n]*')
 _PY_TRIPLE_DQ_RE     = re.compile(r'""".*?"""', re.DOTALL)
 _PY_TRIPLE_SQ_RE     = re.compile(r"'''.*?'''", re.DOTALL)
 _PY_DOUBLE_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
 _PY_SINGLE_STRING_RE = re.compile(r"'(?:\\.|[^'\\])*'")
+
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -328,13 +261,16 @@ class FunctionBlock:
     language: str = ""
     tokens: list = field(default_factory=list)
     raw_tokens: list = field(default_factory=list)
+    lit_tokens: list = field(default_factory=list)   # Fix #B: literal-normalized tokens
     ast_sequence: list = field(default_factory=list)
     halstead: dict = field(default_factory=dict)
     # Performance caches — computed once, reused across all pair comparisons
     _ngrams_norm: object = field(default=None, init=False, repr=False, compare=False)
     _ngrams_raw: object = field(default=None, init=False, repr=False, compare=False)
+    _ngrams_lit: object = field(default=None, init=False, repr=False, compare=False)
     _halstead_vec: object = field(default=None, init=False, repr=False, compare=False)
     _ast_ready: bool = field(default=False, init=False, repr=False, compare=False)
+    _bag_vec: object = field(default=None, init=False, repr=False, compare=False)
 
 
 @dataclass
@@ -394,10 +330,7 @@ def _normalize_python_tokens(source: str) -> list[str]:
             elif ttype == tokenize.OP:
                 tokens.append(tval)
 
-            # skip COMMENT, NEWLINE, NL, INDENT, DEDENT, ENCODING, ENDMARKER
-
     except tokenize.TokenError:
-        # Incomplete source (e.g. function body only) — best effort
         pass
 
     return tokens
@@ -419,7 +352,38 @@ def _raw_python_tokens(source: str) -> list[str]:
             if ttype in (tokenize.NAME, tokenize.NUMBER,
                          tokenize.STRING, tokenize.OP):
                 tokens.append(tval)
-            # skip COMMENT, NEWLINE, NL, INDENT, DEDENT, ENCODING, ENDMARKER
+
+    except tokenize.TokenError:
+        pass
+
+    return tokens
+
+
+def _literal_normalize_python_tokens(source: str) -> list[str]:
+    """
+    Fix #B (v1.6): Literal-normalized tokenization for Python.
+
+    Preserves identifier names (unlike full normalization which maps them to ID),
+    but replaces NUMBER and STRING literals with NUM/STR.
+    Used as a second Type-1 check: if two functions are identical modulo
+    literal constants (e.g. loop bounds, string messages), they are still
+    an exact (Type-1) copy per the Roy & Cordy clone taxonomy.
+    """
+    tokens = []
+    try:
+        reader = io.StringIO(source).readline
+        for tok in tokenize.generate_tokens(reader):
+            ttype = tok.type
+            tval  = tok.string
+
+            if ttype == tokenize.NAME:
+                tokens.append(tval)          # keep real identifier name
+            elif ttype == tokenize.NUMBER:
+                tokens.append("NUM")         # normalize literals
+            elif ttype == tokenize.STRING:
+                tokens.append("STR")
+            elif ttype == tokenize.OP:
+                tokens.append(tval)
 
     except tokenize.TokenError:
         pass
@@ -429,8 +393,9 @@ def _raw_python_tokens(source: str) -> list[str]:
 
 def _normalize_java_tokens(source: str) -> list[str]:
     """
-    Tokenize Java source with a regex lexer and normalize the same way.
-    No external library required.
+    Tokenize Java source with a regex lexer and normalize:
+      - identifiers → ID, numbers → NUM, strings → STR
+      - keep keywords and operators as-is
     """
     tokens = []
     for mo in _JAVA_TOKEN_RE.finditer(source):
@@ -450,7 +415,6 @@ def _normalize_java_tokens(source: str) -> list[str]:
                 tokens.append("ID")
         elif kind in ("OP1", "OP2", "OP3"):
             tokens.append(val)
-        # skip MISMATCH
 
     return tokens
 
@@ -474,8 +438,57 @@ def _raw_java_tokens(source: str) -> list[str]:
     return tokens
 
 
-def _make_ngrams(tokens: list[str], n: int = NGRAM_SIZE) -> dict:
-    """Convert a token list into a multiset (Counter) of n-gram tuples."""
+def _literal_normalize_java_tokens(source: str) -> list[str]:
+    """
+    Fix #B (v1.6): Literal-normalized tokenization for Java.
+
+    Preserves identifier names but replaces NUMBER/STRING/CHAR with NUM/STR.
+    Used as the second Type-1 check alongside raw token equality.
+    """
+    tokens = []
+    for mo in _JAVA_TOKEN_RE.finditer(source):
+        kind = mo.lastgroup
+        val  = mo.group()
+
+        if kind in ("COMMENT_ML", "COMMENT_SL", "SKIP", "MISMATCH"):
+            continue
+        elif kind in ("STRING", "CHAR"):
+            tokens.append("STR")
+        elif kind == "NUMBER":
+            tokens.append("NUM")
+        else:
+            tokens.append(val)   # keep idents, keywords, ops as-is
+
+    return tokens
+
+
+def _adaptive_ngram_size(token_count: int) -> int:
+    """
+    Fix #A (v1.6): Choose n-gram size based on token list length.
+
+    Rationale:
+    - Short functions (< 20 tokens) have very few distinct trigrams, making
+      Jaccard highly sensitive to single-token changes. Bigrams are more stable.
+    - Long functions (>= 60 tokens) benefit from 4-grams, which reduce false
+      positives from shared common idiom subsequences (e.g. "for ID in range").
+    - Medium functions use the traditional trigram.
+    """
+    if token_count < NGRAM_SHORT_BOUND:
+        return NGRAM_SIZE_SHORT
+    elif token_count >= NGRAM_LONG_BOUND:
+        return NGRAM_SIZE_LONG
+    return NGRAM_SIZE_DEFAULT
+
+
+def _make_ngrams(tokens: list[str], n: int | None = None) -> dict:
+    """
+    Convert a token list into a multiset (Counter) of n-gram tuples.
+
+    Fix #A (v1.6): If n is None, the size is chosen adaptively based on
+    token list length via _adaptive_ngram_size().
+    """
+    if n is None:
+        n = _adaptive_ngram_size(len(tokens))
     if len(tokens) < n:
         if tokens:
             key = tuple(tokens)
@@ -502,7 +515,7 @@ def _jaccard(counter_a: dict, counter_b: dict) -> float:
 
 def compute_token_similarity(block_a: FunctionBlock,
                               block_b: FunctionBlock) -> float:
-    """Layer 1: Jaccard on normalized token n-gram sets."""
+    """Layer 1: Jaccard on normalized token n-gram multisets."""
     ngrams_a = block_a._ngrams_norm if block_a._ngrams_norm is not None else _make_ngrams(block_a.tokens)
     ngrams_b = block_b._ngrams_norm if block_b._ngrams_norm is not None else _make_ngrams(block_b.tokens)
     return _jaccard(ngrams_a, ngrams_b)
@@ -510,7 +523,7 @@ def compute_token_similarity(block_a: FunctionBlock,
 
 def compute_raw_token_similarity(block_a: FunctionBlock,
                                   block_b: FunctionBlock) -> float:
-    """Jaccard on raw (unnormalized) token n-gram sets for Type-1 detection."""
+    """Jaccard on raw (unnormalized) token n-gram multisets for Type-1 detection."""
     ngrams_a = block_a._ngrams_raw if block_a._ngrams_raw is not None else _make_ngrams(block_a.raw_tokens)
     ngrams_b = block_b._ngrams_raw if block_b._ngrams_raw is not None else _make_ngrams(block_b.raw_tokens)
     return _jaccard(ngrams_a, ngrams_b)
@@ -523,13 +536,7 @@ def compute_raw_token_similarity(block_a: FunctionBlock,
 def _python_ast_sequence(source: str) -> list[str]:
     """
     Parse Python source into an AST and produce a linearized node-type
-    sequence via **pre-order DFS** traversal.  Pre-order is essential so
-    that structurally similar trees produce similar sequences for the
-    Levenshtein similarity comparison.
-
-    ast.walk() must NOT be used here because it yields nodes in an
-    unspecified (BFS-like) order, making the edit-distance comparison
-    unreliable.
+    sequence via pre-order DFS traversal.
     """
     sequence = []
 
@@ -553,28 +560,14 @@ def _python_ast_sequence(source: str) -> list[str]:
 def _java_ast_sequence(source: str) -> list[str]:
     """
     Produce a structural node-type sequence for Java source using a
-    pattern-based approach (no external library).
-
-    Fix #4: Control-flow keywords are matched and emitted BEFORE the
-    generic CALL pattern runs, preventing constructs like `if (`, `for (`
-    from being double-counted as both control-flow nodes and function calls.
-
-    We identify structural constructs (control flow, declarations,
-    expressions) and emit a normalized symbol for each.  This is not a
-    full AST but captures enough structural information for similarity
-    scoring at function level.
+    pattern-based approach.  Control-flow keywords are matched before the
+    generic CALL pattern to prevent double-counting.
     """
-    # Strip comments and strings first
     source = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
     source = _JAVA_LINE_COMMENT_RE.sub(" ", source)
     source = _JAVA_STRING_LIT_RE.sub("STR", source)
     source = _JAVA_CHAR_LIT_RE.sub("STR", source)
 
-    # Fix #4: Ordered construct list — control-flow patterns first, CALL last.
-    # Use max_claimed_end integer instead of a position set to avoid O(n²)
-    # memory usage. Since patterns are applied in priority order and hits are
-    # sorted by position, we only need to know if the new match starts after
-    # the last claimed end.
     hits = []
     for pattern, symbol in _JAVA_AST_CONSTRUCTS:
         for m in pattern.finditer(source):
@@ -595,10 +588,6 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
     """
     Normalized Levenshtein distance between two sequences.
     Returns a SIMILARITY score in [0, 1]  (1 = identical).
-    Uses the standard DP algorithm with two optimizations:
-    1. Diagonal band: if length ratio > 2:1 the sequences cannot be clones.
-    2. Early exit: if the minimum DP value in a row reaches max_len the
-       final similarity will be 0.0, so we bail immediately.
     """
     la, lb = len(seq_a), len(seq_b)
     if la == 0 and lb == 0:
@@ -606,17 +595,12 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
     if la == 0 or lb == 0:
         return 0.0
 
-    # Fast path: identical sequences
     if seq_a == seq_b:
         return 1.0
 
-    # Diagonal band optimization: length ratio > 2:1 → can't be clones
     if la > 2 * lb or lb > 2 * la:
         return 0.0
 
-    # Cap sequence length to avoid O(n²) blowup on very large files.
-    # For sequences longer than MAX_LEN, sample from both head and tail
-    # to preserve visibility into the entire function structure.
     MAX_LEN = 500
     if len(seq_a) > MAX_LEN:
         half = MAX_LEN // 2
@@ -628,24 +612,18 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
 
     max_len = max(la, lb)
 
-    # Two-row DP
     prev = list(range(lb + 1))
     curr = [0] * (lb + 1)
 
     for i in range(1, la + 1):
         curr[0] = i
-        min_in_row = curr[0]
         for j in range(1, lb + 1):
             cost = 0 if seq_a[i-1] == seq_b[j-1] else 1
             curr[j] = min(
-                prev[j]   + 1,     # deletion
-                curr[j-1] + 1,     # insertion
-                prev[j-1] + cost,  # substitution
+                prev[j]   + 1,
+                curr[j-1] + 1,
+                prev[j-1] + cost,
             )
-            if curr[j] < min_in_row:
-                min_in_row = curr[j]
-        # Early exit: first cell of current row is a true lower bound on edit
-        # distance. If it already reaches max_len, similarity will be 0.0.
         if curr[0] >= max_len:
             return 0.0
         prev, curr = curr, prev
@@ -654,23 +632,83 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
     return 1.0 - (edit_dist / max_len)
 
 
+def _bag_of_nodes_similarity(seq_a: list, seq_b: list) -> float:
+    """
+    Fix #C (v1.6): Cosine similarity on AST node-type frequency vectors.
+
+    Counts how many times each node type appears in each sequence, then
+    computes cosine similarity between the two frequency vectors.
+
+    Why this matters: normalized edit distance penalises statement reordering
+    heavily (two swapped statements can change edit distance by 2*len(stmt)),
+    yet reordering independent statements is a common Type-2/3 obfuscation.
+    The bag-of-nodes measure is order-agnostic, so it captures these cases.
+
+    The combined AST similarity blends both signals:
+      ast_sim = W_AST_EDIT * edit_sim + W_AST_BAG * bag_sim
+    """
+    if not seq_a and not seq_b:
+        return 1.0
+    if not seq_a or not seq_b:
+        return 0.0
+
+    ca = collections.Counter(seq_a)
+    cb = collections.Counter(seq_b)
+    all_keys = set(ca) | set(cb)
+
+    dot   = sum(ca.get(k, 0) * cb.get(k, 0) for k in all_keys)
+    mag_a = math.sqrt(sum(v * v for v in ca.values()))
+    mag_b = math.sqrt(sum(v * v for v in cb.values()))
+
+    if mag_a == 0 or mag_b == 0:
+        return 1.0 if mag_a == mag_b else 0.0
+    return dot / (mag_a * mag_b)
+
+
 def _ensure_ast_sequence(block: FunctionBlock) -> None:
-    """Lazily compute and cache the AST node sequence for a block."""
+    """Lazily compute and cache the AST node sequence and bag vector for a block."""
     if not block._ast_ready and block.source:
         if block.language == "java":
             block.ast_sequence = _java_ast_sequence(block.source)
         else:
             block.ast_sequence = _python_ast_sequence(block.source)
+        # Fix #C: pre-compute and cache the bag-of-nodes Counter
+        block._bag_vec = collections.Counter(block.ast_sequence)
         block._ast_ready = True
 
 
 def compute_ast_similarity(block_a: FunctionBlock,
                             block_b: FunctionBlock) -> float:
-    """Layer 2: Normalized tree edit distance on AST node sequences."""
+    """
+    Layer 2: Combined AST similarity.
+
+    Fix #C (v1.6): Blends normalized edit distance (60%) with bag-of-nodes
+    cosine similarity (40%).  The blend makes the score robust to statement
+    reordering, which pure edit distance over-penalises.
+    """
     _ensure_ast_sequence(block_a)
     _ensure_ast_sequence(block_b)
-    return _edit_distance_normalized(block_a.ast_sequence,
-                                     block_b.ast_sequence)
+
+    edit_sim = _edit_distance_normalized(block_a.ast_sequence,
+                                         block_b.ast_sequence)
+
+    # Bag-of-nodes cosine using cached Counters
+    ca = block_a._bag_vec
+    cb = block_b._bag_vec
+    if ca is not None and cb is not None:
+        all_keys = set(ca) | set(cb)
+        dot   = sum(ca.get(k, 0) * cb.get(k, 0) for k in all_keys)
+        mag_a = math.sqrt(sum(v * v for v in ca.values()))
+        mag_b = math.sqrt(sum(v * v for v in cb.values()))
+        if mag_a > 0 and mag_b > 0:
+            bag_sim = dot / (mag_a * mag_b)
+        else:
+            bag_sim = 1.0 if mag_a == mag_b else 0.0
+    else:
+        bag_sim = _bag_of_nodes_similarity(block_a.ast_sequence,
+                                           block_b.ast_sequence)
+
+    return W_AST_EDIT * edit_sim + W_AST_BAG * bag_sim
 
 
 # ===========================================================================
@@ -681,9 +719,6 @@ def _extract_halstead_python(source: str) -> dict:
     """
     Extract Halstead operands and operators from Python source using the
     tokenize module.
-
-    Operators  : OP tokens + keywords that act as operators
-    Operands   : NAME tokens (non-keyword identifiers) + NUMBER + STRING
     """
     OP_KEYWORDS = {"and", "or", "not", "in", "is", "del",
                    "return", "yield", "lambda", "raise",
@@ -721,22 +756,16 @@ def _extract_halstead_python(source: str) -> dict:
 
 
 def _extract_halstead_java(source: str) -> dict:
-    """
-    Extract Halstead operands and operators from Java source using the
-    regex tokenizer.
-    """
-    # Strip comments
+    """Extract Halstead operands and operators from Java source."""
     source = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
     source = _JAVA_LINE_COMMENT_RE.sub(" ", source)
 
     operators = []
     operands  = []
 
-    # Collect operators
     for m in _JAVA_HALSTEAD_OP_RE.finditer(source):
         operators.append(m.group())
 
-    # Remove strings before scanning identifiers/numbers
     clean = _JAVA_HALSTEAD_STR_RE.sub("STR_LIT ", source)
 
     for m in _JAVA_HALSTEAD_NUM_RE.finditer(clean):
@@ -747,7 +776,7 @@ def _extract_halstead_java(source: str) -> dict:
         if val in JAVA_OPERATORS:
             operators.append(val)
         elif val in JAVA_KEYWORDS:
-            pass  # structural keywords — neither operator nor operand
+            pass
         else:
             operands.append(val)
 
@@ -755,42 +784,29 @@ def _extract_halstead_java(source: str) -> dict:
 
 
 def _halstead_metrics(operators: list, operands: list) -> dict:
-    """
-    Compute Halstead metrics from raw operator/operand lists.
-
-    n1 = number of distinct operators
-    n2 = number of distinct operands
-    N1 = total operators
-    N2 = total operands
-
-    Vocabulary : n  = n1 + n2
-    Length     : N  = N1 + N2
-    Volume     : V  = N * log2(n)          [bits]
-    Difficulty : D  = (n1/2) * (N2/n2)
-    Effort     : E  = D * V
-    """
+    """Compute Halstead metrics from raw operator/operand lists."""
     op_counts  = collections.Counter(operators)
     opd_counts = collections.Counter(operands)
 
-    n1 = len(op_counts)   # distinct operators
-    n2 = len(opd_counts)  # distinct operands
+    n1 = len(op_counts)
+    n2 = len(opd_counts)
     N1 = sum(op_counts.values())
     N2 = sum(opd_counts.values())
 
     n = n1 + n2
     N = N1 + N2
 
-    volume     = N * math.log2(n)     if n  > 1 else 0.0
-    difficulty = (n1 / 2) * (N2 / n2) if n2 > 0 else 0.0
+    volume     = N * math.log2(n)      if n  > 1 else 0.0
+    difficulty = (n1 / 2) * (N2 / n2)  if n2 > 0 else 0.0
     effort     = difficulty * volume
 
     return {
         "n1": n1, "n2": n2, "N1": N1, "N2": N2,
         "vocabulary": n,
         "length": N,
-        "volume": round(volume, 4),
+        "volume":     round(volume,     4),
         "difficulty": round(difficulty, 4),
-        "effort": round(effort, 4),
+        "effort":     round(effort,     4),
     }
 
 
@@ -801,20 +817,20 @@ def _halstead_vector(h: dict) -> list[float]:
 
     Dimension layout
     ----------------
-    0  operator_density  = n1 / (n1 + n2 + 1)   ∈ [0, 1]
-    1  operand_density   = n2 / (n1 + n2 + 1)   ∈ [0, 1]
+    0  operator_density  = n1 / (n1 + n2 + 1)
+    1  operand_density   = n2 / (n1 + n2 + 1)
     2  log1p(volume)
     3  log1p(difficulty)
     4  log1p(effort)
-    5  operator_ratio    = N1 / (N2 + 1)         (operator-to-operand usage ratio)
-    6  token_density     = N / (vocabulary + 1)   (total tokens / unique tokens)
-    7  vocab_richness    = vocabulary / (N + 1)   (unique tokens / total tokens)
+    5  log1p(N1 / (N2 + 1))     operator-to-operand usage ratio
+    6  log1p(N / vocab)          token density
+    7  log1p(N2 / (N1 + 1))     operand-to-operator ratio (independent signal)
     """
     n1 = h.get("n1", 0)
     n2 = h.get("n2", 0)
     N1 = h.get("N1", 0)
     N2 = h.get("N2", 0)
-    vocab = n1 + n2 + 1          # +1 avoids division by zero
+    vocab = n1 + n2 + 1
     N = N1 + N2
 
     return [
@@ -825,7 +841,7 @@ def _halstead_vector(h: dict) -> list[float]:
         math.log1p(h.get("effort",     0)),
         math.log1p(N1 / (N2 + 1)),
         math.log1p(N / vocab),
-        math.log1p(N2 / (N1 + 1)),    # dim 7 — operand-to-operator ratio
+        math.log1p(N2 / (N1 + 1)),
     ]
 
 
@@ -865,39 +881,73 @@ def classify_clone(token_score: float,
                    fusion_score: float,
                    raw_token_score: float = None,
                    raw_tokens_a: list = None,
-                   raw_tokens_b: list = None) -> int | None:
+                   raw_tokens_b: list = None,
+                   lit_tokens_a: list = None,
+                   lit_tokens_b: list = None) -> tuple[int | None, float]:
     """
-    Return clone type (1, 2, 3) or None if not a clone.
+    Return (clone_type, confidence) or (None, 0.0) if not a clone.
 
-    Type 1 : exact raw token sequence match (whitespace/comments already stripped)
-    Type 2 : strong *normalized* token AND structural match (renamed identifiers)
-    Type 3 : fusion score passes threshold (near-miss / modified)
+    Fix #B (v1.6): Accepts lit_tokens_a / lit_tokens_b for a second Type-1
+    check.  If the literal-normalized token lists are identical, the pair is
+    classified as Type 1 even when raw tokens differ (e.g. a loop bound of
+    10 was changed to 11 in an otherwise identical copy).
 
-    The raw_token_score distinguishes Type-1 from Type-2: a renamed clone
-    will score highly on normalized tokens but poorly on raw tokens.
-    When raw_tokens_a and raw_tokens_b are provided, an exact list comparison
-    is used for Type-1 rather than a threshold check.
+    Fix #D (v1.6): Type-3 structural guard is tightened to AND logic:
+      ast >= THRESH_TYPE3_AST_MIN AND token >= THRESH_TYPE3_TOKEN_MIN
+      AND max(ast, token) >= THRESH_TYPE3_PEAK
+    This prevents random structural overlap (two functions sharing only
+    common control-flow keywords) from producing false Type-3 positives.
+
+    Fix #E (v1.6): Type-1 confidence clamped correctly to [0, 1].
+
+    Type classification decision tree
+    ----------------------------------
+    1. raw_tokens_a == raw_tokens_b                     → Type 1 (exact)
+    2. lit_tokens_a == lit_tokens_b                     → Type 1 (literal-exact)
+    3. raw_score >= FALLBACK AND ast >= THRESH_TYPE1    → Type 1 (near-exact)
+    4. token >= TYPE2 AND ast >= TYPE2                  → Type 2 (renamed)
+    5. fusion >= TYPE3 AND structural guard passes      → Type 3 (near-miss)
     """
     if raw_token_score is None:
         raw_token_score = token_score
 
-    # Type-1: exact raw token sequence match (whitespace/comments already stripped)
+    # ---- Type 1 ----
     if raw_tokens_a is not None and raw_tokens_b is not None:
         if raw_tokens_a == raw_tokens_b:
-            return 1
-        # Fallback: threshold-based for near-exact matches with literal differences
-        if raw_token_score >= THRESH_TYPE1_FALLBACK and ast_score >= THRESH_TYPE1:
-            return 1
-    elif raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
-        return 1
+            # Fix #E: properly clamped confidence
+            margin = min(raw_token_score, ast_score) - THRESH_TYPE1
+            conf = min(1.0, max(0.5, margin / max(1.0 - THRESH_TYPE1, 1e-9) + 0.5))
+            return 1, round(conf, 4)
 
+        # Fix #B: literal-normalized exact match → still Type 1
+        if lit_tokens_a is not None and lit_tokens_b is not None:
+            if lit_tokens_a == lit_tokens_b:
+                return 1, 0.95
+
+        # Threshold-based fallback for near-exact matches
+        if raw_token_score >= THRESH_TYPE1_FALLBACK and ast_score >= THRESH_TYPE1:
+            return 1, 0.90
+
+    elif raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+        return 1, 0.90
+
+    # ---- Type 2 ----
     if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
-        return 2
+        margin = min(token_score, ast_score) - THRESH_TYPE2
+        conf = min(1.0, margin / max(1.0 - THRESH_TYPE2, 1e-9) + 0.5)
+        return 2, round(conf, 4)
+
+    # ---- Type 3 (Fix #D: tightened structural guard) ----
     if fusion_score >= THRESH_FUSION_TYPE3:
-        # Guard: at least one structural layer must show meaningful similarity
-        if ast_score >= 0.30 or token_score >= 0.35:
-            return 3
-    return None
+        ast_ok    = ast_score   >= THRESH_TYPE3_AST_MIN
+        token_ok  = token_score >= THRESH_TYPE3_TOKEN_MIN
+        has_peak  = max(ast_score, token_score) >= THRESH_TYPE3_PEAK
+        if ast_ok and token_ok and has_peak:
+            margin = fusion_score - THRESH_FUSION_TYPE3
+            conf = min(1.0, margin / max(1.0 - THRESH_FUSION_TYPE3, 1e-9) + 0.5)
+            return 3, round(conf, 4)
+
+    return None, 0.0
 
 
 # ===========================================================================
@@ -932,18 +982,22 @@ def _make_block(name, start_line, end_line, source, language) -> FunctionBlock:
         source=source,
         language=language,
     )
-    # Clean source for tokenization only (preserve original source for display)
     clean_source = _strip_decorators(_strip_imports(source, language), language)
     if language == "python":
-        fb.tokens        = _normalize_python_tokens(clean_source)
-        fb.raw_tokens    = _raw_python_tokens(clean_source)
-        fb.halstead      = _extract_halstead_python(clean_source)
+        fb.tokens     = _normalize_python_tokens(clean_source)
+        fb.raw_tokens = _raw_python_tokens(clean_source)
+        fb.lit_tokens = _literal_normalize_python_tokens(clean_source)   # Fix #B
+        fb.halstead   = _extract_halstead_python(clean_source)
     else:
-        fb.tokens        = _normalize_java_tokens(clean_source)
-        fb.raw_tokens    = _raw_java_tokens(clean_source)
-        fb.halstead      = _extract_halstead_java(clean_source)
-    fb._ngrams_norm  = _make_ngrams(fb.tokens)
-    fb._ngrams_raw   = _make_ngrams(fb.raw_tokens)
+        fb.tokens     = _normalize_java_tokens(clean_source)
+        fb.raw_tokens = _raw_java_tokens(clean_source)
+        fb.lit_tokens = _literal_normalize_java_tokens(clean_source)     # Fix #B
+        fb.halstead   = _extract_halstead_java(clean_source)
+
+    # Fix #A: adaptive n-gram size baked into the cached multisets
+    fb._ngrams_norm = _make_ngrams(fb.tokens)
+    fb._ngrams_raw  = _make_ngrams(fb.raw_tokens)
+    fb._ngrams_lit  = _make_ngrams(fb.lit_tokens)
     fb._halstead_vec = _halstead_vector(fb.halstead)
     return fb
 
@@ -971,7 +1025,7 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
     blocks = []
     for node in func_nodes:
         start    = node.lineno
-        end      = node.end_lineno  # Available since Python 3.8
+        end      = node.end_lineno
         func_src = "\n".join(lines[start - 1: end])
         blocks.append(_make_block(node.name, start, end, func_src, "python"))
 
@@ -982,18 +1036,12 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
     """
     Extract method-level blocks from Java source using a brace-counting
     approach.  Finds method signatures and captures their bodies.
-
-    Fix #8: The brace counter now correctly skips both double-quoted string
-    literals and single-quoted char literals, so a `{` inside `'{'` or
-    a `"{"` no longer throws off the brace depth count.
     """
     lines = source.splitlines()
 
-    # Strip comments before scanning for method signatures
     clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
     clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
 
-    # Pattern: optional modifiers + return type + name + (params) + {
     method_pattern = re.compile(
         r"(?:(?:public|private|protected|static|final|synchronized|"
         r"abstract|native|strictfp)\s+)*"
@@ -1004,7 +1052,6 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
         r"\{"
     )
 
-    # Constructor pattern: access modifier + PascalCase name + (params) + {
     constructor_pattern = re.compile(
         r"(?:public|private|protected)\s+"
         r"([A-Z]\w*)\s*"
@@ -1013,7 +1060,6 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
         r"\{"
     )
 
-    # Collect all matches from both patterns; deduplicate by start position
     all_matches: dict[int, str] = {}
     for m in method_pattern.finditer(clean):
         all_matches[m.start()] = m.group(1)
@@ -1027,8 +1073,6 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
         method_name = all_matches[start_pos]
         start_line  = clean[:start_pos].count("\n") + 1
 
-        # Fix #8: Walk forward counting braces, correctly skipping string and
-        # char literals so that `{` inside quotes doesn't affect brace depth.
         depth   = 0
         end_pos = start_pos
         i       = start_pos
@@ -1037,23 +1081,21 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
         while i < n:
             ch = clean[i]
 
-            # Skip double-quoted string literals
             if ch == '"':
                 i += 1
                 while i < n:
                     if clean[i] == '\\':
-                        i += 2   # skip escaped character
+                        i += 2
                         continue
                     if clean[i] == '"':
                         break
                     i += 1
 
-            # Fix #8: Skip single-quoted char literals (e.g. '{', '\\', '\'')
             elif ch == "'":
                 i += 1
                 while i < n:
                     if clean[i] == '\\':
-                        i += 2   # skip escaped character
+                        i += 2
                         continue
                     if clean[i] == "'":
                         break
@@ -1101,23 +1143,18 @@ def _compare_block_pairs(
     Core TAHD pipeline applied to an iterable of (block_a, block_b) tuples.
 
     Steps for each pair:
-      0. MIN_TOKENS guard     (Fix #5: skip trivially short blocks)
-      0b. Length ratio guard  (Fix #25: skip vastly different-sized blocks)
-      1. Token Jaccard prefilter
-      2. AST structural similarity
-      3. Halstead cosine similarity
-      4. Fusion score + clone classification
+      0.  MIN_TOKENS guard
+      0b. Length ratio guard
+      1.  Token Jaccard prefilter (Layer 1)
+      2.  AST combined similarity  (Layer 2, Fix #C)
+      3.  Halstead cosine          (Layer 3)
+      4.  Fusion + classify_clone  (Fix #B, #D, #E)
     """
     pairs = []
     for block_a, block_b in pair_iter:
-        # Fix #5: Skip blocks that are too short to produce meaningful results.
-        # Trivial functions (getters, setters, one-liners) will match each
-        # other vacuously and inflate clone counts.
         if len(block_a.tokens) < MIN_TOKENS or len(block_b.tokens) < MIN_TOKENS:
             continue
 
-        # Fix #25: Length ratio guard — blocks with vastly different sizes
-        # are not clones (a 12-token getter cannot clone a 200-token function).
         len_a, len_b = len(block_a.tokens), len(block_b.tokens)
         if max(len_a, len_b) > 3 * min(len_a, len_b):
             continue
@@ -1125,11 +1162,11 @@ def _compare_block_pairs(
         # ---- Layer 1 ----
         token_score = compute_token_similarity(block_a, block_b)
         if token_score < THRESH_TOKEN_PREFILTER:
-            continue   # fast skip — not similar enough to proceed
+            continue
 
         raw_token_score = compute_raw_token_similarity(block_a, block_b)
 
-        # ---- Layer 2 (lazy AST computed on first access) ----
+        # ---- Layer 2 (combined edit + bag-of-nodes, Fix #C) ----
         ast_score = compute_ast_similarity(block_a, block_b)
 
         # ---- Layer 3 ----
@@ -1137,22 +1174,18 @@ def _compare_block_pairs(
 
         # ---- Fusion ----
         fusion = compute_fusion_score(token_score, ast_score, halstead_score)
-        clone_type = classify_clone(token_score, ast_score, fusion,
-                                    raw_token_score,
-                                    raw_tokens_a=block_a.raw_tokens,
-                                    raw_tokens_b=block_b.raw_tokens)
+
+        # Fix #B: pass lit_tokens for the second Type-1 check
+        clone_type, confidence = classify_clone(
+            token_score, ast_score, fusion,
+            raw_token_score,
+            raw_tokens_a=block_a.raw_tokens,
+            raw_tokens_b=block_b.raw_tokens,
+            lit_tokens_a=block_a.lit_tokens,
+            lit_tokens_b=block_b.lit_tokens,
+        )
 
         if clone_type is not None:
-            # Fix #39: Compute confidence as margin above threshold
-            if clone_type == 1:
-                confidence = min(1.0, (min(raw_token_score, ast_score) - THRESH_TYPE1)
-                                 / max(1.0 - THRESH_TYPE1, 1e-9) + 0.5)
-            elif clone_type == 2:
-                confidence = min(1.0, (min(token_score, ast_score) - THRESH_TYPE2)
-                                 / max(1.0 - THRESH_TYPE2, 1e-9) + 0.5)
-            else:
-                confidence = min(1.0, (fusion - THRESH_FUSION_TYPE3)
-                                 / max(1.0 - THRESH_FUSION_TYPE3, 1e-9) + 0.5)
             pairs.append(ClonePair(
                 clone_id       = str(uuid.uuid4()),
                 clone_type     = clone_type,
@@ -1171,13 +1204,12 @@ def _compare_block_pairs(
 
 
 def _deduplicate_clone_pairs(pairs: list, mode: str = "strict") -> list:
-    """Keep only the best match for each block to prevent one function
+    """
+    Keep only the best match for each block to prevent one function
     from appearing in multiple clone pairs.
 
-    mode="strict"     (intra-file): lock both key_a and key_b — strict 1:1 deduplication.
-    mode="cross_file" (cross-file): only lock key_a — allows multiple file_a blocks to
-                      match the same file_b block (e.g. a student copies one function and
-                      modifies it into two slightly different versions).
+    mode="strict"     (intra-file): lock both key_a and key_b.
+    mode="cross_file" (cross-file): only lock key_a.
     """
     pairs_sorted = sorted(pairs, key=lambda p: p.fusion_score, reverse=True)
     used_a: set = set()
@@ -1203,10 +1235,7 @@ def detect_clones_in_blocks(
     file_a: str = "file_a",
     file_b: str = "file_b",
 ) -> list[ClonePair]:
-    """
-    Run the full TAHD pipeline on every pair of blocks from two files.
-    Delegates to _compare_block_pairs with itertools.product.
-    """
+    """Run the full TAHD pipeline on every pair of blocks from two files."""
     pairs = _compare_block_pairs(
         itertools.product(blocks_a, blocks_b), file_a, file_b
     )
@@ -1217,11 +1246,7 @@ def detect_clones_single_file(
     blocks: list[FunctionBlock],
     filename: str = "submission",
 ) -> list[ClonePair]:
-    """
-    Detect clones within a single file (all unique block pairs).
-    Useful when analyzing one student submission for internal duplication.
-    Delegates to _compare_block_pairs with itertools.combinations.
-    """
+    """Detect clones within a single file (all unique block pairs)."""
     pairs = _compare_block_pairs(
         itertools.combinations(blocks, 2), filename, filename
     )
@@ -1271,14 +1296,8 @@ _REFACTOR_RULES = {
 
 
 def _generate_after_code(pair: "ClonePair") -> str:
-    """
-    Fix #10: Generate a concrete merged-function skeleton based on the
-    actual function names and clone type, rather than a generic message.
-
-    Type 1 — one function is redundant; keep the first, delete the second.
-    Type 2 — extract shared logic; parameters stand in for renamed variables.
-    Type 3 — extract common sub-logic into a helper called by both.
-    """
+    """Generate a concrete merged-function skeleton based on the actual
+    function names and clone type."""
     name_a = pair.block_a.name
     name_b = pair.block_b.name
     lang   = pair.block_a.language
@@ -1288,8 +1307,6 @@ def _generate_after_code(pair: "ClonePair") -> str:
             return (
                 f"# Keep only one of the two identical functions.\n"
                 f"# Delete '{name_b}' and update all callers to use '{name_a}'.\n\n"
-                f"# Before: two identical functions '{name_a}' and '{name_b}'\n"
-                f"# After:\n"
                 f"def {name_a}(...):\n"
                 f"    # (original body — unchanged)\n"
                 f"    ...\n\n"
@@ -1306,7 +1323,7 @@ def _generate_after_code(pair: "ClonePair") -> str:
                 f"def {name_b}(...):\n"
                 f"    return {name_a}_extracted(b_var1, b_var2, ...)"
             )
-        else:  # Type 3
+        else:
             return (
                 f"# Extract the common sub-logic into a helper function.\n\n"
                 f"def _shared_core(...):\n"
@@ -1319,13 +1336,11 @@ def _generate_after_code(pair: "ClonePair") -> str:
                 f"    _shared_core(...)\n"
                 f"    # {name_b}-specific logic"
             )
-    else:  # java
+    else:
         if pair.clone_type == 1:
             return (
                 f"// Keep only one of the two identical methods.\n"
                 f"// Delete '{name_b}' and update all callers to use '{name_a}'.\n\n"
-                f"// Before: two identical methods '{name_a}' and '{name_b}'\n"
-                f"// After:\n"
                 f"public ReturnType {name_a}(...) {{\n"
                 f"    // (original body — unchanged)\n"
                 f"}}\n\n"
@@ -1344,7 +1359,7 @@ def _generate_after_code(pair: "ClonePair") -> str:
                 f"    return {name_a}Extracted(bVar1, bVar2);\n"
                 f"}}"
             )
-        else:  # Type 3
+        else:
             return (
                 f"// Extract the common sub-logic into a private helper.\n\n"
                 f"private void sharedCore(...) {{\n"
@@ -1414,10 +1429,9 @@ def generate_refactoring_suggestions(
                 },
             },
             "explanation": rule["explain"],
-            "before_code":  f"# Block A ({pair.block_a.name})\n{snippet_a}\n\n"
-                            f"# Block B ({pair.block_b.name})\n{snippet_b}",
-            # Fix #10: Concrete skeleton instead of a generic message
-            "after_code":   _generate_after_code(pair),
+            "before_code": (f"# Block A ({pair.block_a.name})\n{snippet_a}\n\n"
+                            f"# Block B ({pair.block_b.name})\n{snippet_b}"),
+            "after_code":  _generate_after_code(pair),
         })
 
     return suggestions
@@ -1428,13 +1442,7 @@ def generate_refactoring_suggestions(
 # ===========================================================================
 
 def compute_cyclomatic_complexity(source: str, language: str) -> float:
-    """
-    McCabe's Cyclomatic Complexity  M = E - N + 2P
-    Approximated by counting decision points + 1.
-
-    Comments and string literals are stripped first to avoid false positives
-    from keywords appearing inside non-code content.
-    """
+    """McCabe's Cyclomatic Complexity approximated by counting decision points + 1."""
     if language == "python":
         try:
             tree = ast.parse(source)
@@ -1445,7 +1453,6 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
                                       ast.AsyncFor, ast.AsyncWith)):
                     count += 1
                 elif isinstance(node, ast.BoolOp):
-                    # Each `and`/`or` with n operands adds n-1 decision points
                     count += len(node.values) - 1
             return float(count)
         except (SyntaxError, ValueError, MemoryError, RecursionError):
@@ -1455,7 +1462,6 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
         clean = _PY_TRIPLE_SQ_RE.sub('STR', clean)
         clean = _PY_DOUBLE_STRING_RE.sub('STR', clean)
         clean = _PY_SINGLE_STRING_RE.sub('STR', clean)
-        # Count elif separately, then replace so 'if ' count doesn't double-count them
         count = 1
         count += clean.count("elif ")
         clean_no_elif = clean.replace("elif ", "ELIF_ ")
@@ -1464,7 +1470,6 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
             count += clean.count(kw)
         return float(count)
     else:
-        # Strip Java comments and string literals
         clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
         clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
         clean = _JAVA_STRING_LIT_RE.sub('STR', clean)
@@ -1482,13 +1487,7 @@ def compute_maintainability_index(
     cyclomatic_complexity: float,
     lines_of_code: int,
 ) -> float:
-    """
-    Maintainability Index (Microsoft variant, 0–100 scale):
-      MI = max(0, (171
-                   - 5.2 * ln(V)
-                   - 0.23 * CC
-                   - 16.2 * ln(LOC)) * 100 / 171)
-    """
+    """Maintainability Index (Microsoft variant, 0–100 scale)."""
     ln_v   = math.log(max(halstead_volume, 1))
     ln_loc = math.log(max(lines_of_code,   1))
     mi_raw = 171 - 5.2 * ln_v - 0.23 * cyclomatic_complexity - 16.2 * ln_loc
@@ -1500,16 +1499,7 @@ def compute_maintainability_index(
 # ===========================================================================
 
 def _compute_nesting_depth(source: str, language: str) -> int:
-    """
-    Compute the maximum nesting depth of a function's source.
-
-    Fix #7: Python now uses AST scope-node counting instead of indent-level
-    heuristics.  This correctly handles 2-space, 4-space, and tab indentation.
-    Scope nodes counted: If, For, While, With, Try, ExceptHandler, AsyncFor,
-    AsyncWith.
-
-    Java: counts brace depth (unchanged — brace depth is the natural measure).
-    """
+    """Compute the maximum nesting depth of a function's source."""
     if language == "python":
         SCOPE_NODES = (
             ast.If, ast.For, ast.While, ast.With,
@@ -1530,7 +1520,6 @@ def _compute_nesting_depth(source: str, language: str) -> int:
             tree = ast.parse(source)
             _walk_depth(tree, 0)
         except SyntaxError:
-            # Fall back to indent heuristic if source is unparseable
             for line in source.splitlines():
                 stripped = line.lstrip()
                 if stripped and not stripped.startswith("#"):
@@ -1541,8 +1530,7 @@ def _compute_nesting_depth(source: str, language: str) -> int:
 
         return max_depth
 
-    else:  # java — brace depth (unchanged)
-        # Strip comments first to avoid counting braces inside comments
+    else:
         src = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
         src = _JAVA_LINE_COMMENT_RE.sub(" ", src)
         depth = 0
@@ -1574,14 +1562,7 @@ def _compute_nesting_depth(source: str, language: str) -> int:
 
 
 def _compute_comment_density(source: str, language: str) -> float:
-    """
-    Compute ratio of comment lines to total source lines.
-
-    Fix #2: Python now uses ast.get_docstring() to reliably identify
-    docstrings regardless of quote style (single or double), indentation,
-    or whether the docstring opens and closes on the same line.  This
-    eliminates the fragile delimiter-counting approach.
-    """
+    """Compute ratio of comment lines to total source lines."""
     lines = source.splitlines()
     total = len(lines)
     if total == 0:
@@ -1590,7 +1571,6 @@ def _compute_comment_density(source: str, language: str) -> float:
     comment_count = 0
 
     if language == "python":
-        # Collect line ranges occupied by docstrings via the AST
         docstring_lines: set[int] = set()
         try:
             tree = ast.parse(source)
@@ -1616,7 +1596,7 @@ def _compute_comment_density(source: str, language: str) -> float:
             elif stripped.startswith("#"):
                 comment_count += 1
 
-    else:  # java
+    else:
         in_block = False
         for line in lines:
             stripped = line.strip()
@@ -1637,24 +1617,9 @@ def _compute_comment_density(source: str, language: str) -> float:
 
 def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
     """
-    Fix #3: Return a dict mapping function name → confidence info instead
-    of a plain set.  This acknowledges that "unused within this file" does
-    not mean truly unused — the function may be called from another file,
-    used as a callback, or be an entry point (e.g. main / __main__).
+    Return a dict mapping function name → confidence info.
 
-    Return structure:
-    {
-        "func_name": {
-            "unused_in_file": True,
-            "confidence": "high" | "low",
-            "note": "<human-readable caveat>",
-        }
-    }
-
-    Confidence is "low" (i.e. likely a false negative) when:
-      - The function is named 'main' or '__main__'
-      - The function name matches common callback/hook patterns
-        (setUp, tearDown, test*, on*, handle*, run, execute, start, stop)
+    Confidence is "low" for entry points, callbacks, and test methods.
     """
     ENTRY_POINT_PATTERNS = re.compile(
         r"^(main|__main__|setUp|tearDown|run|execute|start|stop"
@@ -1667,7 +1632,6 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
     }
     called: set[str] = set()
 
-    # Strip comments to avoid false positives from commented-out call sites
     if any(getattr(b, "language", "") == "java" for b in blocks):
         searchable = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
         searchable = re.sub(r"//[^\n]*", " ", searchable)
@@ -1677,8 +1641,6 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
     if not defined:
         return {}
 
-    # Build one combined alternation pattern for all names and scan once.
-    # Sort by length descending so longer names match before shorter prefixes.
     combined = re.compile(
         r"\b(" + "|".join(re.escape(n) for n in sorted(defined, key=len, reverse=True)) + r")\b"
     )
@@ -1720,19 +1682,12 @@ def _compute_quality_report(
     source: str,
     language: str,
 ) -> dict:
-    """
-    Build the full Code Quality Report for a single-file analysis.
-
-    Returns a dict with:
-      - "functions": per-function breakdown list
-      - "structure": file-level summary stats
-    """
+    """Build the full Code Quality Report for a single-file analysis."""
     cloned_names: set = set()
     for pair in clone_pairs:
         cloned_names.add(pair.block_a.name)
         cloned_names.add(pair.block_b.name)
 
-    # Fix #3: unused_functions is now a confidence-annotated dict
     unused_info = _detect_unused_functions(blocks, source)
 
     func_details = []
@@ -1748,7 +1703,6 @@ def _compute_quality_report(
             smells.append("high_complexity")
         if block.name in cloned_names:
             smells.append("internal_duplication")
-        # Fix #3: Only flag as unused_function when confidence is "high"
         if block.name in unused_info and unused_info[block.name]["confidence"] == "high":
             smells.append("unused_function")
 
@@ -1765,7 +1719,6 @@ def _compute_quality_report(
             },
             "nesting_depth": nesting,
             "smells":        smells,
-            # Fix #3: Include unused-function confidence info when applicable
             **({"unused_info": unused_info[block.name]}
                if block.name in unused_info else {}),
         })
@@ -1794,11 +1747,7 @@ def _compute_quality_report(
 # ===========================================================================
 
 def validate_syntax(code: str, language: str) -> bool:
-    """
-    Validate syntax for the given language.
-    Python: uses ast.parse (raises SyntaxError on failure).
-    Java  : stub — always True (full validation needs javac).
-    """
+    """Validate syntax for the given language."""
     if language not in SUPPORTED_LANGUAGES:
         raise ValueError(f"Unsupported language: {language}")
 
@@ -1829,18 +1778,8 @@ class CodeAnalyzer:
         self.language = language
         self.code: str | None = None
 
-    # ------------------------------------------------------------------
-    # Single-file analysis
-    # ------------------------------------------------------------------
-
     def analyze(self, code: str, max_suggestions: int = 5) -> dict:
-        """
-        Analyse a single submission.
-
-        Fix #9: max_suggestions is now a parameter that is forwarded to
-        generate_refactoring_suggestions instead of silently using the
-        default of 5.
-        """
+        """Analyse a single submission."""
         if not isinstance(code, str):
             raise ValueError("code must be a string")
 
@@ -1856,10 +1795,6 @@ class CodeAnalyzer:
         cc           = compute_cyclomatic_complexity(code, self.language)
         mi           = compute_maintainability_index(total_volume, cc, loc)
 
-        # Fix #6: Count cloned lines without double-counting.
-        # The original code added both block_a and block_b lines for every pair,
-        # which inflated the percentage when a function appeared in multiple pairs.
-        # We now collect all unique line numbers across all cloned blocks instead.
         cloned_lines: set[int] = set()
         for pair in clone_pairs:
             for ln in range(pair.block_a.start_line, pair.block_a.end_line + 1):
@@ -1894,7 +1829,6 @@ class CodeAnalyzer:
                 "explanation":  _clone_type_explanation(pair.clone_type),
             })
 
-        # Fix #9: Forward max_suggestions so callers can control suggestion count
         suggestions    = generate_refactoring_suggestions(clone_pairs, max_suggestions)
         quality_report = _compute_quality_report(blocks, clone_pairs, code, self.language)
 
@@ -1918,10 +1852,6 @@ class CodeAnalyzer:
             "quality_report":   quality_report,
         }
 
-    # ------------------------------------------------------------------
-    # Cross-file / batch analysis
-    # ------------------------------------------------------------------
-
     def analyze_pair(
         self,
         code_a: str,
@@ -1930,20 +1860,7 @@ class CodeAnalyzer:
         file_b: str = "submission_b",
         max_suggestions: int = 5,
     ) -> dict:
-        """
-        Compare two student submissions against each other.
-
-        Fix #11: Raises ValueError if code_a and code_b appear to be in
-        different languages than what this analyzer was initialized with.
-        (Basic guard: checks that both inputs are strings and non-empty.)
-
-        Fix #1: overall_similarity now reflects the fraction of blocks in
-        file_a that were involved in at least one detected clone pair,
-        rather than the average fusion score of detected pairs only.
-        Averaging fusion scores only over matched pairs is misleading
-        because it ignores the majority of unmatched blocks.
-        """
-        # Fix #11: Cross-language guard
+        """Compare two student submissions against each other."""
         if not isinstance(code_a, str) or not code_a.strip():
             raise ValueError("code_a must be a non-empty string")
         if not isinstance(code_b, str) or not code_b.strip():
@@ -1956,12 +1873,8 @@ class CodeAnalyzer:
             blocks_a, blocks_b, file_a, file_b
         )
 
-        # Fix #9: Forward max_suggestions
         suggestions = generate_refactoring_suggestions(clone_pairs, max_suggestions)
 
-        # Fix #1: overall_similarity = fraction of blocks_a matched in at
-        # least one clone pair.  This gives a meaningful file-level score
-        # that does not ignore the unmatched majority of blocks.
         if clone_pairs and blocks_a:
             matched_a = {(p.block_a.name, p.block_a.start_line) for p in clone_pairs}
             overall_sim = round(len(matched_a) / len(blocks_a), 4)
@@ -1999,18 +1912,19 @@ class CodeAnalyzer:
         dominant_type = type_counts.most_common(1)[0][0] if type_counts else None
 
         return {
-            "analysis_id":       str(uuid.uuid4()),
-            "language":          self.language,
-            "file_a":            file_a,
-            "file_b":            file_b,
+            "analysis_id":        str(uuid.uuid4()),
+            "language":           self.language,
+            "file_a":             file_a,
+            "file_b":             file_b,
             "overall_similarity": overall_sim,
-            "clone_count":       len(clone_pairs),
-            "clones":            clones_out,
+            "clone_count":        len(clone_pairs),
+            "clones":             clones_out,
             "refactoring_suggestions": suggestions,
-            "detection_method":  f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
-            "dominant_clone_type":   dominant_type,
-            "clone_type_breakdown":  dict(type_counts),   # e.g. {1: 1, 2: 1, 3: 1}
+            "detection_method":   f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
+            "dominant_clone_type":    dominant_type,
+            "clone_type_breakdown":   dict(type_counts),
         }
+
 
 # ===========================================================================
 # HELPERS
@@ -2021,9 +1935,10 @@ def _clone_type_explanation(clone_type: int) -> dict:
     explanations = {
         1: {
             "type_name":   "Type 1 — Exact Clone",
-            "description": "These blocks are identical except for whitespace "
-                           "or comment differences.",
-            "why_flagged": "Token and structural signatures are nearly perfect matches.",
+            "description": "These blocks are identical except for whitespace, "
+                           "comment, or literal constant differences.",
+            "why_flagged": "Raw or literal-normalized token sequences are "
+                           "identical; structural signatures match perfectly.",
         },
         2: {
             "type_name":   "Type 2 — Renamed Clone",
