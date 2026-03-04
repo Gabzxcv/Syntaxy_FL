@@ -51,11 +51,26 @@ function Login() {
 
   async function handleRegister(e) {
     e.preventDefault();
-    const username = e.target.elements['reg-username'].value.trim();
-    const email = e.target.elements['reg-email'].value.trim();
+    const username = e.target.elements['reg-username'].value.trim().toLowerCase();
+    const email = e.target.elements['reg-email'].value.trim().toLowerCase();
     const fullName = e.target.elements['reg-fullname'].value.trim();
     const role = e.target.elements['reg-role'].value;
     const password = e.target.elements['reg-password'].value;
+    const confirmPassword = e.target.elements['reg-confirm-password'].value;
+
+    // Client-side validation
+    if (!/^[a-z0-9_]{3,30}$/.test(username)) {
+      return showMessage('Username must be 3–30 characters and contain only letters, numbers, or underscores', 'error');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return showMessage('Please enter a valid email address', 'error');
+    }
+    if (password.length < 8) {
+      return showMessage('Password must be at least 8 characters', 'error');
+    }
+    if (password !== confirmPassword) {
+      return showMessage('Passwords do not match', 'error');
+    }
 
     setRegisterLoading(true);
     clearMessage();
@@ -134,7 +149,7 @@ function Login() {
           <form onSubmit={handleRegister}>
             <div className="form-group">
               <label htmlFor="reg-username">Username</label>
-              <input type="text" id="reg-username" name="reg-username" placeholder="Choose a username" required minLength="3" />
+              <input type="text" id="reg-username" name="reg-username" placeholder="3–30 chars: letters, numbers, underscores" required minLength="3" maxLength="30" pattern="[a-zA-Z0-9_]{3,30}" title="Letters, numbers and underscores only (3–30 chars)" />
             </div>
             <div className="form-group">
               <label htmlFor="reg-email">Email</label>
@@ -153,7 +168,11 @@ function Login() {
             </div>
             <div className="form-group">
               <label htmlFor="reg-password">Password</label>
-              <input type="password" id="reg-password" name="reg-password" placeholder="Min 8 chars, uppercase, lowercase, number" required minLength="8" />
+              <input type="password" id="reg-password" name="reg-password" placeholder="At least 8 characters" required minLength="8" />
+            </div>
+            <div className="form-group">
+              <label htmlFor="reg-confirm-password">Confirm Password</label>
+              <input type="password" id="reg-confirm-password" name="reg-confirm-password" placeholder="Re-enter your password" required minLength="8" />
             </div>
             <button type="submit" className="btn" disabled={registerLoading}>
               {registerLoading ? 'Creating account...' : 'Create Account'}

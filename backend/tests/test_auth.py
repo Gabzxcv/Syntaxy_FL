@@ -73,35 +73,34 @@ class TestRegistration:
         })
         assert response.status_code == 400
 
-    def test_register_password_no_uppercase(self, client):
-        """Should reject passwords without an uppercase letter"""
+    def test_register_invalid_username_format(self, client):
+        """Should reject usernames with invalid characters"""
         response = client.post('/api/v1/auth/register', json={
-            'username': 'testuser',
+            'username': 'test user!',
             'email': 'test@example.com',
-            'password': 'password1'
+            'password': 'password123'
         })
         assert response.status_code == 400
-        assert 'uppercase' in response.get_json()['error']
+        assert 'Username' in response.get_json()['error']
 
-    def test_register_password_no_lowercase(self, client):
-        """Should reject passwords without a lowercase letter"""
+    def test_register_username_too_long(self, client):
+        """Should reject usernames longer than 30 characters"""
         response = client.post('/api/v1/auth/register', json={
-            'username': 'testuser',
+            'username': 'a' * 31,
             'email': 'test@example.com',
-            'password': 'PASSWORD1'
+            'password': 'password123'
         })
         assert response.status_code == 400
-        assert 'lowercase' in response.get_json()['error']
 
-    def test_register_password_no_number(self, client):
-        """Should reject passwords without a number"""
+    def test_register_invalid_email(self, client):
+        """Should reject obviously invalid email addresses"""
         response = client.post('/api/v1/auth/register', json={
             'username': 'testuser',
-            'email': 'test@example.com',
-            'password': 'Password'
+            'email': 'not-an-email',
+            'password': 'password123'
         })
         assert response.status_code == 400
-        assert 'number' in response.get_json()['error']
+        assert 'email' in response.get_json()['error'].lower()
 
     def test_register_duplicate_username(self, client):
         """Should reject duplicate usernames"""

@@ -19,16 +19,28 @@ bp = Blueprint('auth', __name__)
 MAX_PAGE_SIZE = 100
 
 
+_USERNAME_RE = re.compile(r'^[a-z0-9_]{3,30}$')
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+
 def _validate_password(password):
     """Return an error message string if the password is invalid, else None."""
     if len(password) < 8:
         return 'Password must be at least 8 characters'
-    if not re.search(r'[A-Z]', password):
-        return 'Password must contain at least one uppercase letter'
-    if not re.search(r'[a-z]', password):
-        return 'Password must contain at least one lowercase letter'
-    if not re.search(r'[0-9]', password):
-        return 'Password must contain at least one number'
+    return None
+
+
+def _validate_username(username):
+    """Return an error message string if the username is invalid, else None."""
+    if not _USERNAME_RE.match(username):
+        return 'Username must be 3–30 characters and contain only letters, numbers, or underscores'
+    return None
+
+
+def _validate_email(email):
+    """Return an error message string if the email address looks invalid, else None."""
+    if not _EMAIL_RE.match(email):
+        return 'Please enter a valid email address'
     return None
 
 
@@ -68,9 +80,15 @@ def register():
         if role not in ('instructor', 'student'):
             role = 'instructor'
         
-        # Validate username
-        if len(username) < 3:
-            return jsonify({'error': 'Username must be at least 3 characters'}), 400
+        # Validate username format
+        usr_error = _validate_username(username)
+        if usr_error:
+            return jsonify({'error': usr_error}), 400
+
+        # Validate email format
+        email_error = _validate_email(email)
+        if email_error:
+            return jsonify({'error': email_error}), 400
         
         # Validate password
         pwd_error = _validate_password(password)
