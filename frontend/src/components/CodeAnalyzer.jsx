@@ -553,7 +553,7 @@ const ALL_KEYWORDS = new Set([...PYTHON_KEYWORDS, ...JAVA_KEYWORDS]);
  * Used for raw (Type-1) token similarity.
  */
 function lexTokens(code) {
-  return code
+  return (code
     .replace(/\/\/.*$/gm, '')              // strip // line comments
     .replace(/#.*$/gm, '')                 // strip # comments
     .replace(/\/\*[\s\S]*?\*\//g, ' ')     // strip block comments
@@ -563,8 +563,8 @@ function lexTokens(code) {
     .replace(/'(?:[^'\\]|\\.)*'/g, 'STRLIT') // single-quoted strings
     .replace(/\b\d+\.?\d*([eE][+-]?\d+)?\b/g, 'NUMLIT') // numeric literals
     .toLowerCase()
-    .match(/[a-z_][a-z0-9_]*|numlit|strlit|[+\-*/%]=?|&&|\|\||[!=<>]=|<<|>>|[=<>!&|^~?:;,.()\[\]{}]/g)
-    || [];
+    .match(/[a-z_][a-z0-9_]*|numlit|strlit|\*\*=?|\/\/=?|[+\-*/%&|^]=?|[!=<>]=|&&|\|\||<<=?|>>=?|[=<>!&|^~?:;,.()[\]{}]/g)
+  ) || [];
 }
 
 // ─── Step 2: AST Linearization ───────────────────────────────────────────────
@@ -740,7 +740,8 @@ function computeStructuralSimilarity(codeA, codeB) {
 function classifyPairType(raw, structural) {
   if (raw >= 0.95 && structural >= 0.95)    return 'Type-1';
   if (structural >= 0.75 && raw < 0.95)     return 'Type-2';
-  if (raw >= 0.50 && structural >= 0.50)    return 'Type-3';
+  const fusion = raw * 0.30 + structural * 0.70;
+  if (fusion >= 0.60 && (structural >= 0.30 || raw >= 0.35))  return 'Type-3';
   return null; // not a clone
 }
 
@@ -760,12 +761,13 @@ function generateExplanation(pair) {
   }
   const tokA = new Set(lexTokens(fileA.content));
   const tokB = new Set(lexTokens(fileB.content));
-  const shared = [...tokA].filter(t => tokB.has(t)).length;
+  const nonKW = [...tokA].filter(t => tokB.has(t) && !ALL_KEYWORDS.has(t));
+  reasons.push(`${nonKW.length} unique non-keyword tokens are shared between the files.`);
   const astA = astLinearize(fileA.content);
   const astB = astLinearize(fileB.content);
   const sharedNodes = astA.filter(n => astB.includes(n));
   const uniqueAstNodes = new Set(sharedNodes).size;
-  reasons.push(`${shared} unique lexical tokens are shared. AST linearization detected ${uniqueAstNodes} shared structural node types (${sharedNodes.length} total node matches).`);
+  reasons.push(`AST linearization detected ${uniqueAstNodes} shared structural node types (${sharedNodes.length} total node matches).`);
   const locA = fileA.content.split('\n').filter(l=>l.trim()).length;
   const locB = fileB.content.split('\n').filter(l=>l.trim()).length;
   const locDiff = Math.abs(locA - locB);
@@ -1346,12 +1348,48 @@ function CodeAnalyzer() {
     const matrix = Array.from({length:n},()=>Array(n).fill(null));
     const pairs = [];
 
+    // Fix #34: Pre-hash deduplication — instantly mark identical-content pairs as Type-1
+    // Secondary equality check prevents false positives from hash collisions.
+    const contentHashes = {};
+    const normalizedContents = analyzed.map(f => f.content.replace(/\s+/g, '').toLowerCase());
+    normalizedContents.forEach((normalized, i) => {
+      let hash = 0;
+      for (let c = 0; c < normalized.length; c++) {
+        hash = ((hash << 5) - hash + normalized.charCodeAt(c)) | 0;
+      }
+      const key = String(hash);
+      if (!contentHashes[key]) contentHashes[key] = [];
+      contentHashes[key].push(i);
+    });
+    const preMatched = new Set();
+    for (const indices of Object.values(contentHashes)) {
+      if (indices.length > 1) {
+        for (let a = 0; a < indices.length; a++) {
+          for (let b = a + 1; b < indices.length; b++) {
+            const ii = indices[a], jj = indices[b];
+            // Secondary check: verify actual content equality to guard against hash collisions
+            if (normalizedContents[ii] !== normalizedContents[jj]) continue;
+            matrix[ii][jj] = 1.0; matrix[jj][ii] = 1.0;
+            pairs.push({
+              fileA: analyzed[ii], fileB: analyzed[jj],
+              similarity: 1.0, rawSim: 1.0, normSim: 1.0, astSim: 1.0,
+              cloneType: 'Type-1', typeBreakdown: {1: 1},
+            });
+            preMatched.add(`${Math.min(ii,jj)}-${Math.max(ii,jj)}`);
+          }
+        }
+      }
+    }
+
     for (let i=0; i<n; i++) {
       matrix[i][i] = 1;
       for (let j=i+1; j<n; j++) {
         pair_idx++;
         setBatchProgress({ current:pair_idx, total:total_pairs, phase:'Comparing pairs', currentName:`${shortName(analyzed[i].name)} ↔ ${shortName(analyzed[j].name)}` });
         await new Promise(r=>setTimeout(r,0));
+
+        // Skip pairs already matched by content hash
+        if (preMatched.has(`${i}-${j}`)) { continue; }
 
         let sim, rawSim, normSim, astSim, cloneType, breakdown;
 
@@ -1401,7 +1439,7 @@ function CodeAnalyzer() {
           const astNodes_i = astLinearize(analyzed[i].content);
           const astNodes_j = astLinearize(analyzed[j].content);
           astSim = ngramJaccardSimilarity(astNodes_i, astNodes_j, 2);
-          sim = rawSim >= 0.70 ? rawSim : normSim >= 0.72 ? normSim * 0.95 : Math.max(rawSim, normSim * 0.85);
+          sim = rawSim * 0.30 + normSim * 0.40 + astSim * 0.30;
           cloneType = classifyPairType(rawSim, normSim);
         }
 
