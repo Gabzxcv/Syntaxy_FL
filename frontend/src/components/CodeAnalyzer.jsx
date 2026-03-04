@@ -563,9 +563,8 @@ function lexTokens(code) {
     .replace(/'(?:[^'\\]|\\.)*'/g, 'STRLIT') // single-quoted strings
     .replace(/\b\d+\.?\d*([eE][+-]?\d+)?\b/g, 'NUMLIT') // numeric literals
     .toLowerCase()
-    .replace(/[^a-z0-9_\s]/g, ' ')        // strip operators/punctuation
-    .split(/\s+/)
-    .filter(t => t.length >= 2 && t !== 'numlit' || t === 'numlit' || t === 'strlit');
+    .match(/[a-z_][a-z0-9_]*|numlit|strlit|[+\-*/%]=?|&&|\|\||[!=<>]=|<<|>>|[=<>!&|^~?:;,.()\[\]{}]/g)
+    || [];
 }
 
 // ─── Step 2: AST Linearization ───────────────────────────────────────────────
@@ -721,11 +720,12 @@ function computeStructuralSimilarity(codeA, codeB) {
 // Based on Roy & Cordy (2007) taxonomy and thresholds validated against
 // the test dataset (see GROUND_TRUTH.txt).
 //
-// Type-1: raw trigram Jaccard ≥ 0.70 — near-identical token sequences
+// Type-1: raw trigram Jaccard ≥ 0.95 AND structural ≥ 0.95
+//         Near-exact token sequences (matches backend THRESH_TYPE1)
 //         (comment-only differences do NOT inflate this score since
 //          comments are stripped in lexTokens)
 //
-// Type-2: structural score ≥ 0.72 AND raw < 0.70
+// Type-2: structural score ≥ 0.75 AND raw < 0.95
 //         High structural similarity with lower raw similarity
 //         indicates identifier renaming (the gap signals substitution)
 //
@@ -738,9 +738,9 @@ function computeStructuralSimilarity(codeA, codeB) {
 //         approaches) typically score 0.15–0.40 on trigram Jaccard.
 
 function classifyPairType(raw, structural) {
-  if (raw >= 0.70)                          return 'Type-1';
-  if (structural >= 0.72 && raw < 0.70)    return 'Type-2';
-  if (raw >= 0.50 && structural >= 0.50)   return 'Type-3';
+  if (raw >= 0.95 && structural >= 0.95)    return 'Type-1';
+  if (structural >= 0.75 && raw < 0.95)     return 'Type-2';
+  if (raw >= 0.50 && structural >= 0.50)    return 'Type-3';
   return null; // not a clone
 }
 
@@ -1353,7 +1353,7 @@ function CodeAnalyzer() {
         setBatchProgress({ current:pair_idx, total:total_pairs, phase:'Comparing pairs', currentName:`${shortName(analyzed[i].name)} ↔ ${shortName(analyzed[j].name)}` });
         await new Promise(r=>setTimeout(r,0));
 
-        let sim, rawSim, normSim, astSim, cloneType;
+        let sim, rawSim, normSim, astSim, cloneType, breakdown;
 
         // Try backend /compare endpoint first (TAHD pipeline)
         try {

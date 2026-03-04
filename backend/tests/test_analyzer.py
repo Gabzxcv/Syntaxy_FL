@@ -407,10 +407,10 @@ class TestAnalyzePair:
             assert key in result
 
     def test_detection_method_version(self):
-        """detection_method should advertise TAHD v1.2."""
+        """detection_method should advertise TAHD v1.3."""
         analyzer = CodeAnalyzer('python')
         result = analyzer.analyze_pair("def f():\n    pass\n", "def g():\n    pass\n")
-        assert "v1.2" in result['detection_method']
+        assert "v1.3" in result['detection_method']
 
 
 class TestHalsteadSimilarity:
