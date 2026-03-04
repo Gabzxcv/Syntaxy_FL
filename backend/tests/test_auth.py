@@ -137,6 +137,22 @@ class TestLogin:
         assert data['message'] == 'Login successful'
         assert 'access_token' in data
 
+    def test_login_with_email(self, client):
+        """Should login using email address instead of username"""
+        client.post('/api/v1/auth/register', json={
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'Password1'
+        })
+        response = client.post('/api/v1/auth/login', json={
+            'username': 'test@example.com',
+            'password': 'Password1'
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['message'] == 'Login successful'
+        assert 'access_token' in data
+
     def test_login_wrong_password(self, client):
         """Should reject invalid password"""
         client.post('/api/v1/auth/register', json={
