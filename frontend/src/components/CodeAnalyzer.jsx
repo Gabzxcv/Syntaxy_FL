@@ -1376,12 +1376,17 @@ function CodeAnalyzer() {
             sim = cmpData.overall_similarity || 0;
             // Use the highest clone pair scores if available
             if (cmpData.clones && cmpData.clones.length > 0) {
-              const best = cmpData.clones.reduce((a, b) => (b.similarity || 0) > (a.similarity || 0) ? b : a, cmpData.clones[0]);
-              rawSim = best.token_score || sim;
-              astSim = best.ast_score || sim;
-              normSim = best.similarity || sim;
-              const ct = typeof best.type === 'number' ? best.type : parseInt(String(best.type).replace(/\D/g, '')) || 3;
-              cloneType = ct === 1 ? 'Type-1' : ct === 2 ? 'Type-2' : ct === 3 ? 'Type-3' : null;
+              // AFTER
+            const best = cmpData.clones.reduce((a, b) => (b.similarity || 0) > (a.similarity || 0) ? b : a, cmpData.clones[0]);
+            rawSim = best.token_score || sim;
+            astSim = best.ast_score || sim;
+            normSim = best.similarity || sim;
+            // Use dominant (most frequent) type from backend breakdown, not the type of the
+            // highest-similarity clone — a single exact-match helper would otherwise stamp
+            // the whole pair as Type-1 even when most clones are Type-2/3.
+            const dt = cmpData.dominant_clone_type;
+            const breakdown = cmpData.clone_type_breakdown || {};
+            cloneType = dt === 1 ? 'Type-1' : dt === 2 ? 'Type-2' : dt === 3 ? 'Type-3' : null;
             } else {
               rawSim = sim; normSim = sim; astSim = sim;
               cloneType = sim >= 0.6 ? 'Type-3' : null;
@@ -1402,7 +1407,8 @@ function CodeAnalyzer() {
 
         matrix[i][j] = sim; matrix[j][i] = sim;
         if (cloneType) {
-          pairs.push({ fileA:analyzed[i], fileB:analyzed[j], similarity:sim, rawSim, normSim, astSim, cloneType });
+          // AFTER
+          pairs.push({ fileA:analyzed[i], fileB:analyzed[j], similarity:sim, rawSim, normSim, astSim, cloneType, typeBreakdown: breakdown });
         }
       }
     }
@@ -2218,10 +2224,27 @@ function CodeAnalyzer() {
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
                                     <span className="fpc-student"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{shortName(pair.fileB.name)}</span>
                                   </div>
-                                  <div className="fpc-badges">
-                                    <span className="clone-type-badge" style={{background:meta.color,color:'#fff',fontSize:10}}>{meta.label}</span>
-                                    <span className="fpc-sim" style={{color:meta.color}}>{(pair.similarity*100).toFixed(1)}%</span>
+                                  // AFTER
+                                <div className="fpc-badges">
+                                  <span className="clone-type-badge" style={{background:meta.color,color:'#fff',fontSize:10}}>
+                                    {meta.label}{pair.typeBreakdown && Object.keys(pair.typeBreakdown).length > 1 ? ' · dominant' : ''}
+                                  </span>
+                                  <span className="fpc-sim" style={{color:meta.color}}>{(pair.similarity*100).toFixed(1)}%</span>
+                                </div>
+                                {pair.typeBreakdown && Object.keys(pair.typeBreakdown).length > 1 && (
+                                  <div style={{display:'flex',gap:5,marginTop:5,flexWrap:'wrap'}}>
+                                    {Object.entries(pair.typeBreakdown).sort().map(([t, count]) => {
+                                      const bm = resolveCloneMeta(`Type-${t}`);
+                                      return (
+                                        <span key={t} style={{fontSize:10,fontWeight:700,color:bm.color,
+                                          background:bm.bg,border:`1px solid ${bm.border}`,
+                                          padding:'1px 7px',borderRadius:4}}>
+                                          {count}× {bm.label}
+                                        </span>
+                                      );
+                                    })}
                                   </div>
+                                )}
                                 </div>
                                 <div className="fpc-bar-bg"><div className="fpc-bar-fill" style={{width:`${pair.similarity*100}%`,background:meta.color}}/></div>
                                 <div className="fpc-sub">

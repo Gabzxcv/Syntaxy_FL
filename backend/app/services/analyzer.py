@@ -1741,6 +1741,9 @@ class CodeAnalyzer:
                 "explanation": _clone_type_explanation(pair.clone_type),
             })
 
+        type_counts = collections.Counter(p.clone_type for p in clone_pairs)
+        dominant_type = type_counts.most_common(1)[0][0] if type_counts else None
+
         return {
             "analysis_id":       str(uuid.uuid4()),
             "language":          self.language,
@@ -1751,8 +1754,9 @@ class CodeAnalyzer:
             "clones":            clones_out,
             "refactoring_suggestions": suggestions,
             "detection_method":  "TAHD v1.2 (Token + AST + Halstead)",
+            "dominant_clone_type":   dominant_type,
+            "clone_type_breakdown":  dict(type_counts),   # e.g. {1: 1, 2: 1, 3: 1}
         }
-
 
 # ===========================================================================
 # HELPERS
