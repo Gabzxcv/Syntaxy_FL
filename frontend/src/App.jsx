@@ -10,7 +10,7 @@ import StudentProfile from './components/StudentProfile';
 import Refactoring from './components/Refactoring';
 import History from './components/History';
 import Files from './components/Files';
-import Settings from './components/settings';
+import Settings from './components/Settings';
 import Admin from './components/Admin';
 import Features from './components/Features';
 import HowItWorks from './components/HowItWorks';

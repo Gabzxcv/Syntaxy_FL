@@ -7,12 +7,16 @@ from flask_jwt_extended import (
     get_jwt
 )
 from app.models import db, User, Analysis, Section, Student, HistoryEntry, UploadedFile, RevokedToken
+from app.extensions import limiter
+from werkzeug.utils import secure_filename
 from datetime import datetime, timezone
 import json
 import os
 import re
 
 bp = Blueprint('auth', __name__)
+
+MAX_PAGE_SIZE = 100
 
 
 def _validate_password(password):
@@ -29,6 +33,7 @@ def _validate_password(password):
 
 
 @bp.route('/register', methods=['POST'])
+@limiter.limit("5 per minute")
 def register():
     """
     Register a new user
@@ -106,6 +111,7 @@ def register():
 
 
 @bp.route('/login', methods=['POST'])
+@limiter.limit("10 per minute")
 def login():
     """
     Login user
@@ -290,10 +296,14 @@ def get_analysis_detail(analysis_id):
 @bp.route('/sections', methods=['GET'])
 @jwt_required()
 def get_sections():
-    """Get all sections for the current instructor"""
+    """Get sections — admins see all, instructors see their own"""
     try:
         current_user_id = get_jwt_identity()
-        sections = Section.query.filter_by(instructor_id=current_user_id).all()
+        user = db.session.get(User, current_user_id)
+        if user and user.role == 'admin':
+            sections = Section.query.all()
+        else:
+            sections = Section.query.filter_by(instructor_id=current_user_id).all()
         return jsonify({'sections': [s.to_dict() for s in sections]}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -324,7 +334,11 @@ def delete_section(section_id):
     """Delete a section"""
     try:
         current_user_id = get_jwt_identity()
-        section = Section.query.filter_by(id=section_id, instructor_id=current_user_id).first()
+        user = db.session.get(User, current_user_id)
+        if user and user.role == 'admin':
+            section = db.session.get(Section, section_id)
+        else:
+            section = Section.query.filter_by(id=section_id, instructor_id=current_user_id).first()
         if not section:
             return jsonify({'error': 'Section not found'}), 404
         db.session.delete(section)
@@ -445,9 +459,13 @@ def upload_file_meta():
         if not data or not data.get('name'):
             return jsonify({'error': 'File name is required'}), 400
 
+        safe_name = secure_filename(data['name'])
+        if not safe_name:
+            return jsonify({'error': 'Invalid file name'}), 400
+
         uploaded = UploadedFile(
             user_id=current_user_id,
-            name=data['name'],
+            name=safe_name,
             size=data.get('size', 0),
             file_type=data.get('file_type', 'text'),
             content=data.get('content', '')
@@ -496,14 +514,23 @@ def delete_file(file_id):
 @bp.route('/admin/users', methods=['GET'])
 @jwt_required()
 def admin_list_users():
-    """Admin: list all users"""
+    """Admin: list all users with pagination"""
     try:
         current_user_id = get_jwt_identity()
         user = db.session.get(User, current_user_id)
         if not user or user.role != 'admin':
             return jsonify({'error': 'Admin access required'}), 403
-        users = User.query.all()
-        return jsonify({'users': [u.to_dict() for u in users]}), 200
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        per_page = min(per_page, MAX_PAGE_SIZE)
+        pagination = User.query.paginate(page=page, per_page=per_page, error_out=False)
+        return jsonify({
+            'users': [u.to_dict() for u in pagination.items],
+            'total': pagination.total,
+            'page': pagination.page,
+            'per_page': per_page,
+            'pages': pagination.pages,
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -555,8 +582,9 @@ def change_password():
         if not user.check_password(data['current_password']):
             return jsonify({'error': 'Current password is incorrect'}), 401
 
-        if len(data['new_password']) < 6:
-            return jsonify({'error': 'New password must be at least 6 characters'}), 400
+        pwd_error = _validate_password(data['new_password'])
+        if pwd_error:
+            return jsonify({'error': pwd_error}), 400
 
         user.set_password(data['new_password'])
         db.session.commit()

@@ -560,7 +560,7 @@ body.light-mode .mobile-menu-btn {
   display: none;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
   }

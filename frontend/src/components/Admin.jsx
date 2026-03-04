@@ -19,10 +19,7 @@ function Admin() {
   });
   const [newSectionName, setNewSectionName] = useState('');
   const [assignInstructor, setAssignInstructor] = useState('');
-  const [adminSections, setAdminSections] = useState(() => {
-    const saved = localStorage.getItem('savedSections');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [adminSections, setAdminSections] = useState([]);
   const [assignSectionId, setAssignSectionId] = useState('');
   const [assignStudent, setAssignStudent] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,6 +40,7 @@ function Admin() {
       return;
     }
     fetchUsers(token);
+    fetchSections(token);
   }, [navigate]);
 
   useEffect(() => {
@@ -77,6 +75,17 @@ function Admin() {
             .map(u => ({ name: u.full_name || u.username, email: u.email }));
           if (students.length > 0) setRegisteredStudents(students);
         }
+      })
+      .catch(() => {});
+  }
+
+  function fetchSections(token) {
+    fetch(`${API}/auth/sections`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.sections) setAdminSections(data.sections);
       })
       .catch(() => {});
   }
@@ -152,41 +161,62 @@ function Admin() {
 
   function handleCreateSection() {
     if (!newSectionName.trim()) return;
-    const newSection = {
-      id: Date.now().toString(),
-      name: newSectionName.trim(),
-      instructor: assignInstructor || null,
-      students: [],
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...adminSections, newSection];
-    setAdminSections(updated);
-    localStorage.setItem('savedSections', JSON.stringify(updated));
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newSectionName.trim() }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.section) {
+          setAdminSections((prev) => [...prev, data.section]);
+        }
+      })
+      .catch(() => {});
     setNewSectionName('');
     setAssignInstructor('');
   }
 
   function handleDeleteSection(sectionId) {
     if (!window.confirm('Are you sure you want to delete this section?')) return;
-    const updated = adminSections.filter(s => s.id !== sectionId);
-    setAdminSections(updated);
-    localStorage.setItem('savedSections', JSON.stringify(updated));
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections/${sectionId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.ok) setAdminSections((prev) => prev.filter((s) => s.id !== sectionId));
+      })
+      .catch(() => {});
   }
 
   function handleAssignStudent() {
     if (!assignSectionId || !assignStudent) return;
     const student = registeredStudents.find(s => s.email === assignStudent);
     if (!student) return;
-    const updated = adminSections.map(sec => {
-      if (sec.id === assignSectionId) {
-        const already = (sec.students || []).some(s => s.email === student.email);
-        if (already) return sec;
-        return { ...sec, students: [...(sec.students || []), { name: student.name, email: student.email }] };
-      }
-      return sec;
-    });
-    setAdminSections(updated);
-    localStorage.setItem('savedSections', JSON.stringify(updated));
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections/${assignSectionId}/students`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: student.name, email: student.email }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.student) {
+          setAdminSections((prev) =>
+            prev.map((sec) =>
+              sec.id === assignSectionId
+                ? { ...sec, students: [...(sec.students || []), data.student] }
+                : sec
+            )
+          );
+        }
+      })
+      .catch(() => {});
     setAssignStudent('');
   }
 

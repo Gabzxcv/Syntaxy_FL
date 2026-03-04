@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
-import './settings.css';
+import './Settings.css';
 
 import API from '../api';
 
@@ -461,8 +461,20 @@ function Settings() {
                     setPasswordMessage('Error: New passwords do not match.');
                     return;
                   }
-                  if (newPassword.length < 6) {
-                    setPasswordMessage('Error: Password must be at least 6 characters.');
+                  if (newPassword.length < 8) {
+                    setPasswordMessage('Error: Password must be at least 8 characters.');
+                    return;
+                  }
+                  if (!/[A-Z]/.test(newPassword)) {
+                    setPasswordMessage('Error: Password must contain at least one uppercase letter.');
+                    return;
+                  }
+                  if (!/[a-z]/.test(newPassword)) {
+                    setPasswordMessage('Error: Password must contain at least one lowercase letter.');
+                    return;
+                  }
+                  if (!/[0-9]/.test(newPassword)) {
+                    setPasswordMessage('Error: Password must contain at least one number.');
                     return;
                   }
                   setPasswordChanging(true);

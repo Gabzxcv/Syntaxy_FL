@@ -34,6 +34,9 @@ def create_app():
     bcrypt.init_app(app)
     jwt = JWTManager(app)
 
+    from app.extensions import limiter
+    limiter.init_app(app)
+
     from app.models import RevokedToken
 
     @jwt.token_in_blocklist_loader

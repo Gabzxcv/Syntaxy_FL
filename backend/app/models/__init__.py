@@ -50,7 +50,7 @@ class Analysis(db.Model):
     __tablename__ = 'analyses'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
     
     # Input data
     language = db.Column(db.String(20), nullable=False)
