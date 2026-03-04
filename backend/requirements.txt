@@ -11,6 +11,7 @@ greenlet==3.3.1
 itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
+psycopg2-binary==2.9.10
 PyJWT==2.11.0
 SQLAlchemy==2.0.46
 typing_extensions==4.15.0

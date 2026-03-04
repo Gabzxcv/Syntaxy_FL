@@ -22,7 +22,11 @@ def create_app():
             sys.exit("FATAL: JWT_SECRET_KEY env variable is not set!")
 
     app.config['SECRET_KEY'] = secret_key or 'dev-secret-key-change-in-production'
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///code_clone_detector.db')
+    # SQLAlchemy 2.x requires 'postgresql://' — Render still provides 'postgres://' so we fix it here
+    _db_url = os.getenv('DATABASE_URL', 'sqlite:///code_clone_detector.db')
+    if _db_url.startswith('postgres://'):
+        _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['JWT_SECRET_KEY'] = jwt_secret_key or 'jwt-secret-key-change-in-production'
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 86400 * 7
