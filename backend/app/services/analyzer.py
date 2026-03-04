@@ -1606,7 +1606,7 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
         # Fix #33: Also check for bare-name references (callbacks, dict values,
         # variable assignments, Java method references, etc.)
         if name not in called:
-            bare_pattern = re.compile(r"(?<!\bdef\s)(?<!\bclass\s)\b" + re.escape(name) + r"\b")
+            bare_pattern = re.compile(r"\b" + re.escape(name) + r"\b")
             matches = list(bare_pattern.finditer(searchable))
             # Filter out the definition line itself
             non_def = []

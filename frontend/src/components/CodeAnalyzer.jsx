@@ -563,7 +563,7 @@ function lexTokens(code) {
     .replace(/'(?:[^'\\]|\\.)*'/g, 'STRLIT') // single-quoted strings
     .replace(/\b\d+\.?\d*([eE][+-]?\d+)?\b/g, 'NUMLIT') // numeric literals
     .toLowerCase()
-    .match(/[a-z_][a-z0-9_]*|numlit|strlit|\*\*=?|\/\/=?|[+\-*/%]=?|[!=<>]=|&&|\|\||<<=?|>>=?|[=<>!&|^~?:;,.()[\]{}]/g)
+    .match(/[a-z_][a-z0-9_]*|numlit|strlit|\*\*=?|\/\/=?|[+\-*/%&|^]=?|[!=<>]=|&&|\|\||<<=?|>>=?|[=<>!&|^~?:;,.()[\]{}]/g)
   ) || [];
 }
 
@@ -1349,9 +1349,10 @@ function CodeAnalyzer() {
     const pairs = [];
 
     // Fix #34: Pre-hash deduplication — instantly mark identical-content pairs as Type-1
+    // Secondary equality check prevents false positives from hash collisions.
     const contentHashes = {};
-    analyzed.forEach((f, i) => {
-      const normalized = f.content.replace(/\s+/g, '').toLowerCase();
+    const normalizedContents = analyzed.map(f => f.content.replace(/\s+/g, '').toLowerCase());
+    normalizedContents.forEach((normalized, i) => {
       let hash = 0;
       for (let c = 0; c < normalized.length; c++) {
         hash = ((hash << 5) - hash + normalized.charCodeAt(c)) | 0;
@@ -1366,6 +1367,8 @@ function CodeAnalyzer() {
         for (let a = 0; a < indices.length; a++) {
           for (let b = a + 1; b < indices.length; b++) {
             const ii = indices[a], jj = indices[b];
+            // Secondary check: verify actual content equality to guard against hash collisions
+            if (normalizedContents[ii] !== normalizedContents[jj]) continue;
             matrix[ii][jj] = 1.0; matrix[jj][ii] = 1.0;
             pairs.push({
               fileA: analyzed[ii], fileB: analyzed[jj],
