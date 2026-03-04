@@ -44,8 +44,7 @@ function generateSimilarityPairs(results) {
           ? students[j].results.reduce((s, r) => s + (r.clonePercentage || 0), 0) / students[j].results.length
           : 0;
         const base = (avgClone1 + avgClone2) / 2;
-        const randomVariation = Math.floor(Math.random() * 30) - 15;
-        const similarity = Math.max(5, Math.min(95, Math.round(base + randomVariation)));
+        const similarity = Math.max(0, Math.min(100, Math.round(base)));
 
         let status = 'low';
         if (similarity > 70) status = 'high';

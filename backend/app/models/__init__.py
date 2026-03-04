@@ -156,6 +156,15 @@ class UploadedFile(db.Model):
         return result
 
 
+class RevokedToken(db.Model):
+    """Blocklist of revoked JWT tokens"""
+    __tablename__ = 'revoked_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    revoked_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class HistoryEntry(db.Model):
     """Activity history record"""
     __tablename__ = 'history_entries'

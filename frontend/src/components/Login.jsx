@@ -153,7 +153,7 @@ function Login() {
             </div>
             <div className="form-group">
               <label htmlFor="reg-password">Password</label>
-              <input type="password" id="reg-password" name="reg-password" placeholder="Create a password (min 6 chars)" required minLength="6" />
+              <input type="password" id="reg-password" name="reg-password" placeholder="Min 8 chars, uppercase, lowercase, number" required minLength="8" />
             </div>
             <button type="submit" className="btn" disabled={registerLoading}>
               {registerLoading ? 'Creating account...' : 'Create Account'}

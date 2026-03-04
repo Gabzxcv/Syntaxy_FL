@@ -9,6 +9,7 @@ The API will be available at:
 """
 
 from app import create_app
+import os
 
 # Create Flask application
 app = create_app()
@@ -25,5 +26,5 @@ if __name__ == '__main__':
     app.run(
         host='0.0.0.0',  # Accept connections from any IP (needed for Docker later)
         port=5000,
-        debug=True  # Auto-reload when code changes
+        debug=os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
     )

@@ -39,7 +39,7 @@ class TestRegistration:
         response = client.post('/api/v1/auth/register', json={
             'username': 'testuser',
             'email': 'test@example.com',
-            'password': 'password123',
+            'password': 'Password1',
             'full_name': 'Test User'
         })
         assert response.status_code == 201
@@ -60,7 +60,7 @@ class TestRegistration:
         response = client.post('/api/v1/auth/register', json={
             'username': 'ab',
             'email': 'test@example.com',
-            'password': 'password123'
+            'password': 'Password1'
         })
         assert response.status_code == 400
 
@@ -73,18 +73,48 @@ class TestRegistration:
         })
         assert response.status_code == 400
 
+    def test_register_password_no_uppercase(self, client):
+        """Should reject passwords without an uppercase letter"""
+        response = client.post('/api/v1/auth/register', json={
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'password1'
+        })
+        assert response.status_code == 400
+        assert 'uppercase' in response.get_json()['error']
+
+    def test_register_password_no_lowercase(self, client):
+        """Should reject passwords without a lowercase letter"""
+        response = client.post('/api/v1/auth/register', json={
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'PASSWORD1'
+        })
+        assert response.status_code == 400
+        assert 'lowercase' in response.get_json()['error']
+
+    def test_register_password_no_number(self, client):
+        """Should reject passwords without a number"""
+        response = client.post('/api/v1/auth/register', json={
+            'username': 'testuser',
+            'email': 'test@example.com',
+            'password': 'Password'
+        })
+        assert response.status_code == 400
+        assert 'number' in response.get_json()['error']
+
     def test_register_duplicate_username(self, client):
         """Should reject duplicate usernames"""
         user_data = {
             'username': 'testuser',
             'email': 'test@example.com',
-            'password': 'password123'
+            'password': 'Password1'
         }
         client.post('/api/v1/auth/register', json=user_data)
         response = client.post('/api/v1/auth/register', json={
             'username': 'testuser',
             'email': 'other@example.com',
-            'password': 'password123'
+            'password': 'Password1'
         })
         assert response.status_code == 409
 
@@ -97,11 +127,11 @@ class TestLogin:
         client.post('/api/v1/auth/register', json={
             'username': 'testuser',
             'email': 'test@example.com',
-            'password': 'password123'
+            'password': 'Password1'
         })
         response = client.post('/api/v1/auth/login', json={
             'username': 'testuser',
-            'password': 'password123'
+            'password': 'Password1'
         })
         assert response.status_code == 200
         data = response.get_json()
@@ -113,7 +143,7 @@ class TestLogin:
         client.post('/api/v1/auth/register', json={
             'username': 'testuser',
             'email': 'test@example.com',
-            'password': 'password123'
+            'password': 'Password1'
         })
         response = client.post('/api/v1/auth/login', json={
             'username': 'testuser',
@@ -137,7 +167,7 @@ class TestProtectedEndpoints:
         reg_response = client.post('/api/v1/auth/register', json={
             'username': 'testuser',
             'email': 'test@example.com',
-            'password': 'password123'
+            'password': 'Password1'
         })
         token = reg_response.get_json()['access_token']
         response = client.get('/api/v1/auth/me', headers={
@@ -150,3 +180,23 @@ class TestProtectedEndpoints:
         """Should reject request without token"""
         response = client.get('/api/v1/auth/me')
         assert response.status_code == 401
+
+    def test_logout_revokes_token(self, client):
+        """Token should be rejected after logout"""
+        reg_response = client.post('/api/v1/auth/register', json={
+            'username': 'logoutuser',
+            'email': 'logout@example.com',
+            'password': 'Password1'
+        })
+        token = reg_response.get_json()['access_token']
+        auth_headers = {'Authorization': f'Bearer {token}'}
+
+        # Token should work before logout
+        assert client.get('/api/v1/auth/me', headers=auth_headers).status_code == 200
+
+        # Logout revokes the token
+        logout_resp = client.post('/api/v1/auth/logout', headers=auth_headers)
+        assert logout_resp.status_code == 200
+
+        # Token should be rejected after logout
+        assert client.get('/api/v1/auth/me', headers=auth_headers).status_code == 401

@@ -3,15 +3,29 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
     create_access_token, 
     jwt_required, 
-    get_jwt_identity
+    get_jwt_identity,
+    get_jwt
 )
-from app.models import db, User, Analysis, Section, Student, HistoryEntry, UploadedFile
+from app.models import db, User, Analysis, Section, Student, HistoryEntry, UploadedFile, RevokedToken
 from datetime import datetime, timezone
 import json
 import os
 import re
 
 bp = Blueprint('auth', __name__)
+
+
+def _validate_password(password):
+    """Return an error message string if the password is invalid, else None."""
+    if len(password) < 8:
+        return 'Password must be at least 8 characters'
+    if not re.search(r'[A-Z]', password):
+        return 'Password must contain at least one uppercase letter'
+    if not re.search(r'[a-z]', password):
+        return 'Password must contain at least one lowercase letter'
+    if not re.search(r'[0-9]', password):
+        return 'Password must contain at least one number'
+    return None
 
 
 @bp.route('/register', methods=['POST'])
@@ -54,8 +68,9 @@ def register():
             return jsonify({'error': 'Username must be at least 3 characters'}), 400
         
         # Validate password
-        if len(password) < 6:
-            return jsonify({'error': 'Password must be at least 6 characters'}), 400
+        pwd_error = _validate_password(password)
+        if pwd_error:
+            return jsonify({'error': pwd_error}), 400
         
         # Check if user exists
         if User.query.filter_by(username=username).first():
@@ -138,15 +153,19 @@ def login():
 def logout():
     """
     Logout user
-    
+
     POST /api/v1/auth/logout
     Headers: Authorization: Bearer <token>
-    
-    Note: JWT tokens are stateless. Client should delete the token.
+
+    Revokes the current JWT so it cannot be reused.
     """
+    jti = get_jwt()['jti']
+    revoked = RevokedToken(jti=jti)
+    db.session.add(revoked)
+    db.session.commit()
     return jsonify({
         'message': 'Logout successful',
-        'note': 'Please delete the token from client storage'
+        'note': 'Token has been revoked'
     }), 200
 
 
