@@ -146,13 +146,18 @@ def login():
         if not data or not all(k in data for k in ['username', 'password']):
             return jsonify({'error': 'Missing username or password'}), 400
         
-        username = data['username'].strip().lower()
+        username = data['username'].strip()
         password = data['password']
-        
-        # Find user by username, fall back to email lookup
-        user = User.query.filter_by(username=username).first()
+        username_lower = username.lower()
+
+        # Find user by username (case-insensitive), fall back to email lookup
+        user = User.query.filter(
+            db.func.lower(User.username) == username_lower
+        ).first()
         if not user:
-            user = User.query.filter_by(email=username).first()
+            user = User.query.filter(
+                db.func.lower(User.email) == username_lower
+            ).first()
         
         if not user or not user.check_password(password):
             return jsonify({'error': 'Invalid username or password'}), 401

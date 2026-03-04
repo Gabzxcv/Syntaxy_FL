@@ -153,6 +153,23 @@ class TestLogin:
         assert data['message'] == 'Login successful'
         assert 'access_token' in data
 
+    def test_login_case_insensitive_username(self, client, app):
+        """Old accounts stored with mixed-case username should still be able to login"""
+        # Simulate an old account stored with mixed-case username (e.g. 'Allen')
+        with app.app_context():
+            user = User(username='Allen', email='allen@example.com', role='instructor')
+            user.set_password('11111')
+            db.session.add(user)
+            db.session.commit()
+        # Login should succeed regardless of the case the user types
+        for typed_username in ['Allen', 'allen', 'ALLEN']:
+            response = client.post('/api/v1/auth/login', json={
+                'username': typed_username,
+                'password': '11111'
+            })
+            assert response.status_code == 200, f"Login failed for username '{typed_username}'"
+            assert response.get_json()['message'] == 'Login successful'
+
     def test_login_wrong_password(self, client):
         """Should reject invalid password"""
         client.post('/api/v1/auth/register', json={
