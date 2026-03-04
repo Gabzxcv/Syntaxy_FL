@@ -28,7 +28,13 @@ def create_app():
         _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JWT_SECRET_KEY'] = jwt_secret_key or 'jwt-secret-key-change-in-production'
+    _jwt_key = jwt_secret_key or 'jwt-secret-key-change-in-production-xxxxx'
+    # Ensure HS256 key meets the 32-byte minimum (RFC 7518 §3.2)
+    _jwt_key_bytes = _jwt_key.encode('utf-8')
+    if len(_jwt_key_bytes) < 32:
+        # Pad deterministically by cycling the key bytes so tokens stay consistent across restarts
+        _jwt_key_bytes = (_jwt_key_bytes * (32 // len(_jwt_key_bytes) + 1))[:32]
+    app.config['JWT_SECRET_KEY'] = _jwt_key_bytes  # bytes accepted by Flask-JWT-Extended
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 86400 * 7
     app.config['JWT_BLOCKLIST_ENABLED'] = True
     app.config['JWT_BLOCKLIST_TOKEN_CHECKS'] = ['access']

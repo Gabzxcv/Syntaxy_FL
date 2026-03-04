@@ -3,7 +3,7 @@ Database models for Code Clone Detector
 """
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 db = SQLAlchemy()
@@ -20,7 +20,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(120))
     role = db.Column(db.String(20), nullable=False, default='instructor')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     last_login = db.Column(db.DateTime)
     
     # Relationship to analyses
@@ -65,7 +65,7 @@ class Analysis(db.Model):
     execution_time_ms = db.Column(db.Integer)
     
     # Metadata
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     
     def to_dict(self, include_code=False):
         """Convert to JSON-serializable dict"""
@@ -92,7 +92,7 @@ class Section(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = db.Column(db.String(200), nullable=False)
     instructor_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     students = db.relationship('Student', backref='section', lazy='dynamic', cascade='all, delete-orphan')
 
@@ -115,7 +115,7 @@ class Student(db.Model):
     email = db.Column(db.String(120), nullable=False)
     section_id = db.Column(db.String(36), db.ForeignKey('sections.id'), nullable=False, index=True)
     submissions = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     def to_dict(self):
         return {
@@ -138,7 +138,7 @@ class UploadedFile(db.Model):
     size = db.Column(db.Integer, nullable=False)
     file_type = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     def to_dict(self, include_content=False):
         result = {
@@ -163,7 +163,7 @@ class HistoryEntry(db.Model):
     entry_type = db.Column(db.String(20), nullable=False)  # analysis, upload, refactoring
     description = db.Column(db.String(500), nullable=False)
     status = db.Column(db.String(20), default='success')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
 
     def to_dict(self):
         return {

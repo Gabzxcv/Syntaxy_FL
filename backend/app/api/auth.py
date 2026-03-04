@@ -9,7 +9,7 @@ from flask_jwt_extended import (
 from app.models import db, User, Analysis, Section, Student, HistoryEntry, UploadedFile, RevokedToken
 from app.extensions import limiter
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import os
 import re
@@ -162,8 +162,8 @@ def login():
         if not user or not user.check_password(password):
             return jsonify({'error': 'Invalid username or password'}), 401
         
-        # Update last login — use naive UTC to match db.Column(db.DateTime)
-        user.last_login = datetime.utcnow()
+        # Update last login — naive UTC to match db.Column(db.DateTime)
+        user.last_login = datetime.now(timezone.utc).replace(tzinfo=None)
         db.session.commit()
         
         # Create access token
