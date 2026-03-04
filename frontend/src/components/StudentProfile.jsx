@@ -3,29 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Logo from './Logo';
 import './Students.css';
 
-const REGISTERED_STUDENTS = [
-  { name: 'Alice Chen', email: 'alice.chen@university.edu' },
-  { name: 'Bob Martinez', email: 'bob.martinez@university.edu' },
-  { name: 'Carlos Wang', email: 'carlos.wang@university.edu' },
-  { name: 'Diana Lee', email: 'diana.lee@university.edu' },
-  { name: 'Eve Johnson', email: 'eve.johnson@university.edu' },
-  { name: 'Frank Davis', email: 'frank.davis@university.edu' },
-  { name: 'Grace Kim', email: 'grace.kim@university.edu' },
-  { name: 'Henry Wilson', email: 'henry.wilson@university.edu' },
-];
-
-const mockPerformance = {
-  assignments: [
-    { name: 'Assignment 1', score: 92, status: 'passed' },
-    { name: 'Assignment 2', score: 85, status: 'passed' },
-    { name: 'Assignment 3', score: 78, status: 'passed' },
-    { name: 'Lab Exercise 1', score: 95, status: 'passed' },
-    { name: 'Lab Exercise 2', score: 45, status: 'failed' },
-  ],
-  averageScore: 79,
-  totalSubmissions: 5,
-  passRate: 80,
-};
+import API from '../api';
 
 function StudentProfile() {
   const navigate = useNavigate();
@@ -40,31 +18,30 @@ function StudentProfile() {
   );
 
   const decodedEmail = email ? decodeURIComponent(email) : '';
-  const student = REGISTERED_STUDENTS.find(s => s.email === decodedEmail) || { name: decodedEmail ? decodedEmail.split('@')[0] : 'Unknown', email: decodedEmail };
   const studentProfilePic = decodedEmail ? localStorage.getItem(`profilePicture_${decodedEmail}`) || '' : '';
 
   const [sections, setSections] = useState([]);
-  const [results, setResults] = useState([]);
 
+  // Load sections from backend
   useEffect(() => {
-    const saved = localStorage.getItem('savedSections');
-    if (saved) {
-      try { setSections(JSON.parse(saved)); } catch { setSections([]); }
-    }
-  }, []);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('studentResults');
-    if (stored) {
-      try { setResults(JSON.parse(stored)); } catch { setResults([]); }
-    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data && data.sections) setSections(data.sections); })
+      .catch(() => {});
   }, []);
 
   const enrolledSections = sections.filter(s =>
     s.students && s.students.some(st => st.email === decodedEmail)
   );
 
-  const studentResults = results.filter(r => r.studentEmail === decodedEmail);
+  // Derive student name from enrolled sections or email
+  const enrolledStudent = enrolledSections.length > 0
+    ? (enrolledSections[0].students || []).find(st => st.email === decodedEmail)
+    : null;
+  const student = enrolledStudent
+    || { name: decodedEmail ? decodedEmail.split('@')[0] : 'Unknown', email: decodedEmail };
 
   function handleLogout() {
     const token = localStorage.getItem('token');
@@ -196,33 +173,6 @@ function StudentProfile() {
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              </div>
-              <div className="stat-info">
-                <div className="stat-label">Average Score</div>
-                <div className="stat-value">{mockPerformance.averageScore}%</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-              </div>
-              <div className="stat-info">
-                <div className="stat-label">Total Submissions</div>
-                <div className="stat-value">{mockPerformance.totalSubmissions}</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              </div>
-              <div className="stat-info">
-                <div className="stat-label">Pass Rate</div>
-                <div className="stat-value">{mockPerformance.passRate}%</div>
-              </div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div className="stat-info">
@@ -249,8 +199,7 @@ function StudentProfile() {
                   <div className="section-card-header">
                     <div>
                       <h4 className="section-card-title">{section.name}</h4>
-                      {section.instructor && <p className="section-card-subtitle">Instructor: {section.instructor}</p>}
-                      <p className="section-card-subtitle">{section.students.length} student{section.students.length !== 1 ? 's' : ''} in section</p>
+                      <p className="section-card-subtitle">{(section.students || []).length} student{(section.students || []).length !== 1 ? 's' : ''} in section</p>
                     </div>
                   </div>
                 </div>
@@ -258,75 +207,16 @@ function StudentProfile() {
             )}
           </section>
 
-          {/* Performance */}
-          <section className="settings-section">
-            <h3 className="section-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-              Performance
-            </h3>
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Assignment</th>
-                  <th>Score</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mockPerformance.assignments.map((a, i) => (
-                  <tr key={i}>
-                    <td>{a.name}</td>
-                    <td>{a.score}%</td>
-                    <td>
-                      <span className={a.status === 'passed' ? 'badge badge-green' : 'badge badge-red'}>
-                        {a.status === 'passed' ? 'Passed' : 'Failed'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          {/* Analysis Results */}
+          {/* Analysis Results — shown when available from backend */}
           <section className="settings-section">
             <h3 className="section-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{verticalAlign:'middle',marginRight:'8px'}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
               Analysis Results
             </h3>
-            {studentResults.length === 0 ? (
-              <div className="empty-state">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <p>No analysis results found for this student.</p>
-              </div>
-            ) : (
-              <table className="results-table">
-                <thead>
-                  <tr>
-                    <th>File</th>
-                    <th>Clone %</th>
-                    <th>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentResults.map((r, i) => (
-                    <tr key={i}>
-                      <td>{r.fileName || 'N/A'}</td>
-                      <td>
-                        <span className={
-                          (r.clonePercentage || 0) > 70 ? 'badge badge-red' :
-                          (r.clonePercentage || 0) > 40 ? 'badge badge-orange' :
-                          'badge badge-green'
-                        }>
-                          {r.clonePercentage || 0}%
-                        </span>
-                      </td>
-                      <td>{r.date || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            <div className="empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p>No analysis results found for this student.</p>
+            </div>
           </section>
         </div>
       </main>

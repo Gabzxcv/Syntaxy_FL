@@ -1331,7 +1331,8 @@ function CodeAnalyzer() {
           const batchToken = localStorage.getItem('token');
           const batchHeaders = {'Content-Type':'application/json'};
           if (batchToken) batchHeaders['Authorization'] = `Bearer ${batchToken}`;
-          const res = await fetch(`${API}/analyze`,{ method:'POST', headers:batchHeaders, body:JSON.stringify({code:ef.content,language:ef.lang}) });
+          const analyzeBody = { code: ef.content, language: ef.lang, file_name: shortName(ef.name), section_name: ef.section || '' };
+          const res = await fetch(`${API}/analyze`,{ method:'POST', headers:batchHeaders, body:JSON.stringify(analyzeBody) });
           const data = await res.json();
           result = res.ok ? normalizeAnalysisData(data) : generateMockAnalysis(ef.content,ef.lang);
         } catch { result = generateMockAnalysis(ef.content,ef.lang); }
@@ -1457,23 +1458,6 @@ function CodeAnalyzer() {
     setBatchProgress(null);
     setBatchDone(true);
     setBatchView('students');
-
-    // Save batch results to studentResults localStorage for Analysis Results page
-    const studentResults = analyzed.map(f => ({
-      fileName: shortName(f.name),
-      student: displayName(f),
-      section: f.section || '',
-      clonePercentage: f.result?.clone_percentage ?? 0,
-      complexity: f.result?.cyclomatic_complexity ?? 0,
-      maintainability: f.result?.maintainability_index ?? 0,
-      date: new Date().toISOString(),
-    }));
-    const existing = JSON.parse(localStorage.getItem('studentResults') || '[]');
-    const newNames = new Set(studentResults.map(r => r.fileName));
-    const deduped = existing.filter(r => !newNames.has(r.fileName));
-    // Cap stored results to 500 entries to prevent unbounded localStorage growth
-    const merged = [...studentResults, ...deduped].slice(0, 500);
-    localStorage.setItem('studentResults', JSON.stringify(merged));
 
     logActivity('analysis', `Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
   }, [extractedFiles, user, logActivity]);

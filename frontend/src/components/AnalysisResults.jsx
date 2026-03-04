@@ -77,17 +77,11 @@ function AnalysisResults() {
     localStorage.getItem('profilePicture_' + user.id) || ''
   );
 
-  const [results, setResults] = useState([]);
   const [analysisHistory, setAnalysisHistory] = useState([]);
 
   useEffect(() => {
     function loadData() {
-      const stored = localStorage.getItem('studentResults');
-      if (stored) {
-        try { setResults(JSON.parse(stored)); } catch { setResults([]); }
-      }
-
-      // Fetch TAHD analysis history from backend
+      // Fetch TAHD analysis history from backend (includes file_name, section_name)
       const token = localStorage.getItem('token');
       if (token) {
         fetch(`${API}/auth/history?limit=100`, {
@@ -107,6 +101,18 @@ function AnalysisResults() {
     const interval = setInterval(loadData, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Build results from backend analysis history
+  const results = analysisHistory.map(a => ({
+    fileName: a.file_name || `analysis-${a.id.slice(0, 8)}`,
+    studentName: a.file_name || 'Unknown',
+    studentEmail: a.file_name || '',
+    section: a.section_name || 'Unassigned',
+    clonePercentage: a.clone_percentage || 0,
+    complexity: a.cyclomatic_complexity || 0,
+    maintainability: a.maintainability_index || 0,
+    date: a.created_at,
+  }));
 
   const similarityPairs = generateSimilarityPairs(results);
 

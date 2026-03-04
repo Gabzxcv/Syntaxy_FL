@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from './Logo';
 import './Students.css';
 
-const API = 'http://localhost:5000/api/v1';
+import API from '../api';
 
 function Students() {
   const navigate = useNavigate();
@@ -17,15 +17,8 @@ function Students() {
     localStorage.getItem('profilePicture_' + user.id) || ''
   );
 
-  const [sections, setSections] = useState(() => {
-    const saved = localStorage.getItem('savedSections');
-    if (saved) {
-      try { return JSON.parse(saved); } catch { return []; }
-    }
-    return [];
-  });
+  const [sections, setSections] = useState([]);
 
-  const [results, setResults] = useState([]);
   const [registeredStudents, setRegisteredStudents] = useState([]);
   const [registeredInstructors, setRegisteredInstructors] = useState([]);
 
@@ -59,23 +52,22 @@ function Students() {
       .catch(() => {});
   }, []);
 
+  // Load sections from backend on mount
   useEffect(() => {
-    const stored = localStorage.getItem('studentResults');
-    if (stored) {
-      try { setResults(JSON.parse(stored)); } catch { setResults([]); }
-    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data && data.sections) setSections(data.sections); })
+      .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('savedSections', JSON.stringify(sections));
-  }, [sections]);
-
-  const totalStudents = sections.reduce((sum, s) => sum + s.students.length, 0);
+  const totalStudents = sections.reduce((sum, s) => sum + (s.students ? s.students.length : 0), 0);
 
   function handleLogout() {
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('http://localhost:5000/api/v1/auth/logout', {
+      fetch(`${API}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
@@ -87,15 +79,17 @@ function Students() {
 
   function handleCreateSection(e) {
     e.preventDefault();
-    if (!newSectionName.trim() || !newSectionInstructor) return;
-    const instructor = registeredInstructors.find(i => i.email === newSectionInstructor);
-    const section = {
-      id: crypto.randomUUID(),
-      name: newSectionName.trim(),
-      instructor: instructor ? instructor.name : '',
-      students: [],
-    };
-    setSections(prev => [...prev, section]);
+    if (!newSectionName.trim()) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newSectionName.trim() }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data && data.section) setSections(prev => [...prev, data.section]); })
+      .catch(() => {});
     setNewSectionName('');
     setNewSectionInstructor('');
   }
@@ -106,14 +100,27 @@ function Students() {
     const registered = registeredStudents.find(s => s.email === selectedStudentEmail);
     if (!registered) return;
     const section = sections.find(s => s.id === selectedSectionId);
-    if (section && section.students.some(st => st.email === registered.email)) return;
-    setSections(prev =>
-      prev.map(s =>
-        s.id === selectedSectionId
-          ? { ...s, students: [...s.students, { name: registered.name, email: registered.email, submissions: 0 }] }
-          : s
-      )
-    );
+    if (section && (section.students || []).some(st => st.email === registered.email)) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections/${selectedSectionId}/students`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: registered.name, email: registered.email }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data.student) {
+          setSections(prev =>
+            prev.map(s =>
+              s.id === selectedSectionId
+                ? { ...s, students: [...(s.students || []), data.student] }
+                : s
+            )
+          );
+        }
+      })
+      .catch(() => {});
     setSelectedStudentEmail('');
   }
 
@@ -121,7 +128,7 @@ function Students() {
     if (!selectedSectionId) return registeredStudents;
     const section = sections.find(s => s.id === selectedSectionId);
     if (!section) return registeredStudents;
-    const existingEmails = new Set(section.students.map(st => st.email));
+    const existingEmails = new Set((section.students || []).map(st => st.email));
     return registeredStudents.filter(s => !existingEmails.has(s.email));
   }
 
@@ -130,21 +137,40 @@ function Students() {
   }
 
   function handleDeleteSection(id) {
-    setSections(prev => prev.filter(s => s.id !== id));
+    if (!window.confirm('Are you sure you want to delete this section?')) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/sections/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => { if (res.ok) setSections(prev => prev.filter(s => s.id !== id)); })
+      .catch(() => {});
   }
 
   function handleRemoveStudent(sectionId, studentEmail) {
-    setSections(prev =>
-      prev.map(s =>
-        s.id === sectionId
-          ? { ...s, students: s.students.filter(st => st.email !== studentEmail) }
-          : s
-      )
-    );
-  }
-
-  function getResultsForStudent(email) {
-    return results.filter(r => r.studentEmail === email);
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) return;
+    const student = (section.students || []).find(st => st.email === studentEmail);
+    if (!student) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch(`${API}/auth/students/${student.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => {
+        if (res.ok) {
+          setSections(prev =>
+            prev.map(s =>
+              s.id === sectionId
+                ? { ...s, students: (s.students || []).filter(st => st.email !== studentEmail) }
+                : s
+            )
+          );
+        }
+      })
+      .catch(() => {});
   }
 
   return (
@@ -285,16 +311,6 @@ function Students() {
                   value={newSectionName}
                   onChange={(e) => setNewSectionName(e.target.value)}
                 />
-                <select
-                  className="setting-select"
-                  value={newSectionInstructor}
-                  onChange={(e) => setNewSectionInstructor(e.target.value)}
-                >
-                  <option value="">Select instructor...</option>
-                  {registeredInstructors.map(i => (
-                    <option key={i.email} value={i.email}>{i.name} ({i.email})</option>
-                  ))}
-                </select>
                 <button type="submit" className="action-btn primary">Create</button>
               </div>
             </form>
@@ -371,8 +387,7 @@ function Students() {
                     </div>
                   ) : (
                     <div className="student-list">
-                      {section.students.map(student => {
-                        const studentResults = getResultsForStudent(student.email);
+                      {(section.students || []).map(student => {
                         const pic = getStudentProfilePic(student.email);
                         return (
                           <div key={student.email} className="student-item">
@@ -388,7 +403,6 @@ function Students() {
                                 <span className="name student-name-link" onClick={() => navigate(`/student-profile/${encodeURIComponent(student.email)}`)}>{student.name}</span>
                                 <span className="email">{student.email}</span>
                               </div>
-                              <span className="badge badge-purple">{studentResults.length} result{studentResults.length !== 1 ? 's' : ''}</span>
                             </div>
                             {isPrivileged && (
                             <button className="btn-sm btn-danger" onClick={() => handleRemoveStudent(section.id, student.email)}>

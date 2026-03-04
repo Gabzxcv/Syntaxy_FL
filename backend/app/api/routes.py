@@ -35,6 +35,8 @@ def analyze_code():
 
     code = data['code']
     language = data['language']
+    file_name = data.get('file_name')
+    section_name = data.get('section_name')
 
     if language not in ['java', 'python']:
         return jsonify({'error': f'Unsupported language: {language}'}), 400
@@ -54,7 +56,9 @@ def analyze_code():
                 clone_percentage=result['clone_percentage'],
                 cyclomatic_complexity=result['cyclomatic_complexity'],
                 maintainability_index=result['maintainability_index'],
-                execution_time_ms=execution_time_ms
+                execution_time_ms=execution_time_ms,
+                file_name=file_name,
+                section_name=section_name,
             )
             db.session.add(analysis)
             db.session.commit()

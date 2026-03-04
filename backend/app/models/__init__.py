@@ -68,6 +68,8 @@ class Analysis(db.Model):
     # Stored JSON results
     clones_json = db.Column(db.Text)  # Store full clone data as JSON
     suggestions_json = db.Column(db.Text)  # Store suggestions as JSON
+    file_name = db.Column(db.String(255))   # Optional: original submitted file name
+    section_name = db.Column(db.String(200))  # Optional: class section
     
     def to_dict(self, include_code=False):
         """Convert to dictionary"""
@@ -78,7 +80,9 @@ class Analysis(db.Model):
             'cyclomatic_complexity': self.cyclomatic_complexity,
             'maintainability_index': self.maintainability_index,
             'execution_time_ms': self.execution_time_ms,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'file_name': self.file_name,
+            'section_name': self.section_name,
         }
         
         if include_code:

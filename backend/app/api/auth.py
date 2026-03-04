@@ -349,6 +349,30 @@ def delete_section(section_id):
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/sections/<section_id>', methods=['PUT'])
+@jwt_required()
+def rename_section(section_id):
+    """Rename a section"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = db.session.get(User, current_user_id)
+        if user and user.role == 'admin':
+            section = db.session.get(Section, section_id)
+        else:
+            section = Section.query.filter_by(id=section_id, instructor_id=current_user_id).first()
+        if not section:
+            return jsonify({'error': 'Section not found'}), 404
+        data = request.get_json()
+        if not data or not data.get('name'):
+            return jsonify({'error': 'Section name is required'}), 400
+        section.name = data['name'].strip()
+        db.session.commit()
+        return jsonify({'section': section.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
 # ===== STUDENTS ENDPOINTS =====
 
 @bp.route('/sections/<section_id>/students', methods=['POST'])
@@ -381,9 +405,19 @@ def add_student(section_id):
 @bp.route('/students/<student_id>', methods=['DELETE'])
 @jwt_required()
 def delete_student(student_id):
-    """Delete a student"""
+    """Delete a student — verifies the section belongs to the requesting instructor"""
     try:
-        student = Student.query.get(student_id)
+        current_user_id = get_jwt_identity()
+        user = db.session.get(User, current_user_id)
+        if user and user.role == 'admin':
+            student = db.session.get(Student, student_id)
+        else:
+            student = (
+                Student.query
+                .join(Section, Student.section_id == Section.id)
+                .filter(Student.id == student_id, Section.instructor_id == current_user_id)
+                .first()
+            )
         if not student:
             return jsonify({'error': 'Student not found'}), 404
         db.session.delete(student)
