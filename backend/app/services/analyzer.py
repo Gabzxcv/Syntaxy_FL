@@ -43,6 +43,38 @@ Authors : Fusion Logic — FEU Institute of Technology, 2026
 
 Changelog
 ---------
+v1.5 (2026-03-04)
+  - Fix #1 : _edit_distance_normalized() early-exit now checks curr[0] (true
+    lower bound) instead of min_in_row, eliminating false negatives for Type-3
+    clones whose DP row min transiently reaches max_len midway.
+  - Fix #2 : _deduplicate_clone_pairs() gains a mode parameter ("strict" for
+    intra-file, "cross_file" for cross-file). detect_clones_in_blocks() uses
+    "cross_file" mode (only locks key_a), allowing multiple file_a blocks to
+    match the same file_b block. detect_clones_single_file() uses "strict".
+  - Fix #3 : _java_ast_sequence() replaces claimed: set[int] with a
+    max_claimed_end integer, reducing memory from O(source_length) to O(1)
+    and eliminating O(n²) claimed.update(range(...)) calls.
+  - Fix #4 : _halstead_vector() dim 7 replaced from (n1+n2)/(N+1) (redundant
+    with dim 6) to log1p(N2/(N1+1)) — operand-to-operator ratio, an
+    independent signal not captured by any other dimension.
+  - Fix #5 : THRESH_TYPE1_FALLBACK = 0.88 added; classify_clone() fallback
+    Type-1 path uses this looser threshold instead of THRESH_TYPE1 (0.95),
+    correctly classifying near-exact clones with only literal differences.
+  - Fix #6 : compute_cyclomatic_complexity() for Python now uses ast.parse()
+    for accurate decision-point counting; string counting kept as fallback for
+    unparseable code.
+  - Fix #7 : _extract_java_blocks() adds constructor_pattern to match Java
+    constructors (PascalCase, no return type). Both method_pattern and
+    constructor_pattern matches are deduplicated by start position before body
+    extraction. Constructor blocks named <name>_constructor.
+  - Fix #8 : _detect_unused_functions() replaced per-name re.compile() loop
+    with a single combined alternation regex scanned once over the source.
+  - Fix #9 : generate_refactoring_suggestions() snippet cap raised from 6 to
+    MAX_SNIPPET_LINES (15) with a "# ... (N more lines)" suffix for longer
+    functions.
+  - Fix #10: Version bumped to v1.5. TAHD_VERSION module constant added.
+    Both analyze() and analyze_pair() reference it. Test updated.
+
 v1.4 (2026-03-04)
   - Fix #20: _halstead_vector() dims 5–6 (operator_ratio, token_density) wrapped
     in math.log1p() to bound previously unbounded ratios and restore balance in
@@ -165,6 +197,7 @@ assert abs(W_TOKEN + W_AST + W_HALSTEAD - 1.0) < 1e-9, (
 # Per-layer thresholds
 THRESH_TOKEN_PREFILTER = 0.30   # minimum token Jaccard to proceed to Layer 2 (lowered from 0.40 for better Type-3 recall)
 THRESH_TYPE1           = 0.95   # both token AND ast must reach this for Type 1
+THRESH_TYPE1_FALLBACK  = 0.88   # for near-exact clones with only literal diffs
 THRESH_TYPE2           = 0.75   # both token AND ast must reach this for Type 2
 THRESH_FUSION_TYPE3    = 0.60   # fusion score threshold for Type 3
 
@@ -174,6 +207,12 @@ NGRAM_SIZE = 3
 # Fix #5: Minimum token count for a block to be considered in clone detection.
 # Blocks shorter than this (e.g. trivial getters/setters) produce noisy results.
 MIN_TOKENS = 10
+
+# Maximum lines to show in refactoring suggestion snippets
+MAX_SNIPPET_LINES = 15
+
+# TAHD detection pipeline version
+TAHD_VERSION = "v1.5"
 
 # Java operators and keywords used for Halstead extraction
 JAVA_OPERATORS = frozenset([
@@ -532,26 +571,24 @@ def _java_ast_sequence(source: str) -> list[str]:
     source = _JAVA_CHAR_LIT_RE.sub("STR", source)
 
     # Fix #4: Ordered construct list — control-flow patterns first, CALL last.
-    # Track already-claimed positions so CALL cannot overlap with
-    # a position already claimed by a keyword pattern.
-    claimed: set[int] = set()
+    # Use max_claimed_end integer instead of a position set to avoid O(n²)
+    # memory usage. Since patterns are applied in priority order and hits are
+    # sorted by position, we only need to know if the new match starts after
+    # the last claimed end.
     hits = []
-
     for pattern, symbol in _JAVA_AST_CONSTRUCTS:
         for m in pattern.finditer(source):
-            start = m.start()
-            end   = m.end()
-            # Skip if this position was already claimed by an earlier (higher-
-            # priority) keyword pattern.  Iterate over the match range (small)
-            # and check the O(1) set lookup instead of iterating over all
-            # claimed positions.
-            if any(pos in claimed for pos in range(start, end)):
-                continue
-            hits.append((start, symbol))
-            claimed.update(range(start, end))
+            hits.append((m.start(), m.end(), symbol))
 
     hits.sort(key=lambda x: x[0])
-    return [sym for _, sym in hits]
+    merged = []
+    max_end = 0
+    for start, end, symbol in hits:
+        if start >= max_end:
+            merged.append((start, symbol))
+            max_end = end
+
+    return [sym for _, sym in merged]
 
 
 def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
@@ -607,8 +644,9 @@ def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
             )
             if curr[j] < min_in_row:
                 min_in_row = curr[j]
-        # Early exit: minimum edit distance already at max_len → similarity = 0.0
-        if min_in_row >= max_len:
+        # Early exit: first cell of current row is a true lower bound on edit
+        # distance. If it already reaches max_len, similarity will be 0.0.
+        if curr[0] >= max_len:
             return 0.0
         prev, curr = curr, prev
 
@@ -787,7 +825,7 @@ def _halstead_vector(h: dict) -> list[float]:
         math.log1p(h.get("effort",     0)),
         math.log1p(N1 / (N2 + 1)),
         math.log1p(N / vocab),
-        (n1 + n2) / (N + 1),
+        math.log1p(N2 / (N1 + 1)),    # dim 7 — operand-to-operator ratio
     ]
 
 
@@ -848,7 +886,7 @@ def classify_clone(token_score: float,
         if raw_tokens_a == raw_tokens_b:
             return 1
         # Fallback: threshold-based for near-exact matches with literal differences
-        if raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+        if raw_token_score >= THRESH_TYPE1_FALLBACK and ast_score >= THRESH_TYPE1:
             return 1
     elif raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
         return 1
@@ -966,17 +1004,34 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
         r"\{"
     )
 
-    blocks = []
+    # Constructor pattern: access modifier + PascalCase name + (params) + {
+    constructor_pattern = re.compile(
+        r"(?:public|private|protected)\s+"
+        r"([A-Z]\w*)\s*"
+        r"\([^)]*\)\s*"
+        r"(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?"
+        r"\{"
+    )
+
+    # Collect all matches from both patterns; deduplicate by start position
+    all_matches: dict[int, str] = {}
     for m in method_pattern.finditer(clean):
-        method_name = m.group(1)
-        start_pos   = m.start()
+        all_matches[m.start()] = m.group(1)
+    for m in constructor_pattern.finditer(clean):
+        start = m.start()
+        if start not in all_matches:
+            all_matches[start] = m.group(1) + "_constructor"
+
+    blocks = []
+    for start_pos in sorted(all_matches):
+        method_name = all_matches[start_pos]
         start_line  = clean[:start_pos].count("\n") + 1
 
         # Fix #8: Walk forward counting braces, correctly skipping string and
         # char literals so that `{` inside quotes doesn't affect brace depth.
         depth   = 0
         end_pos = start_pos
-        i       = m.start()
+        i       = start_pos
         n       = len(clean)
 
         while i < n:
@@ -1115,9 +1170,15 @@ def _compare_block_pairs(
     return pairs
 
 
-def _deduplicate_clone_pairs(pairs: list) -> list:
+def _deduplicate_clone_pairs(pairs: list, mode: str = "strict") -> list:
     """Keep only the best match for each block to prevent one function
-    from appearing in multiple clone pairs."""
+    from appearing in multiple clone pairs.
+
+    mode="strict"     (intra-file): lock both key_a and key_b — strict 1:1 deduplication.
+    mode="cross_file" (cross-file): only lock key_a — allows multiple file_a blocks to
+                      match the same file_b block (e.g. a student copies one function and
+                      modifies it into two slightly different versions).
+    """
     pairs_sorted = sorted(pairs, key=lambda p: p.fusion_score, reverse=True)
     used_a: set = set()
     used_b: set = set()
@@ -1125,9 +1186,13 @@ def _deduplicate_clone_pairs(pairs: list) -> list:
     for p in pairs_sorted:
         key_a = (p.block_a.name, p.block_a.start_line)
         key_b = (p.block_b.name, p.block_b.start_line)
-        if key_a not in used_a and key_b not in used_b:
-            result.append(p)
-            used_a.add(key_a)
+        if key_a in used_a:
+            continue
+        if mode == "strict" and key_b in used_b:
+            continue
+        result.append(p)
+        used_a.add(key_a)
+        if mode == "strict":
             used_b.add(key_b)
     return result
 
@@ -1145,7 +1210,7 @@ def detect_clones_in_blocks(
     pairs = _compare_block_pairs(
         itertools.product(blocks_a, blocks_b), file_a, file_b
     )
-    return _deduplicate_clone_pairs(pairs)
+    return _deduplicate_clone_pairs(pairs, mode="cross_file")
 
 
 def detect_clones_single_file(
@@ -1160,7 +1225,7 @@ def detect_clones_single_file(
     pairs = _compare_block_pairs(
         itertools.combinations(blocks, 2), filename, filename
     )
-    return _deduplicate_clone_pairs(pairs)
+    return _deduplicate_clone_pairs(pairs, mode="strict")
 
 
 # ===========================================================================
@@ -1312,8 +1377,14 @@ def generate_refactoring_suggestions(
     for rank, pair in enumerate(sorted_pairs[:max_suggestions], start=1):
         rule = _REFACTOR_RULES.get(pair.clone_type, _REFACTOR_RULES[3])
 
-        snippet_a = "\n".join(pair.block_a.source.splitlines()[:6])
-        snippet_b = "\n".join(pair.block_b.source.splitlines()[:6])
+        lines_a = pair.block_a.source.splitlines()
+        lines_b = pair.block_b.source.splitlines()
+        snippet_a = "\n".join(lines_a[:MAX_SNIPPET_LINES])
+        if len(lines_a) > MAX_SNIPPET_LINES:
+            snippet_a += f"\n# ... ({len(lines_a) - MAX_SNIPPET_LINES} more lines)"
+        snippet_b = "\n".join(lines_b[:MAX_SNIPPET_LINES])
+        if len(lines_b) > MAX_SNIPPET_LINES:
+            snippet_b += f"\n# ... ({len(lines_b) - MAX_SNIPPET_LINES} more lines)"
 
         suggestions.append({
             "suggestion_id":    str(uuid.uuid4()),
@@ -1365,7 +1436,20 @@ def compute_cyclomatic_complexity(source: str, language: str) -> float:
     from keywords appearing inside non-code content.
     """
     if language == "python":
-        # Strip Python comments and string literals
+        try:
+            tree = ast.parse(source)
+            count = 1
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.If, ast.For, ast.While,
+                                      ast.ExceptHandler, ast.With,
+                                      ast.AsyncFor, ast.AsyncWith)):
+                    count += 1
+                elif isinstance(node, ast.BoolOp):
+                    # Each `and`/`or` with n operands adds n-1 decision points
+                    count += len(node.values) - 1
+            return float(count)
+        except (SyntaxError, ValueError, MemoryError, RecursionError):
+            pass
         clean = _PY_COMMENT_RE.sub(' ', source)
         clean = _PY_TRIPLE_DQ_RE.sub('STR', clean)
         clean = _PY_TRIPLE_SQ_RE.sub('STR', clean)
@@ -1590,37 +1674,27 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
     else:
         searchable = re.sub(r"#[^\n]*", " ", source)
 
-    for name in defined:
-        pattern = re.compile(r"\b" + re.escape(name) + r"\s*\(")
-        for m in pattern.finditer(searchable):
-            line_start = searchable.rfind("\n", 0, m.start()) + 1
-            line_end   = searchable.find("\n", m.start())
-            if line_end == -1:
-                line_end = len(searchable)
-            line_text = searchable[line_start:line_end].lstrip()
-            if not (line_text.startswith("def ") or line_text.startswith("public ")
-                    or line_text.startswith("private ") or line_text.startswith("protected ")):
-                called.add(name)
-                break
+    if not defined:
+        return {}
 
-        # Fix #33: Also check for bare-name references (callbacks, dict values,
-        # variable assignments, Java method references, etc.)
-        if name not in called:
-            bare_pattern = re.compile(r"\b" + re.escape(name) + r"\b")
-            matches = list(bare_pattern.finditer(searchable))
-            # Filter out the definition line itself
-            non_def = []
-            for m in matches:
-                line_start = searchable.rfind("\n", 0, m.start()) + 1
-                line_end   = searchable.find("\n", m.start())
-                if line_end == -1:
-                    line_end = len(searchable)
-                line_text = searchable[line_start:line_end].lstrip()
-                if not (line_text.startswith("def ") or line_text.startswith("public ")
-                        or line_text.startswith("private ") or line_text.startswith("protected ")):
-                    non_def.append(m)
-            if len(non_def) >= 1:
-                called.add(name)
+    # Build one combined alternation pattern for all names and scan once.
+    # Sort by length descending so longer names match before shorter prefixes.
+    combined = re.compile(
+        r"\b(" + "|".join(re.escape(n) for n in sorted(defined, key=len, reverse=True)) + r")\b"
+    )
+
+    for m in combined.finditer(searchable):
+        name = m.group(1)
+        if name in called:
+            continue
+        line_start = searchable.rfind("\n", 0, m.start()) + 1
+        line_end   = searchable.find("\n", m.start())
+        if line_end == -1:
+            line_end = len(searchable)
+        line_text = searchable[line_start:line_end].lstrip()
+        if not (line_text.startswith("def ") or line_text.startswith("public ")
+                or line_text.startswith("private ") or line_text.startswith("protected ")):
+            called.add(name)
 
     unused_in_file = defined - called
     result = {}
@@ -1840,7 +1914,7 @@ class CodeAnalyzer:
                     / max(len(all_halstead), 1), 2
                 ),
             },
-            "detection_method": "TAHD v1.3 (Token + AST + Halstead)",
+            "detection_method": f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
             "quality_report":   quality_report,
         }
 
@@ -1933,7 +2007,7 @@ class CodeAnalyzer:
             "clone_count":       len(clone_pairs),
             "clones":            clones_out,
             "refactoring_suggestions": suggestions,
-            "detection_method":  "TAHD v1.3 (Token + AST + Halstead)",
+            "detection_method":  f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
             "dominant_clone_type":   dominant_type,
             "clone_type_breakdown":  dict(type_counts),   # e.g. {1: 1, 2: 1, 3: 1}
         }
