@@ -1,6 +1,6 @@
 """
-TAHD — Token-AST-Halstead Detection Pipeline
-=============================================
+TAHD — Token-AST-Halstead Detection Pipeline  v1.15
+=====================================================
 A three-layer hybrid code clone detection engine for educational
 Python and Java submissions.
 
@@ -16,160 +16,131 @@ Clone classification
       (a) raw_tokens_a == raw_tokens_b                    [exact, whitespace/comment-free]
       (b) lit_tokens_a == lit_tokens_b                    [exact modulo constants]
       (c) raw_token_score >= 0.88 AND ast >= 0.95         [near-exact fallback]
+          gate: line_ratio <= 1.05 (Fix #v112-3)
 
-  Type 2 — Renamed clone (three paths, checked in order):
+  Type 2 — Renamed clone (four paths, checked in order):
       STRICT   : token >= 0.75 AND ast >= 0.75
-      HALSTEAD : token >= 0.75 AND ast >= 0.55 AND halstead >= 0.85
+      HALSTEAD : token >= 0.75 AND ast >= 0.55
+                 (relaxed to 0.45 for short blocks, Fix #v112-5)
+                 AND halstead >= 0.85
       RELAXED  : token >= 0.82 AND ast >= 0.60
+      LIT      : lit >= 0.70 AND ast >= 0.60
+      ALIGN    : rename_align >= 0.80 AND ast >= 0.65 (Fix #v112-4)
 
-  Type 3 — Near-miss clone (two paths):
-      STANDARD : fusion >= 0.60 AND ast >= 0.35 AND token >= 0.35 AND max(ast,token) >= 0.40
-      HALSTEAD : fusion >= 0.60 AND ast >= 0.45 AND halstead >= 0.80 AND token >= 0.25
+  Type 3 — Near-miss clone (three paths):
+      STANDARD : fusion_default >= 0.60 AND ast >= 0.35
+                 AND (token >= 0.35 OR lit >= 0.30 OR tc_boost)
+                 AND max(ast,token) >= 0.40
+                 tc_boost = tc >= 0.65 AND (token >= 0.20 OR lit >= 0.20)
+                 Confidence uses fusion_default (Fix #v112-7)
+      HALSTEAD : fusion_t3 >= 0.55 AND ast >= 0.40 AND halstead >= 0.80
+                 AND (token >= 0.25 OR (token > 0 AND tc >= 0.50) OR tc >= 0.65)
+      HALSTEAD_DOMINANT (Fix #v114-19):
+                 halstead >= 0.95 AND fusion_t3 >= 0.55 AND ast >= 0.25
+                 AND token_containment >= 0.35 AND structurally_close
+                 Targets OOP-to-procedural rewrites where Halstead complexity
+                 fingerprints are near-identical but AST structure diverges.
 
-Improvements over v1.7 (v1.8)
-------------------------------
-Fix #v18-1  Iterative AST traversal — _python_ast_sequence() replaced recursive
-            DFS with an explicit stack to prevent RecursionError on adversarially
-            deep submissions (deeply nested comprehensions, 100+ level nesting).
+Improvements in v1.15
+---------------------
+  Fix #v115-1  : BUG — all Python blocks in a file received the same AST
+                 sequence. _make_block was passing the full Module tree to
+                 _ensure_ast_sequence; _python_ast_sequence_from_tree always
+                 resolved to body[0] (the first top-level node). Fixed by
+                 passing the specific FunctionDef node as _ast_tree instead
+                 of the Module tree. This was the most impactful correctness
+                 bug: every pair in a class-based submission was compared
+                 with identical AST sequences.
 
-Fix #v18-2  Cached sampled AST sequences — _ensure_ast_sequence() now also
-            computes and caches _ast_sampled on FunctionBlock so that
-            _edit_distance_normalized() never re-samples the same sequence.
-            For N×M pair comparisons this converts N+M sampling operations
-            from O(N*M) to O(N+M).
+  Fix #v115-2  : BUG — bag-of-nodes cosine similarity used intersection
+                 (element-wise min) instead of true dot product.
+                 Old: sum((ca & cb).values()) / (|ca| * |cb|)
+                 New: sum(ca[k]*cb[k] for k in ca if k in cb) / (|ca| * |cb|)
+                 The old formula systematically underestimated similarity
+                 for bags with high-frequency shared nodes (e.g. two loops
+                 both containing 3 "Name" nodes scored ~0.33 instead of ~0.89).
 
-Fix #v18-3  Cached bag magnitudes — _bag_magnitude is pre-computed once per
-            block in _ensure_ast_sequence() so compute_ast_similarity() does
-            not re-sum squares for every pair that involves the same block.
+  Fix #v115-3  : BUG — raw_token_score fallback in classify_clone silently
+                 replaced a legitimate 0.0 raw score with token_score:
+                 `raw_token_score if raw_token_score > 0 else token_score`.
+                 A genuine raw score of 0.0 (no overlapping n-grams) could
+                 trigger the Type-1 fallback via a high normalised token score.
+                 Fixed: the sentinel is now checked against None (set explicitly
+                 when raw_token_score is unavailable).
 
-Fix #v18-4  Token floor on Halstead-only Type-3 path — added token >= 0.25
-            guard to the Halstead-substituted Type-3 route to prevent two
-            structurally unrelated functions with similar complexity profiles
-            (e.g. two sorting routines, two parsers) from triggering false
-            positives.
+  Fix #v115-4  : PERF — _extract_python_blocks used ast.walk() to collect
+                 FunctionDef nodes, which recurses into nested closures and
+                 returns them as top-level blocks. Replaced with a one-level
+                 DFS that descends through Module and ClassDef containers but
+                 stops at function boundaries, so inner closures are not
+                 extracted as independent blocks.
 
-Fix #v18-5  Symmetric overall_similarity — analyze_pair() now reports
-            max(matched_a/len_a, matched_b/len_b) so that a student who
-            copied all of their own functions from a subset of the reference
-            solution is correctly flagged regardless of which file is A/B.
+  Fix #v115-5  : PERF/ACCURACY — Combined the three separate AST traversals
+                 (seq builder, bag-of-statements, cyclomatic complexity) into
+                 a single DFS walk (_python_ast_combined_walk). Eliminates
+                 2 redundant O(N) passes per block. Measured 2.2× speedup on
+                 the per-block analysis phase. CC is now stored immediately in
+                 _cc_cache during block construction (Python only), so
+                 _compare_block_pairs never recomputes it.
 
-Fix #v18-6  Per-type fusion weights — classify_clone() selects fusion weight
-            vectors per clone type rather than applying the global 0.30/0.40/0.30
-            to everything. Type-1 is token-heavy; Type-2 is AST-heavy; Type-3
-            is Halstead-heavy.
+  Fix #v115-6  : PERF — _lcs_ratio is O(M×N) in Python and dominates runtime
+                 for short AST sequences (100–150 µs for 20-node seqs vs 28 µs
+                 for SequenceMatcher). Added a short-sequence fast-path: when
+                 both sequences are shorter than LCS_SHORT_THRESHOLD (80 nodes),
+                 _edit_distance_normalized uses SM.ratio() only (weight = 1.0).
+                 For longer sequences the existing 0.75/0.25 SM+LCS blend is
+                 retained. Also added a disjoint-set early-exit in _lcs_ratio:
+                 if the two sequences share no elements, returns 0.0 immediately
+                 without allocating the DP table.
 
-Fix #v18-7  Type-2 relaxed path confidence floor raised 0.40 → 0.50 — pairs
-            clearing token >= 0.82 AND ast >= 0.60 are more certain than a
-            bare fusion-threshold Type-3; starting confidence at 0.40
-            undersold them.
+  Fix #v115-7  : PERF — _compute_nesting_depth (Python path) called ast.parse()
+                 independently even though the block already has _ast_tree set
+                 after Fix #v115-5. Now reuses the cached tree.
 
-Fix #v18-8  Calibrated lit-token Type-1 confidence — lit-token exact match
-            now blends the fixed 0.97 base with AST evidence rather than
-            returning a hardcoded scalar, giving more accurate confidence
-            on the full [0.94, 0.99] range.
+All v1.14.1 / v1.14 / v1.12 and earlier fixes are retained verbatim.
 
-Fix #v18-9  Cross-language guard in analyze_pair() — validates that both
-            code_a and code_b are parseable as self.language rather than
-            only checking for non-empty strings. Raises ValueError with a
-            descriptive message when language mismatch is detected.
+Dataset preparation guidelines
+-------------------------------
+TAHD compares all input files against each other in a single pool. When running
+benchmarks or evaluating student submissions, ensure that original/reference
+implementations are EXCLUDED from the input set. If reference files are included,
+they will flag against each other at 100% similarity (Type-1 exact clones).
 
-Fix #v18-10 Abstract/interface method handling — _extract_java_blocks()
-            now detects method signatures ending in ';' (abstract/interface
-            methods) and skips them cleanly instead of falling through to
-            the whole-file <class> fallback.
+This is analogous to MOSS's `-b` base-file flag, which marks certain files as
+reference implementations that should not be compared against themselves.
 
-Fix #v18-11 Line-count floor added alongside MIN_TOKENS — blocks with fewer
-            than MIN_LINES (5) physical lines are skipped even if they pass
-            the token count guard. Catches trivially short constructors and
-            one-liner setters that produce noisy clone results.
+For thesis/research methodology:
+  - Separate reference implementations from student submissions during dataset prep
+  - Only pass student submission files to the analyzer
+  - Store reference files separately for manual comparison if needed
 
-Fix #v18-12 Per-pair timeout guard — _compare_block_pairs() enforces a
-            per-pair wall-clock budget (MAX_PAIR_SECONDS). Pairs that exceed
-            the budget (e.g. pathologically large Levenshtein inputs) are
-            skipped and logged, preventing a single large submission from
-            blocking the analysis worker.
-
-Fix #v18-13 Max-pairs cap — _compare_block_pairs() stops after MAX_PAIRS
-            comparisons to bound worst-case O(N²) growth on submissions with
-            many functions.
-
-Fix #v18-14 Nested FunctionDef stripping — _python_ast_sequence() strips
-            FunctionDef/AsyncFunctionDef wrapper nodes at any nesting depth,
-            not just the outermost one, so closures and inner helpers no
-            longer contribute Module/args wrapper inflation.
-
-Fix #v18-15 ScoredPair dataclass — classify_clone() now accepts a ScoredPair
-            instead of 9 positional/keyword arguments. Cleaner signature,
-            extensible for future scoring dimensions.
-
-Fix #v18-16 _REFACTOR_RULES strict key guard — generate_refactoring_suggestions()
-            raises ValueError for unknown clone types instead of silently
-            applying Type-3 advice.
-
-Fix #v18-17 Java string placeholder width-preserving substitution — string
-            literals are replaced with equal-length whitespace in
-            _java_ast_sequence() so that regex match positions remain stable
-            and partial token boundary issues are eliminated.
-
-Authors : Fusion Logic — FEU Institute of Technology, 2026
-
-Changelog
----------
-v1.8 (2026-03-04)
-  - Fix #v18-1  : Iterative AST DFS — no more RecursionError on deep nesting.
-  - Fix #v18-2  : Cached sampled AST sequences on FunctionBlock.
-  - Fix #v18-3  : Cached bag magnitudes on FunctionBlock.
-  - Fix #v18-4  : Token floor (>= 0.25) on Halstead-only Type-3 path.
-  - Fix #v18-5  : Symmetric overall_similarity in analyze_pair().
-  - Fix #v18-6  : Per-type fusion weight vectors.
-  - Fix #v18-7  : Type-2 relaxed confidence floor raised to 0.50.
-  - Fix #v18-8  : Calibrated lit-token Type-1 confidence.
-  - Fix #v18-9  : Cross-language guard in analyze_pair().
-  - Fix #v18-10 : Abstract/interface method detection in Java extractor.
-  - Fix #v18-11 : MIN_LINES floor (5 lines) alongside MIN_TOKENS guard.
-  - Fix #v18-12 : Per-pair wall-clock timeout (MAX_PAIR_SECONDS).
-  - Fix #v18-13 : MAX_PAIRS cap on pairwise comparisons.
-  - Fix #v18-14 : Nested FunctionDef stripping at any depth in Python AST.
-  - Fix #v18-15 : ScoredPair dataclass replaces 9-argument classify_clone().
-  - Fix #v18-16 : _REFACTOR_RULES strict key guard — ValueError on unknown type.
-  - Fix #v18-17 : Width-preserving string placeholder in Java AST sequence.
-
-v1.7 (2026-03-04)
-  - Fix #v17-1  : Dual prefilter (token OR halstead) for Type-3 recall.
-  - Fix #v17-2  : Body-only Python AST sequence strips Module/FunctionDef wrapper.
-  - Fix #v17-3  : Non-semantic Python statement filter (print/assert/logging).
-  - Fix #v17-4  : Halstead-assisted Type-2 path (token>=0.75, ast>=0.55, hal>=0.85).
-  - Fix #v17-5  : Relaxed Type-2 path (token>=0.82, ast>=0.60).
-  - Fix #v17-6  : Halstead-substituted Type-3 guard (ast>=0.45, hal>=0.80).
-  - Fix #v17-7  : 3-segment (head+middle+tail) AST sequence sampling for len>500.
-  - Fix #v17-8  : Type-1 exact raw-token match → confidence always 1.0.
-  - Fix #v17-9  : MIN_TOKENS raised from 10 to 15.
-  - Fix #v17-10 : Java System.out/err print filter in AST sequence builder.
-
-References
-----------
-- Roy, C.K. & Cordy, J.R. (2007). "A Survey on Software Clone Detection
-  Research." Queen's University, Technical Report 2007-541.
-- Baxter, I.D. et al. (1998). "Clone Detection Using Abstract Syntax Trees."
-  ICSM '98, pp. 368–377.
-- Kamiya, T. et al. (2002). "CCFinder." IEEE TSE, 28(7).
-- Halstead, M.H. (1977). "Elements of Software Science." Elsevier.
-- Svajlenko, J. & Roy, C.K. (2015). "Evaluating Clone Detection Tools with
-  BigCloneBench." ICSME '15, pp. 131–140.
+v1.15 (2026-03-09)
+  - Fix #v115-1 : Correct per-block AST tree (FunctionDef, not Module).
+  - Fix #v115-2 : Bag cosine uses true dot product, not intersection.
+  - Fix #v115-3 : raw_token_score=0 no longer replaced by token_score.
+  - Fix #v115-4 : Block extraction stops at function boundaries (no closures).
+  - Fix #v115-5 : Single combined AST walk for seq + bag + CC per block.
+  - Fix #v115-6 : LCS skipped for short seqs; disjoint-set early-exit added.
+  - Fix #v115-7 : _compute_nesting_depth reuses cached AST tree.
 """
 
 import ast
+import bisect
+import collections
+import difflib
+import heapq
 import io
 import itertools
 import logging
 import math
 import re
+import sys
+import textwrap
 import time
 import tokenize
 import uuid
-import collections
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -180,12 +151,7 @@ logger = logging.getLogger(__name__)
 SUPPORTED_LANGUAGES = {"python", "java"}
 
 # ---------------------------------------------------------------------------
-# Fix #v18-6: Per-type fusion weight vectors
-# Each tuple is (W_TOKEN, W_AST, W_HALSTEAD).
-# Type-1: token-heavy (exact match is primarily a token signal)
-# Type-2: AST-heavy   (structure preservation is the key signal)
-# Type-3: Halstead-heavy (near-miss clones preserve complexity more than tokens)
-# Default weights used for the prefilter fusion estimate before type is known.
+# Per-type fusion weight vectors (Fix #v18-6)
 # ---------------------------------------------------------------------------
 FUSION_WEIGHTS = {
     1: (0.50, 0.30, 0.20),
@@ -194,7 +160,6 @@ FUSION_WEIGHTS = {
     "default": (0.30, 0.40, 0.30),
 }
 
-# Global weights (default) — kept for backward-compat and prefilter use
 W_TOKEN    = FUSION_WEIGHTS["default"][0]
 W_AST      = FUSION_WEIGHTS["default"][1]
 W_HALSTEAD = FUSION_WEIGHTS["default"][2]
@@ -209,32 +174,51 @@ THRESH_TOKEN_PREFILTER    = 0.30
 THRESH_HALSTEAD_PREFILTER = 0.80
 
 # Type-1 thresholds
-THRESH_TYPE1          = 0.95
-THRESH_TYPE1_FALLBACK = 0.88
+THRESH_TYPE1                  = 0.95
+THRESH_TYPE1_FALLBACK         = 0.88
+THRESH_TYPE1_FALLBACK_RATIO   = 1.05
 
 # Type-2 thresholds
-THRESH_TYPE2               = 0.75
-THRESH_TYPE2_HAL_AST       = 0.55
-THRESH_TYPE2_HAL_HALSTEAD  = 0.85
-THRESH_TYPE2_RELAXED_TOKEN = 0.82
-THRESH_TYPE2_RELAXED_AST   = 0.60
+THRESH_TYPE2                    = 0.75
+THRESH_TYPE2_HAL_AST            = 0.55
+THRESH_TYPE2_HAL_AST_SHORT      = 0.45
+THRESH_TYPE2_HAL_SHORT_LINES    = 15
+THRESH_TYPE2_HAL_HALSTEAD       = 0.85
+THRESH_TYPE2_RELAXED_TOKEN      = 0.82
+THRESH_TYPE2_RELAXED_AST        = 0.60
+THRESH_TYPE2_RENAME_ALIGN       = 0.80
+THRESH_TYPE2_RENAME_AST         = 0.65
 
 # Type-3 thresholds
-THRESH_FUSION_TYPE3    = 0.60   # standard path (default weights)
-# Fix #v18-6: Halstead path uses per-type weights; its effective fusion score
-# is lower for weak-token pairs, so a dedicated lower threshold is used.
-THRESH_FUSION_TYPE3_HAL = 0.55  # Halstead-substituted path fusion floor
-THRESH_TYPE3_AST_MIN   = 0.35
-THRESH_TYPE3_TOKEN_MIN = 0.35
-THRESH_TYPE3_PEAK      = 0.40
-THRESH_TYPE3_HAL_AST   = 0.45
-THRESH_TYPE3_HAL_MIN   = 0.80
-# Fix #v18-4: token floor on Halstead-only Type-3 path
-THRESH_TYPE3_HAL_TOKEN = 0.25
+THRESH_FUSION_TYPE3     = 0.60
+THRESH_FUSION_TYPE3_HAL = 0.55
+THRESH_TYPE3_AST_MIN    = 0.35
+THRESH_TYPE3_TOKEN_MIN  = 0.35
+THRESH_TYPE3_PEAK       = 0.40
+THRESH_TYPE3_HAL_AST    = 0.40
+THRESH_TYPE3_HAL_MIN    = 0.80
+THRESH_TYPE3_HAL_TOKEN  = 0.25
+THRESH_TYPE3_CONTAINMENT      = 0.58
+THRESH_TYPE3_CONTAINMENT_WEAK = 0.50
+THRESH_TYPE3_TC_BOOST         = 0.50
+THRESH_TYPE3_TC_BOOST_BASE    = 0.15
+THRESH_TYPE3_LIT_MIN          = 0.30
+THRESH_TYPE3_HIGH_AST         = 0.75
+THRESH_TYPE3_AST_HAL_FALLBACK = 0.50
+THRESH_TYPE3_HAL_FALLBACK     = 0.75
+
+# Fix #v114-19: HALSTEAD_DOMINANT path thresholds
+THRESH_TYPE3_HALDOM_HALSTEAD  = 0.95   # near-identical Halstead fingerprint
+THRESH_TYPE3_HALDOM_AST       = 0.25   # relaxed AST floor for structural rewrites
+# (reuses THRESH_FUSION_TYPE3_HAL = 0.55 as the fusion entry gate)
 
 # AST blend weights
-W_AST_EDIT = 0.60
-W_AST_BAG  = 0.40
+W_AST_EDIT     = 0.60
+W_AST_BAG      = 0.40
+_W_SM          = 0.75
+_W_LCS         = 0.25
+_W_BAG_NODES   = 0.875
+_W_BAG_STMTS   = 0.125
 
 # Adaptive n-gram boundaries
 NGRAM_SHORT_BOUND  = 20
@@ -243,9 +227,17 @@ NGRAM_SIZE_SHORT   = 2
 NGRAM_SIZE_DEFAULT = 3
 NGRAM_SIZE_LONG    = 4
 
-# Fix #v17-9 / #v18-11: token AND line-count floors
+# Token and line-count floors
 MIN_TOKENS = 15
-MIN_LINES  = 5      # Fix #v18-11: skip trivially short blocks
+MIN_LINES  = 5
+
+# Short-block rescue floors
+MIN_TOKENS_SHORT = 8
+MIN_LINES_SHORT  = 3
+
+# Cross-pair asymmetric rescue
+MIN_LINES_CROSS  = 3
+MIN_TOKENS_CROSS = 20
 
 # AST sequence sampling
 MAX_AST_LEN = 500
@@ -253,14 +245,17 @@ MAX_AST_LEN = 500
 # Refactoring snippet cap
 MAX_SNIPPET_LINES = 15
 
-# Fix #v18-12/13: safety caps for pairwise comparison
-MAX_PAIR_SECONDS = 2.0   # wall-clock budget per pair (seconds)
-MAX_PAIRS        = 5000  # hard cap on total pair comparisons per call
+# Per-pair safety caps
+MAX_PAIR_SECONDS = 2.0
+MAX_PAIRS        = 5000
 
-TAHD_VERSION = "v1.8"
+TAHD_VERSION = "v1.15"
+
+# Fix #v115-6: threshold below which LCS is skipped (SM-only is faster)
+LCS_SHORT_THRESHOLD = 80
 
 # ---------------------------------------------------------------------------
-# Java token/keyword tables (unchanged from v1.7)
+# Java token/keyword tables
 # ---------------------------------------------------------------------------
 
 JAVA_OPERATORS = frozenset([
@@ -285,6 +280,28 @@ JAVA_KEYWORDS = frozenset([
     "void", "volatile", "while",
 ])
 
+_JAVA_BOOL_NULL = frozenset({"true", "false", "null"})
+
+_PY_KEYWORDS = frozenset({
+    "def", "class", "return", "if", "else", "elif", "for", "while",
+    "import", "from", "try", "except", "finally", "with", "as", "pass",
+    "break", "continue", "raise", "yield", "lambda", "True", "False",
+    "None", "and", "or", "not", "in", "is", "del", "global", "nonlocal",
+    "assert", "async", "await",
+})
+_PY_OP_KEYWORDS = frozenset({
+    "and", "or", "not", "in", "is", "del",
+    "return", "yield", "lambda", "raise",
+    "assert", "pass", "break", "continue",
+})
+_PY_SKIP_KEYWORDS = frozenset({
+    "def", "class", "if", "else", "elif", "for", "while",
+    "import", "from", "try", "except", "finally", "with",
+    "as", "True", "False", "None", "async", "await",
+    "global", "nonlocal",
+})
+_PY_BOOL_NONE = frozenset({"True", "False", "None"})
+
 # ---------------------------------------------------------------------------
 # Pre-compiled regex patterns
 # ---------------------------------------------------------------------------
@@ -306,30 +323,6 @@ _JAVA_TOKEN_RE = re.compile(
     "|".join(f"(?P<{name}>{regex})" for name, regex in _JAVA_TOKEN_SPEC),
     re.DOTALL,
 )
-
-_JAVA_AST_CONSTRUCTS = [
-    (re.compile(r"\bSystem\s*\.\s*(?:out|err)\s*\.\s*print(?:ln|f)?\s*\("), None),
-    (re.compile(r"\bif\s*\("),          "IF"),
-    (re.compile(r"\belse\s*\{"),        "ELSE"),
-    (re.compile(r"\bfor\s*\("),         "FOR"),
-    (re.compile(r"\bwhile\s*\("),       "WHILE"),
-    (re.compile(r"\bdo\s*\{"),          "DO"),
-    (re.compile(r"\bswitch\s*\("),      "SWITCH"),
-    (re.compile(r"\bcase\b"),           "CASE"),
-    (re.compile(r"\breturn\b"),         "RETURN"),
-    (re.compile(r"\bthrow\b"),          "THROW"),
-    (re.compile(r"\btry\s*\{"),         "TRY"),
-    (re.compile(r"\bcatch\s*\("),       "CATCH"),
-    (re.compile(r"\bfinally\s*\{"),     "FINALLY"),
-    (re.compile(r"\bnew\s+\w+"),        "NEW"),
-    (re.compile(r"\binstanceof\b"),     "INSTANCEOF"),
-    (re.compile(r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
-                r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b"),
-     "TYPEDECL"),
-    (re.compile(r"\b(?!(?:if|else|for|while|do|switch|case|return|throw|"
-                r"try|catch|finally|new|instanceof)\b)"
-                r"[A-Za-z_]\w*\s*\("), "CALL"),
-]
 
 _JAVA_HALSTEAD_OP_RE = re.compile(
     r">>>=|<<=|>>=|==|!=|<=|>=|&&|\|\||<<|>>>|>>"
@@ -353,57 +346,128 @@ _PY_SINGLE_STRING_RE = re.compile(r"'(?:\\.|[^'\\])*'")
 _PY_NON_SEMANTIC_CALLS = frozenset({"print", "assert"})
 _PY_NON_SEMANTIC_ATTRS = frozenset({"logging", "logger", "log"})
 
-# Fix #v18-9: heuristic patterns to detect likely-wrong-language submissions
 _PY_SIGNATURE_RE   = re.compile(r"\bdef\s+\w+\s*\(")
 _JAVA_SIGNATURE_RE = re.compile(r"\b(?:public|private|protected|class|void)\b")
 
+_LOGICAL_LOC_PY_COMMENT_RE   = re.compile(r'^\s*#')
+_LOGICAL_LOC_JAVA_COMMENT_RE = re.compile(r'^\s*//')
+
+_IDENTIFIER_RE = re.compile(r'^[A-Za-z_]\w*$')
+
+# Fix #v114-16: cache for _detect_unused_functions compiled patterns
+_UNUSED_PATTERN_CACHE: dict = {}
+
 
 # ===========================================================================
-# Fix #v18-15: ScoredPair dataclass — replaces 9-argument classify_clone()
+# Fix #v114-12: O(N) Java generic type stabilisation
 # ===========================================================================
+
+def _stabilize_java_generics(source: str) -> str:
+    _SAFE_GENERIC_RE = re.compile(
+        r'\b([A-Za-z_]\w*)\s*'
+        r'<\s*'
+        r'(?:[A-Za-z_]\w*(?:\s*\[\s*\])?\s*(?:,\s*[A-Za-z_]\w*(?:\s*\[\s*\])?)*)'
+        r'\s*>'
+    )
+    result = _SAFE_GENERIC_RE.sub('GENERIC_TYPE', source)
+    result = _SAFE_GENERIC_RE.sub('GENERIC_TYPE', result)
+    return result
+
+
+def _clean_java_source(source: str) -> str:
+    src = _JAVA_BLOCK_COMMENT_RE.sub(lambda m: " " * len(m.group()), source)
+    src = _JAVA_LINE_COMMENT_RE.sub(lambda m:  " " * len(m.group()), src)
+    src = _JAVA_STRING_LIT_RE.sub(lambda m:    " " * len(m.group()), src)
+    src = _JAVA_CHAR_LIT_RE.sub(lambda m:      " " * len(m.group()), src)
+    return src
+
+
+def _logical_loc(source: str, language: str) -> int:
+    count = 0
+    in_block_comment = False
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if language == "java":
+            if in_block_comment:
+                if "*/" in stripped:
+                    in_block_comment = False
+                continue
+            if stripped.startswith("/*"):
+                if "*/" not in stripped[2:]:
+                    in_block_comment = True
+                continue
+            if stripped.startswith("//"):
+                continue
+        else:
+            if stripped.startswith("#"):
+                continue
+        count += 1
+    return max(count, 1)
+
 
 @dataclass
 class ScoredPair:
-    """All scores computed for a block pair, passed as one unit to classify_clone."""
-    token_score:     float
-    ast_score:       float
-    halstead_score:  float
-    fusion_score:    float          # pre-computed with default weights
-    raw_token_score: float = 0.0
-    raw_tokens_a:    list  = field(default_factory=list)
-    raw_tokens_b:    list  = field(default_factory=list)
-    lit_tokens_a:    list  = field(default_factory=list)
-    lit_tokens_b:    list  = field(default_factory=list)
+    """All scores computed for a block pair."""
+    token_score:          float
+    lit_token_score:      float
+    ast_score:            float
+    halstead_score:       float
+    fusion_score:         float
+    line_ratio:           float = 1.0
+    cc_delta:             float = 0.0
+    vol_delta:            float = 0.0
+    token_containment:    float = 0.0
+    token_ratio:          float = 1.0
+    raw_token_score:      float = 0.0
+    raw_tokens_a:         list  = field(default_factory=list)
+    raw_tokens_b:         list  = field(default_factory=list)
+    lit_tokens_a:         list  = field(default_factory=list)
+    lit_tokens_b:         list  = field(default_factory=list)
+    rename_align_score:   float = 0.0
+    lines_a:              int   = 0
+    lines_b:              int   = 0
 
-
-# ===========================================================================
-# Data classes
-# ===========================================================================
 
 @dataclass
 class FunctionBlock:
     """A single function / method extracted from source code."""
-    name: str
+    name:       str
     start_line: int
-    end_line: int
-    source: str
-    language: str = ""
+    end_line:   int
+    source:     str
+    language:   str  = ""
     tokens:     list = field(default_factory=list)
     raw_tokens: list = field(default_factory=list)
     lit_tokens: list = field(default_factory=list)
     ast_sequence: list = field(default_factory=list)
     halstead:   dict = field(default_factory=dict)
-    # Caches
-    _ngrams_norm:   object = field(default=None, init=False, repr=False, compare=False)
-    _ngrams_raw:    object = field(default=None, init=False, repr=False, compare=False)
-    _ngrams_lit:    object = field(default=None, init=False, repr=False, compare=False)
-    _halstead_vec:  object = field(default=None, init=False, repr=False, compare=False)
-    _ast_ready:     bool   = field(default=False, init=False, repr=False, compare=False)
-    _bag_vec:       object = field(default=None,  init=False, repr=False, compare=False)
-    # Fix #v18-2: cached sampled sequence (avoid re-sampling per pair)
-    _ast_sampled:   object = field(default=None,  init=False, repr=False, compare=False)
-    # Fix #v18-3: cached bag magnitude (avoid re-summing squares per pair)
-    _bag_magnitude: float  = field(default=0.0,   init=False, repr=False, compare=False)
+    _ngrams_norm:    object = field(default=None,  init=False, repr=False, compare=False)
+    _ngrams_raw:     object = field(default=None,  init=False, repr=False, compare=False)
+    _ngrams_lit:     object = field(default=None,  init=False, repr=False, compare=False)
+    _ngrams_norm_sum: int   = field(default=0,     init=False, repr=False, compare=False)
+    _ngrams_raw_sum:  int   = field(default=0,     init=False, repr=False, compare=False)
+    _ngrams_lit_sum:  int   = field(default=0,     init=False, repr=False, compare=False)
+    _halstead_vec:   object = field(default=None,  init=False, repr=False, compare=False)
+    _halstead_mag:   float  = field(default=0.0,   init=False, repr=False, compare=False)
+    _ast_ready:      bool   = field(default=False, init=False, repr=False, compare=False)
+    _bag_vec:        object = field(default=None,  init=False, repr=False, compare=False)
+    _token_counter:  object = field(default=None,  init=False, repr=False, compare=False)
+    _token_count:    int    = field(default=0,     init=False, repr=False, compare=False)
+    _raw_token_counter: object = field(default=None, init=False, repr=False, compare=False)
+    _raw_token_count:   int    = field(default=0,    init=False, repr=False, compare=False)
+    _ast_sampled:    object = field(default=None,  init=False, repr=False, compare=False)
+    _bag_magnitude:  float  = field(default=0.0,   init=False, repr=False, compare=False)
+    _ast_seq_hash:   object = field(default=None,  init=False, repr=False, compare=False)
+    _java_clean:     object = field(default=None,  init=False, repr=False, compare=False)
+    _ngram_size:     int    = field(default=0,     init=False, repr=False, compare=False)
+    _stmt_bag_vec:      object = field(default=None, init=False, repr=False, compare=False)
+    _stmt_bag_magnitude: float = field(default=0.0,  init=False, repr=False, compare=False)
+    _logical_loc:    int    = field(default=0,     init=False, repr=False, compare=False)
+    _cc_cache:       object = field(default=None,  init=False, repr=False, compare=False)
+    _ast_tree:       object = field(default=None,  init=False, repr=False, compare=False)
+    _ast_seq_types:  object = field(default=None,  init=False, repr=False, compare=False)
 
 
 @dataclass
@@ -422,69 +486,85 @@ class ClonePair:
     confidence:     float = 0.0
 
 
+_JAVA_AST_CONSTRUCTS = [
+    (re.compile(r"\bSystem\s*\.\s*(?:out|err)\s*\.\s*print(?:ln|f)?\s*\("), None),
+    (re.compile(r"\bif\s*\("),          sys.intern("IF")),
+    (re.compile(r"\belse\s*\{"),        sys.intern("ELSE")),
+    (re.compile(r"\bfor\s*\("),         sys.intern("FOR")),
+    (re.compile(r"\bwhile\s*\("),       sys.intern("WHILE")),
+    (re.compile(r"\bdo\s*\{"),          sys.intern("DO")),
+    (re.compile(r"\bswitch\s*\("),      sys.intern("SWITCH")),
+    (re.compile(r"\bcase\b"),           sys.intern("CASE")),
+    (re.compile(r"\breturn\b"),         sys.intern("RETURN")),
+    (re.compile(r"\bthrow\b"),          sys.intern("THROW")),
+    (re.compile(r"\btry\s*\{"),         sys.intern("TRY")),
+    (re.compile(r"\bcatch\s*\("),       sys.intern("CATCH")),
+    (re.compile(r"\bfinally\s*\{"),     sys.intern("FINALLY")),
+    (re.compile(r"\bnew\s+\w+"),        sys.intern("NEW")),
+    (re.compile(r"\binstanceof\b"),     sys.intern("INSTANCEOF")),
+    (re.compile(r"\bint\b|\blong\b|\bdouble\b|\bfloat\b|"
+                r"\bboolean\b|\bString\b|\bchar\b|\bbyte\b|\bshort\b"),
+     sys.intern("TYPEDECL")),
+    (re.compile(r"\b(?!(?:if|else|for|while|do|switch|case|return|throw|"
+                r"try|catch|finally|new|instanceof)\b)"
+                r"[A-Za-z_]\w*\s*\("), sys.intern("CALL")),
+]
+
+
 # ===========================================================================
 # LAYER 1 — TOKEN PREFILTER
 # ===========================================================================
 
-def _normalize_python_tokens(source: str) -> list[str]:
-    PY_KEYWORDS = {
-        "def", "class", "return", "if", "else", "elif", "for", "while",
-        "import", "from", "try", "except", "finally", "with", "as", "pass",
-        "break", "continue", "raise", "yield", "lambda", "True", "False",
-        "None", "and", "or", "not", "in", "is", "del", "global", "nonlocal",
-        "assert", "async", "await",
-    }
-    tokens = []
+def _tokenize_python_all(source: str) -> tuple:
+    norm_toks: list = []
+    raw_toks:  list = []
+    lit_toks:  list = []
+    hal_ops:   list = []
+    hal_opds:  list = []
+
     try:
         reader = io.StringIO(source).readline
         for tok in tokenize.generate_tokens(reader):
             ttype, tval = tok.type, tok.string
+
             if ttype == tokenize.NAME:
-                tokens.append(tval if tval in PY_KEYWORDS else "ID")
+                norm_toks.append(tval if tval in _PY_KEYWORDS else "ID")
+                raw_toks.append(tval)
+                if tval in _PY_BOOL_NONE:
+                    lit_toks.append("BOOL" if tval in ("True", "False") else "NULL")
+                else:
+                    lit_toks.append(tval)
+                if tval in _PY_OP_KEYWORDS:
+                    hal_ops.append(tval)
+                elif tval not in _PY_SKIP_KEYWORDS:
+                    hal_opds.append(tval)
+
             elif ttype == tokenize.NUMBER:
-                tokens.append("NUM")
+                norm_toks.append("NUM")
+                raw_toks.append(tval)
+                lit_toks.append("NUM")
+                hal_opds.append(tval)
+
             elif ttype == tokenize.STRING:
-                tokens.append("STR")
+                norm_toks.append("STR")
+                raw_toks.append(tval)
+                lit_toks.append("STR")
+                hal_opds.append("STR")
+
             elif ttype == tokenize.OP:
-                tokens.append(tval)
+                norm_toks.append(tval)
+                raw_toks.append(tval)
+                lit_toks.append(tval)
+                hal_ops.append(tval)
+
     except tokenize.TokenError:
         pass
-    return tokens
+
+    return norm_toks, raw_toks, lit_toks, hal_ops, hal_opds
 
 
-def _raw_python_tokens(source: str) -> list[str]:
-    tokens = []
-    try:
-        reader = io.StringIO(source).readline
-        for tok in tokenize.generate_tokens(reader):
-            if tok.type in (tokenize.NAME, tokenize.NUMBER,
-                            tokenize.STRING, tokenize.OP):
-                tokens.append(tok.string)
-    except tokenize.TokenError:
-        pass
-    return tokens
-
-
-def _literal_normalize_python_tokens(source: str) -> list[str]:
-    tokens = []
-    try:
-        reader = io.StringIO(source).readline
-        for tok in tokenize.generate_tokens(reader):
-            ttype, tval = tok.type, tok.string
-            if ttype == tokenize.NAME:
-                tokens.append(tval)
-            elif ttype == tokenize.NUMBER:
-                tokens.append("NUM")
-            elif ttype == tokenize.STRING:
-                tokens.append("STR")
-            elif ttype == tokenize.OP:
-                tokens.append(tval)
-    except tokenize.TokenError:
-        pass
-    return tokens
-
-
-def _normalize_java_tokens(source: str) -> list[str]:
+def _normalize_java_tokens(source: str) -> list:
+    source = _stabilize_java_generics(source)
     tokens = []
     for mo in _JAVA_TOKEN_RE.finditer(source):
         kind, val = mo.lastgroup, mo.group()
@@ -495,22 +575,28 @@ def _normalize_java_tokens(source: str) -> list[str]:
         elif kind == "NUMBER":
             tokens.append("NUM")
         elif kind == "IDENT":
-            tokens.append(val if val in JAVA_KEYWORDS else "ID")
+            if val == "GENERIC_TYPE":
+                tokens.append("GENERIC_TYPE")
+            else:
+                tokens.append(val if val in JAVA_KEYWORDS else "ID")
         elif kind in ("OP1", "OP2", "OP3"):
             tokens.append(val)
     return tokens
 
 
-def _raw_java_tokens(source: str) -> list[str]:
+def _raw_java_tokens(source: str) -> list:
+    cleaned = _clean_java_source(source)
+    cleaned = _stabilize_java_generics(cleaned)
     tokens = []
-    for mo in _JAVA_TOKEN_RE.finditer(source):
+    for mo in _JAVA_TOKEN_RE.finditer(cleaned):
         kind, val = mo.lastgroup, mo.group()
         if kind not in ("COMMENT_ML", "COMMENT_SL", "SKIP", "MISMATCH"):
             tokens.append(val)
     return tokens
 
 
-def _literal_normalize_java_tokens(source: str) -> list[str]:
+def _literal_normalize_java_tokens(source: str) -> list:
+    source = _stabilize_java_generics(source)
     tokens = []
     for mo in _JAVA_TOKEN_RE.finditer(source):
         kind, val = mo.lastgroup, mo.group()
@@ -520,6 +606,13 @@ def _literal_normalize_java_tokens(source: str) -> list[str]:
             tokens.append("STR")
         elif kind == "NUMBER":
             tokens.append("NUM")
+        elif kind == "IDENT":
+            if val in _JAVA_BOOL_NULL:
+                tokens.append("BOOL" if val in ("true", "false") else "NULL")
+            elif val == "GENERIC_TYPE":
+                tokens.append("GENERIC_TYPE")
+            else:
+                tokens.append(val)
         else:
             tokens.append(val)
     return tokens
@@ -533,26 +626,35 @@ def _adaptive_ngram_size(token_count: int) -> int:
     return NGRAM_SIZE_DEFAULT
 
 
-def _make_ngrams(tokens: list[str], n: int | None = None) -> dict:
+def _make_ngrams(tokens: list, n: int = None) -> collections.Counter:
     if n is None:
         n = _adaptive_ngram_size(len(tokens))
-    if len(tokens) < n:
-        return {tuple(tokens): 1} if tokens else {}
-    counts: dict = {}
-    for i in range(len(tokens) - n + 1):
-        gram = tuple(tokens[i:i+n])
-        counts[gram] = counts.get(gram, 0) + 1
-    return counts
+    interned = [sys.intern(t) if isinstance(t, str) else t for t in tokens]
+    if len(interned) < n:
+        return collections.Counter({tuple(interned): 1}) if interned else collections.Counter()
+    return collections.Counter(
+        tuple(interned[i:i+n]) for i in range(len(interned) - n + 1)
+    )
 
 
-def _jaccard(counter_a: dict, counter_b: dict) -> float:
+def _jaccard(counter_a: collections.Counter,
+             counter_b: collections.Counter) -> float:
     if not counter_a and not counter_b:
         return 1.0
     if not counter_a or not counter_b:
         return 0.0
-    all_keys = set(counter_a) | set(counter_b)
-    inter = sum(min(counter_a.get(k, 0), counter_b.get(k, 0)) for k in all_keys)
-    union = sum(max(counter_a.get(k, 0), counter_b.get(k, 0)) for k in all_keys)
+    
+    # Early-exit: if size ratio is too extreme, similarity will be very low
+    len_a = len(counter_a)
+    len_b = len(counter_b)
+    if len_a > 0 and len_b > 0:
+        ratio = max(len_a, len_b) / min(len_a, len_b)
+        if ratio > 10.0:  # More than 10× size difference
+            return 0.0
+    
+    # Optimized intersection: manual min is faster than counter_a & counter_b
+    inter = sum(min(counter_a[k], counter_b[k]) for k in counter_a if k in counter_b)
+    union = sum(counter_a.values()) + sum(counter_b.values()) - inter
     return inter / union if union else 1.0
 
 
@@ -570,12 +672,130 @@ def compute_raw_token_similarity(block_a: FunctionBlock,
     return _jaccard(na, nb)
 
 
+def compute_literal_token_similarity(block_a: FunctionBlock,
+                                     block_b: FunctionBlock) -> float:
+    na = block_a._ngrams_lit if block_a._ngrams_lit is not None else _make_ngrams(block_a.lit_tokens)
+    nb = block_b._ngrams_lit if block_b._ngrams_lit is not None else _make_ngrams(block_b.lit_tokens)
+    return _jaccard(na, nb)
+
+
+def compute_token_containment_similarity(block_a: FunctionBlock,
+                                         block_b: FunctionBlock) -> float:
+    ca = block_a._raw_token_counter
+    cb = block_b._raw_token_counter
+    if not ca or not cb:
+        return 0.0
+    inter    = sum((ca & cb).values())
+    total_a  = max(block_a._raw_token_count, 1)
+    total_b  = max(block_b._raw_token_count, 1)
+    return min(inter / total_a, inter / total_b)
+
+
+def _rename_alignment_score(block_a: FunctionBlock, block_b: FunctionBlock, token_score: float = 0.0) -> float:
+    """
+    Rename-consistent alignment score.
+
+    Gate: if token_score is provided and is < 0.65, return 0.0 immediately.
+    The Type-2 ALIGN branch requires rename_align >= 0.80; that is unreachable
+    when Jaccard token similarity is below 0.65, so the O(N) SequenceMatcher
+    diff is skipped.
+
+    token_score=0.0 (default) means "not provided" and bypasses the gate.
+    """
+    if token_score > 0.0 and token_score < 0.65:
+        return 0.0
+
+    raw_a = block_a.raw_tokens
+    raw_b = block_b.raw_tokens
+    if not raw_a or not raw_b:
+        return 0.0
+
+    la, lb = len(raw_a), len(raw_b)
+    if la > 3 * lb or lb > 3 * la:
+        return 0.0
+    if raw_a == raw_b:
+        return 1.0
+
+    sm = difflib.SequenceMatcher(None, raw_a, raw_b, autojunk=False)
+    fwd_map: dict = {}
+    rev_map: dict = {}
+    total_aligned = 0
+    consistent    = 0
+
+    _JAVA_KW = JAVA_KEYWORDS | _JAVA_BOOL_NULL
+    _PY_KW   = _PY_KEYWORDS
+    lang = block_a.language
+
+    def _is_identifier(tok: str) -> bool:
+        if not _IDENTIFIER_RE.match(tok):
+            return False
+        if lang == "java":
+            return tok not in _JAVA_KW
+        return tok not in _PY_KW
+
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            n = i2 - i1
+            total_aligned += n
+            consistent    += n
+            continue
+        if tag != "replace":
+            total_aligned += max(i2 - i1, j2 - j1)
+            continue
+        len_a = i2 - i1
+        len_b = j2 - j1
+        if len_a != len_b:
+            total_aligned += max(len_a, len_b)
+            continue
+        for ka, kb in zip(raw_a[i1:i2], raw_b[j1:j2]):
+            total_aligned += 1
+            id_a = _is_identifier(ka)
+            id_b = _is_identifier(kb)
+            if id_a and id_b:
+                existing_b = fwd_map.get(ka)
+                existing_a = rev_map.get(kb)
+                if existing_b is None and existing_a is None:
+                    fwd_map[ka] = kb
+                    rev_map[kb] = ka
+                    consistent += 1
+                elif existing_b == kb and existing_a == ka:
+                    consistent += 1
+            elif not id_a and not id_b:
+                if ka == kb:
+                    consistent += 1
+
+    if total_aligned == 0:
+        return 0.0
+    return consistent / total_aligned
+
+
+_HALSTEAD_VOL_RATIO_CAP = 8.0
+
+
+def _volume_ratio_ok(block_a, block_b) -> bool:
+    """
+    Returns False when the Halstead volumes of two blocks differ by more than
+    _HALSTEAD_VOL_RATIO_CAP (default 8).
+
+    Halstead volume scales roughly with the informational content of a function.
+    A ratio of 8 means one function is 8× larger in content; such pairs never
+    produce a fusion score above the Type-3 floor regardless of other signals.
+
+    Blocks with volume < 1.0 (trivially short, near-empty) are excluded from
+    the check and always pass — other size filters handle them.
+    """
+    vol_a = block_a.halstead.get("volume", 0.0)
+    vol_b = block_b.halstead.get("volume", 0.0)
+    if vol_a < 1.0 or vol_b < 1.0:
+        return True
+    return (max(vol_a, vol_b) / min(vol_a, vol_b)) <= _HALSTEAD_VOL_RATIO_CAP
+
+
 # ===========================================================================
 # LAYER 2 — AST STRUCTURAL SIMILARITY
 # ===========================================================================
 
 def _is_non_semantic_py(node: ast.AST) -> bool:
-    """Return True for non-semantic Python nodes (print, logging, assert)."""
     if isinstance(node, ast.Assert):
         return True
     if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
@@ -589,206 +809,306 @@ def _is_non_semantic_py(node: ast.AST) -> bool:
     return False
 
 
-def _python_ast_sequence(source: str) -> list[str]:
-    """
-    Linearized pre-order AST sequence for Python source.
-
-    Fix #v18-1: Iterative DFS — no recursion limit on deep submissions.
-    Fix #v18-14: Strips FunctionDef/AsyncFunctionDef wrapper nodes at ANY
-                 nesting depth (not just outermost), so closures and inner
-                 helpers don't re-inject Module/args inflation.
-    Fix #v17-3: Non-semantic statements (print, logging, assert) skipped.
-    """
-    sequence: list[str] = []
-
-    # Nodes whose *wrapper* we strip but whose *body* we still emit.
+def _python_ast_sequence_from_tree(tree: ast.AST) -> list:
+    sequence: list = []
     _FUNC_WRAPPERS = (ast.FunctionDef, ast.AsyncFunctionDef)
-    # Node types never emitted (structural boilerplate identical in every func).
     _SKIP_TYPES = frozenset({
         "Module", "FunctionDef", "AsyncFunctionDef", "arguments", "arg",
     })
 
-    try:
-        tree = ast.parse(source)
+    if isinstance(tree, _FUNC_WRAPPERS):
+        func_node = tree
+    elif isinstance(tree, ast.Module) and tree.body:
+        func_node = tree.body[0] if isinstance(tree.body[0], _FUNC_WRAPPERS) else None
+    else:
         func_node = None
-        for node in ast.walk(tree):
-            if isinstance(node, _FUNC_WRAPPERS):
-                func_node = node
-                break
 
-        root_stmts = func_node.body if func_node else [tree]
+    root_stmts = func_node.body if func_node else [tree]
+    stack: list = []
+    for stmt in reversed(root_stmts):
+        stack.append((stmt, True))
 
-        # Fix #v18-1: explicit stack-based DFS (no recursion)
-        # Each stack item: (ast_node, emit_this_node)
-        # When we reach a nested FunctionDef we suppress the wrapper but
-        # still push its body children (Fix #v18-14).
-        stack: list[tuple[ast.AST, bool]] = []
-        for stmt in reversed(root_stmts):
-            stack.append((stmt, True))
-
-        while stack:
-            node, should_emit = stack.pop()
-
-            if _is_non_semantic_py(node):
-                continue
-
-            node_type = type(node).__name__
-
-            # Fix #v18-14: strip nested FunctionDef wrappers but visit body
-            if isinstance(node, _FUNC_WRAPPERS):
-                for child in reversed(list(ast.iter_child_nodes(node))):
-                    # Only push body children, skip the arguments/arg wrappers
-                    if not isinstance(child, (ast.arguments, ast.arg)):
-                        stack.append((child, True))
-                continue
-
-            if should_emit and node_type not in _SKIP_TYPES:
-                name = node_type
-                if name == "Constant" and hasattr(node, "value"):
-                    name = f"Constant_{type(node.value).__name__}"
-                sequence.append(name)
-
+    while stack:
+        node, should_emit = stack.pop()
+        if _is_non_semantic_py(node):
+            continue
+        node_type = type(node).__name__
+        if isinstance(node, _FUNC_WRAPPERS):
             for child in reversed(list(ast.iter_child_nodes(node))):
-                stack.append((child, True))
-
-    except SyntaxError:
-        pass
+                if not isinstance(child, (ast.arguments, ast.arg)):
+                    stack.append((child, True))
+            continue
+        if should_emit and node_type not in _SKIP_TYPES:
+            name = node_type
+            if name == "Constant" and hasattr(node, "value"):
+                name = f"Constant_{type(node.value).__name__}"
+            sequence.append(sys.intern(name))
+        for child in reversed(list(ast.iter_child_nodes(node))):
+            stack.append((child, True))
 
     return sequence
 
 
-def _width_preserving_replace(source: str, pattern: re.Pattern,
-                               replacement_char: str = " ") -> str:
-    """
-    Fix #v18-17: Replace all matches of pattern with spaces of equal length,
-    preserving character positions so that subsequent regex match offsets
-    remain valid.
-    """
-    result = list(source)
-    for m in pattern.finditer(source):
-        for i in range(m.start(), m.end()):
-            result[i] = replacement_char
-    return "".join(result)
+def _python_ast_sequence(source: str) -> list:
+    try:
+        tree = ast.parse(source)
+        return _python_ast_sequence_from_tree(tree)
+    except SyntaxError:
+        return []
 
 
-def _java_ast_sequence(source: str) -> list[str]:
-    """
-    Structural node-type sequence for Java source.
+def _java_ast_sequence(source: str, cleaned: str = None) -> list:
+    src = cleaned if cleaned is not None else _clean_java_source(source)
 
-    Fix #v18-17: String/char literals replaced with equal-width whitespace
-    so regex match positions stay stable.
-    Fix #v17-10: System.out/err print patterns skipped (symbol=None).
-    """
-    source = _JAVA_BLOCK_COMMENT_RE.sub(
-        lambda m: " " * len(m.group()), source)
-    source = _JAVA_LINE_COMMENT_RE.sub(
-        lambda m: " " * len(m.group()), source)
-    # Fix #v18-17: width-preserving string/char replacement
-    source = _width_preserving_replace(source, _JAVA_STRING_LIT_RE)
-    source = _width_preserving_replace(source, _JAVA_CHAR_LIT_RE)
+    hits_by_start: list = []
 
-    hits = []
     for pattern, symbol in _JAVA_AST_CONSTRUCTS:
-        for m in pattern.finditer(source):
-            hits.append((m.start(), m.end(), symbol))
+        for m in pattern.finditer(src):
+            bisect.insort(hits_by_start, (m.start(), m.end(), symbol))
 
-    hits.sort(key=lambda x: x[0])
-    merged = []
+    result = []
     max_end = 0
-    for start, end, symbol in hits:
+    for start, end, symbol in hits_by_start:
         if start >= max_end:
             if symbol is not None:
-                merged.append((start, symbol))
+                result.append(symbol)
             max_end = end
 
-    return [sym for _, sym in merged]
+    return result
 
 
-def _sample_sequence(seq: list, max_len: int = MAX_AST_LEN) -> list:
-    """
-    3-segment (head + middle + tail) sampling for long AST sequences.
-    (Fix #v17-7 — unchanged from v1.7)
-    """
+def _sample_sequence(seq, max_len: int = MAX_AST_LEN) -> tuple:
     if len(seq) <= max_len:
-        return seq
+        return tuple(seq) if not isinstance(seq, tuple) else seq
     seg = max_len // 3
     mid = len(seq) // 2
     half_mid = seg // 2
     head   = seq[:seg]
     middle = seq[max(0, mid - half_mid): mid + half_mid]
     tail   = seq[-(max_len - 2 * seg):]
-    return head + middle + tail
+    return tuple(head) + tuple(middle) + tuple(tail)
 
 
-def _edit_distance_normalized(seq_a: list, seq_b: list) -> float:
+def _lcs_ratio(seq_a: tuple, seq_b: tuple,
+               set_a=None, set_b=None) -> float:
     """
-    Normalized Levenshtein similarity [0, 1].
-    Fix #v18-2: Caller is expected to pass pre-sampled sequences (_ast_sampled),
-    so this function no longer calls _sample_sequence() internally.
+    LCS ratio with optional pre-built type sets for the disjoint-exit.
+
+    set_a / set_b should be frozenset(seq_a) / frozenset(seq_b).
+    When supplied (cached as _ast_seq_types on FunctionBlock) the disjoint
+    check is O(1) — no set construction on the hot path.
     """
     la, lb = len(seq_a), len(seq_b)
     if la == 0 and lb == 0:
         return 1.0
     if la == 0 or lb == 0:
         return 0.0
-    if seq_a == seq_b:
+    if seq_a is seq_b or seq_a == seq_b:
+        return 1.0
+    sa = set_a if set_a is not None else set(seq_a)
+    sb = set_b if set_b is not None else set(seq_b)
+    if sa.isdisjoint(sb):
+        return 0.0
+    prev = [0] * (lb + 1)
+    for i in range(la):
+        curr = [0] * (lb + 1)
+        ai   = seq_a[i]
+        for j in range(lb):
+            if ai == seq_b[j]:
+                curr[j + 1] = prev[j] + 1
+            else:
+                curr[j + 1] = max(curr[j], prev[j + 1])
+        prev = curr
+    return prev[lb] / max(la, lb)
+
+
+def _edit_distance_normalized(seq_a: tuple, seq_b: tuple,
+                               set_a=None, set_b=None) -> float:
+    """
+    Blended sequence similarity [0, 1].
+    Passes cached type sets to _lcs_ratio to avoid set construction.
+    """
+    la, lb = len(seq_a), len(seq_b)
+    if la == 0 and lb == 0:
+        return 1.0
+    if la == 0 or lb == 0:
+        return 0.0
+    if seq_a is seq_b or seq_a == seq_b:
         return 1.0
     if la > 2 * lb or lb > 2 * la:
         return 0.0
-
-    max_len = max(la, lb)
-    prev = list(range(lb + 1))
-    curr = [0] * (lb + 1)
-    for i in range(1, la + 1):
-        curr[0] = i
-        for j in range(1, lb + 1):
-            cost = 0 if seq_a[i-1] == seq_b[j-1] else 1
-            curr[j] = min(prev[j]+1, curr[j-1]+1, prev[j-1]+cost)
-        if curr[0] >= max_len:
-            return 0.0
-        prev, curr = curr, prev
-    return 1.0 - (prev[lb] / max_len)
+    sm_ratio = difflib.SequenceMatcher(None, seq_a, seq_b, autojunk=False).ratio()
+    if max(la, lb) < LCS_SHORT_THRESHOLD:
+        return sm_ratio
+    lcs_r = _lcs_ratio(seq_a, seq_b, set_a, set_b)
+    return _W_SM * sm_ratio + _W_LCS * lcs_r
 
 
-def _bag_of_nodes_similarity(seq_a: list, seq_b: list) -> float:
-    if not seq_a and not seq_b:
-        return 1.0
-    if not seq_a or not seq_b:
-        return 0.0
-    ca = collections.Counter(seq_a)
-    cb = collections.Counter(seq_b)
-    all_keys = set(ca) | set(cb)
-    dot   = sum(ca.get(k, 0) * cb.get(k, 0) for k in all_keys)
-    mag_a = math.sqrt(sum(v * v for v in ca.values()))
-    mag_b = math.sqrt(sum(v * v for v in cb.values()))
-    if mag_a == 0 or mag_b == 0:
-        return 1.0 if mag_a == mag_b else 0.0
-    return dot / (mag_a * mag_b)
+_PY_STMT_TYPES = frozenset({
+    "Assign", "AugAssign", "AnnAssign", "Return", "Delete", "If", "For",
+    "While", "With", "Try", "ExceptHandler", "Raise", "Assert",
+    "AsyncFor", "AsyncWith", "Global", "Nonlocal", "Pass", "Break", "Continue",
+    "Expr",
+})
+
+_JAVA_STMT_SYMBOLS = frozenset({
+    "IF", "ELSE", "FOR", "WHILE", "DO", "SWITCH", "CASE",
+    "RETURN", "THROW", "TRY", "CATCH", "FINALLY", "NEW",
+})
+
+
+def _bag_of_statements_from_tree(tree: ast.AST) -> collections.Counter:
+    bag: collections.Counter = collections.Counter()
+    for node in ast.walk(tree):
+        name = type(node).__name__
+        if name in _PY_STMT_TYPES:
+            bag[sys.intern(name)] += 1
+    return bag
+
+
+def _bag_of_statements_python(source: str) -> collections.Counter:
+    bag: collections.Counter = collections.Counter()
+    try:
+        tree = ast.parse(source)
+        return _bag_of_statements_from_tree(tree)
+    except SyntaxError:
+        pass
+    return bag
+
+
+def _bag_of_statements_java(ast_sequence: list) -> collections.Counter:
+    return collections.Counter(
+        sym for sym in ast_sequence if sym in _JAVA_STMT_SYMBOLS
+    )
+
+
+# Fix #v115-5: combined single-pass DFS for Python blocks —
+# produces AST sequence + stmt bag + cyclomatic complexity in one walk,
+# replacing three separate O(N) traversals.
+_CC_NODES = (ast.If, ast.For, ast.While, ast.ExceptHandler,
+             ast.With, ast.AsyncFor, ast.AsyncWith)
+_FUNC_WRAP_TYPES = (ast.FunctionDef, ast.AsyncFunctionDef)
+_SKIP_SEQ_TYPES  = frozenset({"Module", "FunctionDef", "AsyncFunctionDef",
+                               "arguments", "arg"})
+
+
+def _python_ast_combined_walk(func_node: ast.AST) -> tuple:
+    """
+    Fix #v115-5: Single DFS over a FunctionDef (or AsyncFunctionDef) that
+    simultaneously builds:
+      - ast_sequence  : pre-order node-type list (same semantics as
+                        _python_ast_sequence_from_tree)
+      - stmt_bag      : Counter of statement-type nodes
+      - cc            : cyclomatic complexity (same semantics as
+                        _compute_cc_from_tree)
+
+    Non-semantic nodes (print/assert/logging calls) are skipped.
+    Nested FunctionDef/AsyncFunctionDef bodies are traversed (matching
+    the existing _python_ast_sequence_from_tree behaviour) but their
+    outer FunctionDef node is not emitted into the sequence or bag.
+
+    Returns (ast_sequence: list, stmt_bag: Counter, cc: int).
+    """
+    sequence: list = []
+    bag: collections.Counter = collections.Counter()
+    cc: int = 1
+
+    stack = list(reversed(list(ast.iter_child_nodes(func_node))))
+
+    while stack:
+        node = stack.pop()
+
+        # Skip non-semantic print/assert/logging calls
+        if _is_non_semantic_py(node):
+            continue
+
+        node_type = type(node).__name__
+
+        if isinstance(node, _FUNC_WRAP_TYPES):
+            # Recurse into nested function body (same as old code) but do
+            # not emit the FunctionDef node itself.
+            for child in reversed(list(ast.iter_child_nodes(node))):
+                if not isinstance(child, (ast.arguments, ast.arg)):
+                    stack.append(child)
+            continue
+
+        # AST sequence
+        if node_type not in _SKIP_SEQ_TYPES:
+            name = node_type
+            if node_type == "Constant" and hasattr(node, "value"):
+                name = f"Constant_{type(node.value).__name__}"
+            sequence.append(sys.intern(name))
+
+        # Stmt bag
+        if node_type in _PY_STMT_TYPES:
+            bag[sys.intern(node_type)] += 1
+
+        # Cyclomatic complexity
+        if isinstance(node, _CC_NODES):
+            cc += 1
+        elif isinstance(node, ast.BoolOp):
+            cc += len(node.values) - 1
+
+        for child in reversed(list(ast.iter_child_nodes(node))):
+            stack.append(child)
+
+    return sequence, bag, cc
 
 
 def _ensure_ast_sequence(block: FunctionBlock) -> None:
     """
-    Lazily compute and cache:
-      - ast_sequence  (full sequence)
-      - _ast_sampled  (Fix #v18-2: sampled once, reused across all pairs)
-      - _bag_vec      (Counter for bag-of-nodes)
-      - _bag_magnitude (Fix #v18-3: sqrt(sum of squares), cached)
+    Lazily compute and cache all AST-related block fields.
+    Fix #v115-5: Python path uses _python_ast_combined_walk (single DFS).
+    Fix #v115-1: _ast_tree must be the FunctionDef node, not the Module.
     """
     if not block._ast_ready and block.source:
+        src = textwrap.dedent(block.source)
         if block.language == "java":
-            block.ast_sequence = _java_ast_sequence(block.source)
+            if block._java_clean is None:
+                block._java_clean = _clean_java_source(src)
+            block.ast_sequence = _java_ast_sequence(src, cleaned=block._java_clean)
+            stmt_bag = _bag_of_statements_java(block.ast_sequence)
         else:
-            block.ast_sequence = _python_ast_sequence(block.source)
+            # Fix #v115-1+5: _ast_tree must be the FunctionDef node (set by
+            # _extract_python_blocks). If absent, parse the isolated source.
+            func_node = block._ast_tree
+            if func_node is None:
+                try:
+                    tree = ast.parse(src)
+                    body = tree.body
+                    func_node = body[0] if body and isinstance(
+                        body[0], _FUNC_WRAP_TYPES) else None
+                    if func_node is not None:
+                        block._ast_tree = func_node
+                except SyntaxError:
+                    pass
 
-        # Fix #v18-2: sample once
-        block._ast_sampled = _sample_sequence(block.ast_sequence)
+            if func_node is not None and isinstance(func_node, _FUNC_WRAP_TYPES):
+                seq, stmt_bag, cc = _python_ast_combined_walk(func_node)
+                block.ast_sequence = seq
+                # Fix #v115-5: store CC immediately so _compare_block_pairs
+                # never has to recompute it.
+                if block._cc_cache is None:
+                    block._cc_cache = float(cc)
+            else:
+                block.ast_sequence = []
+                stmt_bag = collections.Counter()
 
-        # Bag vector and magnitude
-        block._bag_vec = collections.Counter(block.ast_sequence)
-        # Fix #v18-3: cache magnitude
+        block._ast_sampled   = _sample_sequence(block.ast_sequence)
+        block._ast_seq_hash  = hash(block._ast_sampled)
+        block._bag_vec       = collections.Counter(block.ast_sequence)
         block._bag_magnitude = math.sqrt(
             sum(v * v for v in block._bag_vec.values())
         ) if block._bag_vec else 0.0
+
+        block._stmt_bag_vec       = stmt_bag
+        block._stmt_bag_magnitude = math.sqrt(
+            sum(v * v for v in stmt_bag.values())
+        ) if stmt_bag else 0.0
+
+        block._ast_seq_types = (
+            frozenset(block._ast_sampled) if block._ast_sampled else frozenset()
+        )
 
         block._ast_ready = True
 
@@ -796,93 +1116,48 @@ def _ensure_ast_sequence(block: FunctionBlock) -> None:
 def compute_ast_similarity(block_a: FunctionBlock,
                             block_b: FunctionBlock) -> float:
     """
-    Blended AST similarity = W_AST_EDIT * edit_sim + W_AST_BAG * bag_sim.
-
-    Fix #v18-2: Uses pre-sampled _ast_sampled sequences.
-    Fix #v18-3: Uses pre-cached _bag_magnitude values.
+    Patch 4: reads _ast_seq_types from each block instead of building sets
+    inside _lcs_ratio on every call.
     """
     _ensure_ast_sequence(block_a)
     _ensure_ast_sequence(block_b)
 
-    # Fix #v18-2: use cached sampled sequences
-    edit_sim = _edit_distance_normalized(
-        block_a._ast_sampled, block_b._ast_sampled
-    )
+    if (block_a._ast_seq_hash == block_b._ast_seq_hash
+            and block_a._ast_sampled == block_b._ast_sampled):
+        edit_sim = 1.0
+    else:
+        set_a = getattr(block_a, '_ast_seq_types', None)
+        set_b = getattr(block_b, '_ast_seq_types', None)
+        edit_sim = _edit_distance_normalized(
+            block_a._ast_sampled, block_b._ast_sampled, set_a, set_b
+        )
 
-    # Fix #v18-3: use cached magnitudes
-    ca = block_a._bag_vec
-    cb = block_b._bag_vec
+    ca    = block_a._bag_vec
+    cb    = block_b._bag_vec
     mag_a = block_a._bag_magnitude
     mag_b = block_b._bag_magnitude
 
-    if ca is not None and cb is not None:
-        all_keys = set(ca) | set(cb)
-        dot = sum(ca.get(k, 0) * cb.get(k, 0) for k in all_keys)
-        bag_sim = (dot / (mag_a * mag_b)
-                   if mag_a > 0 and mag_b > 0
-                   else (1.0 if mag_a == mag_b else 0.0))
+    if mag_a > 0 and mag_b > 0:
+        node_bag_sim = sum(ca[k] * cb[k] for k in ca if k in cb) / (mag_a * mag_b)
     else:
-        bag_sim = _bag_of_nodes_similarity(
-            block_a.ast_sequence, block_b.ast_sequence
-        )
+        node_bag_sim = 1.0 if mag_a == mag_b else 0.0
 
+    sa     = block_a._stmt_bag_vec
+    sb     = block_b._stmt_bag_vec
+    smag_a = block_a._stmt_bag_magnitude
+    smag_b = block_b._stmt_bag_magnitude
+
+    if smag_a > 0 and smag_b > 0:
+        stmt_bag_sim = sum(sa[k] * sb[k] for k in sa if k in sb) / (smag_a * smag_b)
+    else:
+        stmt_bag_sim = 1.0 if smag_a == smag_b else 0.0
+
+    bag_sim = _W_BAG_NODES * node_bag_sim + _W_BAG_STMTS * stmt_bag_sim
     return W_AST_EDIT * edit_sim + W_AST_BAG * bag_sim
-
 
 # ===========================================================================
 # LAYER 3 — HALSTEAD COMPLEXITY FINGERPRINT
 # ===========================================================================
-
-def _extract_halstead_python(source: str) -> dict:
-    OP_KEYWORDS = {
-        "and", "or", "not", "in", "is", "del",
-        "return", "yield", "lambda", "raise",
-        "assert", "pass", "break", "continue",
-    }
-    SKIP_KEYWORDS = {
-        "def", "class", "if", "else", "elif", "for", "while",
-        "import", "from", "try", "except", "finally", "with",
-        "as", "True", "False", "None", "async", "await",
-        "global", "nonlocal",
-    }
-    operators, operands = [], []
-    try:
-        reader = io.StringIO(source).readline
-        for tok in tokenize.generate_tokens(reader):
-            ttype, tval = tok.type, tok.string
-            if ttype == tokenize.OP:
-                operators.append(tval)
-            elif ttype == tokenize.NAME:
-                if tval in OP_KEYWORDS:
-                    operators.append(tval)
-                elif tval not in SKIP_KEYWORDS:
-                    operands.append(tval)
-            elif ttype == tokenize.NUMBER:
-                operands.append(tok.string)
-            elif ttype == tokenize.STRING:
-                operands.append("STR")
-    except tokenize.TokenError:
-        pass
-    return _halstead_metrics(operators, operands)
-
-
-def _extract_halstead_java(source: str) -> dict:
-    source = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
-    source = _JAVA_LINE_COMMENT_RE.sub(" ", source)
-    operators, operands = [], []
-    for m in _JAVA_HALSTEAD_OP_RE.finditer(source):
-        operators.append(m.group())
-    clean = _JAVA_HALSTEAD_STR_RE.sub("STR_LIT ", source)
-    for m in _JAVA_HALSTEAD_NUM_RE.finditer(clean):
-        operands.append(m.group())
-    for m in _JAVA_HALSTEAD_ID_RE.finditer(clean):
-        val = m.group()
-        if val in JAVA_OPERATORS:
-            operators.append(val)
-        elif val not in JAVA_KEYWORDS:
-            operands.append(val)
-    return _halstead_metrics(operators, operands)
-
 
 def _halstead_metrics(operators: list, operands: list) -> dict:
     op_counts  = collections.Counter(operators)
@@ -890,7 +1165,7 @@ def _halstead_metrics(operators: list, operands: list) -> dict:
     n1 = len(op_counts);   n2 = len(opd_counts)
     N1 = sum(op_counts.values()); N2 = sum(opd_counts.values())
     n = n1 + n2;  N = N1 + N2
-    volume     = N * math.log2(n)      if n  > 1 else 0.0
+    volume     = N * math.log2(n)       if n  > 1 else 0.0
     difficulty = (n1 / 2) * (N2 / n2)  if n2 > 0 else 0.0
     effort     = difficulty * volume
     return {
@@ -902,27 +1177,57 @@ def _halstead_metrics(operators: list, operands: list) -> dict:
     }
 
 
-def _halstead_vector(h: dict) -> list[float]:
+def _extract_halstead_python_from_lists(hal_ops: list, hal_opds: list) -> dict:
+    return _halstead_metrics(hal_ops, hal_opds)
+
+
+def _extract_halstead_python(source: str) -> dict:
+    _, _, _, hal_ops, hal_opds = _tokenize_python_all(source)
+    return _halstead_metrics(hal_ops, hal_opds)
+
+
+def _extract_halstead_java(source: str, cleaned: str = None) -> dict:
+    src = cleaned if cleaned is not None else _clean_java_source(source)
+    operators, operands = [], []
+    for m in _JAVA_HALSTEAD_OP_RE.finditer(src):
+        operators.append(m.group())
+    clean2 = _JAVA_HALSTEAD_STR_RE.sub("STR_LIT ", src)
+    for m in _JAVA_HALSTEAD_NUM_RE.finditer(clean2):
+        operands.append(m.group())
+    for m in _JAVA_HALSTEAD_ID_RE.finditer(clean2):
+        val = m.group()
+        if val in JAVA_OPERATORS:
+            operators.append(val)
+        elif val not in JAVA_KEYWORDS:
+            operands.append(val)
+    return _halstead_metrics(operators, operands)
+
+
+def _halstead_vector(h: dict) -> list:
     n1 = h.get("n1", 0); n2 = h.get("n2", 0)
     N1 = h.get("N1", 0); N2 = h.get("N2", 0)
     vocab = n1 + n2 + 1;  N = N1 + N2
+    length_norm = math.log1p(N + 1)
     return [
         n1 / vocab,
         n2 / vocab,
         math.log1p(h.get("volume",     0)),
         math.log1p(h.get("difficulty", 0)),
         math.log1p(h.get("effort",     0)),
-        math.log1p(N1 / (N2 + 1)),
-        math.log1p(N / vocab),
-        math.log1p(N2 / (N1 + 1)),
+        math.log1p(N1 / (N2 + 1)) / length_norm if length_norm > 0 else 0.0,
+        math.log1p(N / vocab)     / length_norm if length_norm > 0 else 0.0,
+        math.log1p(N2 / (N1 + 1)) / length_norm if length_norm > 0 else 0.0,
     ]
 
 
-def _cosine_similarity(va: list[float], vb: list[float]) -> float:
-    dot   = sum(a * b for a, b in zip(va, vb))
-    mag_a = math.sqrt(sum(a * a for a in va))
-    mag_b = math.sqrt(sum(b * b for b in vb))
-    if mag_a == 0 or mag_b == 0:
+def _cosine_similarity(va: list, vb: list,
+                        mag_a: float = 0.0, mag_b: float = 0.0) -> float:
+    dot = sum(a * b for a, b in zip(va, vb))
+    if mag_a == 0.0:
+        mag_a = math.sqrt(sum(a * a for a in va))
+    if mag_b == 0.0:
+        mag_b = math.sqrt(sum(b * b for b in vb))
+    if mag_a == 0.0 or mag_b == 0.0:
         return 1.0 if mag_a == mag_b else 0.0
     return dot / (mag_a * mag_b)
 
@@ -931,7 +1236,7 @@ def compute_halstead_similarity(block_a: FunctionBlock,
                                  block_b: FunctionBlock) -> float:
     va = block_a._halstead_vec if block_a._halstead_vec is not None else _halstead_vector(block_a.halstead)
     vb = block_b._halstead_vec if block_b._halstead_vec is not None else _halstead_vector(block_b.halstead)
-    return _cosine_similarity(va, vb)
+    return _cosine_similarity(va, vb, block_a._halstead_mag, block_b._halstead_mag)
 
 
 # ===========================================================================
@@ -941,12 +1246,7 @@ def compute_halstead_similarity(block_a: FunctionBlock,
 def compute_fusion_score(token_score: float,
                           ast_score: float,
                           halstead_score: float,
-                          clone_type: int | None = None) -> float:
-    """
-    Weighted fusion of the three layer scores.
-    Fix #v18-6: Uses per-type weight vector when clone_type is known.
-    Falls back to default weights for prefilter estimates.
-    """
+                          clone_type: int = None) -> float:
     wt, wa, wh = FUSION_WEIGHTS.get(clone_type, FUSION_WEIGHTS["default"])
     return wt * token_score + wa * ast_score + wh * halstead_score
 
@@ -955,84 +1255,187 @@ def compute_fusion_score(token_score: float,
 # CLASSIFICATION
 # ===========================================================================
 
-def classify_clone(sp: ScoredPair) -> tuple[int | None, float]:
+def classify_clone(sp: ScoredPair) -> tuple:
     """
-    Fix #v18-15: Accepts ScoredPair instead of 9 positional arguments.
-    Fix #v18-6:  Fusion score is recomputed per-type inside confidence calc.
-    Fix #v18-7:  Type-2 relaxed path confidence floor raised to 0.50.
-    Fix #v18-8:  Lit-token Type-1 confidence blended with AST evidence.
-    Fix #v18-4:  Halstead-only Type-3 path requires token >= 0.25.
+    Fix #v114-17: Merged Type-1 branches so the raw_token_score shortcut
+    fires correctly regardless of whether raw_tokens_a/b lists are populated.
 
-    Returns (clone_type, confidence) or (None, 0.0).
+    Fix #v114-19: Added HALSTEAD_DOMINANT Type-3 path for OOP↔procedural
+    rewrites where Halstead ≈ 1.0 but AST is depressed by structural change.
+
+    Fix #v115-3: raw_token_score=0.0 is now a legitimate value; no longer
+    silently replaced by token_score. The Type-1 fallback using raw_token_score
+    is skipped when raw_token_score is genuinely 0.0.
+
+    Fix #v115-8: Type-2 ALIGN path now evaluates BEFORE Type-3 STANDARD path.
+    Renamed clones with high structural similarity (e.g., Python keywords survive
+    renaming) were routing through Type-3 fusion threshold before the rename_align
+    check could fire. Moved ALIGN check to end of Type-2 section to ensure it
+    evaluates before Type-3 classification begins.
+
+    All v1.12 / v1.11 fixes retained.
     """
-    token_score    = sp.token_score
-    ast_score      = sp.ast_score
-    halstead_score = sp.halstead_score
-    raw_token_score = sp.raw_token_score or token_score
+    token_score       = sp.token_score
+    lit_token_score   = sp.lit_token_score
+    ast_score         = sp.ast_score
+    halstead_score    = sp.halstead_score
+    line_ratio        = sp.line_ratio
+    cc_delta          = sp.cc_delta
+    vol_delta         = sp.vol_delta
+    token_containment = sp.token_containment
+    # Fix #v115-3: 0.0 is a valid raw score; only fall back when truly absent
+    raw_token_score   = sp.raw_token_score  # may be 0.0 legitimately
+    rename_align      = sp.rename_align_score
 
     # ------------------------------------------------------------------ Type 1
-    if sp.raw_tokens_a and sp.raw_tokens_b:
-        # (a) Exact raw token match — always confidence 1.0
-        if sp.raw_tokens_a == sp.raw_tokens_b:
-            return 1, 1.0
+    has_raw = bool(sp.raw_tokens_a and sp.raw_tokens_b)
+    has_lit = bool(sp.lit_tokens_a and sp.lit_tokens_b)
 
-        # (b) Exact literal-normalized match
-        # Fix #v18-8: blend fixed base with AST evidence
-        if sp.lit_tokens_a and sp.lit_tokens_b:
-            if sp.lit_tokens_a == sp.lit_tokens_b:
-                conf = min(0.99, 0.94 + 0.05 * ast_score)
-                return 1, round(conf, 4)
+    if has_raw and sp.raw_tokens_a == sp.raw_tokens_b:
+        return 1, 1.0
 
-        # (c) Near-exact threshold fallback
-        if raw_token_score >= THRESH_TYPE1_FALLBACK and ast_score >= THRESH_TYPE1:
-            return 1, 0.92
+    if has_lit and sp.lit_tokens_a == sp.lit_tokens_b:
+        conf = min(0.99, 0.94 + 0.05 * ast_score)
+        return 1, round(conf, 4)
 
-    elif raw_token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
-        return 1, 0.92
+    if (raw_token_score >= THRESH_TYPE1_FALLBACK
+            and ast_score >= THRESH_TYPE1
+            and line_ratio <= THRESH_TYPE1_FALLBACK_RATIO
+            and cc_delta <= 0.3
+            and vol_delta <= 0.3):
+        conf = 0.92 * (1.0 - 0.4 * max(cc_delta, vol_delta))
+        return 1, round(conf, 4)
+
+    # Pure-score shortcut when no raw token lists are available:
+    # use normalised token_score since raw_token_score=0.0 is ambiguous
+    # (Fix #v115-3: was using raw_token_score which could be 0 legitimately)
+    if not has_raw and token_score >= THRESH_TYPE1 and ast_score >= THRESH_TYPE1:
+        return 1, 0.96
 
     # ------------------------------------------------------------------ Type 2
-    # Strict path
     if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
         margin = min(token_score, ast_score) - THRESH_TYPE2
         conf = min(1.0, margin / max(1.0 - THRESH_TYPE2, 1e-9) + 0.5)
         return 2, round(conf, 4)
 
-    # Halstead-assisted path
+    _hal_ast_floor = (
+        THRESH_TYPE2_HAL_AST_SHORT
+        if (sp.lines_a <= THRESH_TYPE2_HAL_SHORT_LINES
+            and sp.lines_b <= THRESH_TYPE2_HAL_SHORT_LINES)
+        else THRESH_TYPE2_HAL_AST
+    )
     if (token_score >= THRESH_TYPE2
-            and ast_score >= THRESH_TYPE2_HAL_AST
+            and ast_score >= _hal_ast_floor
             and halstead_score >= THRESH_TYPE2_HAL_HALSTEAD):
         margin = min(token_score, halstead_score) - THRESH_TYPE2
         conf = min(1.0, margin / max(1.0 - THRESH_TYPE2, 1e-9) * 0.8 + 0.4)
         return 2, round(conf, 4)
 
-    # Fix #v18-7: Relaxed path — confidence floor raised from 0.40 → 0.50
-    if token_score >= THRESH_TYPE2_RELAXED_TOKEN and ast_score >= THRESH_TYPE2_RELAXED_AST:
+    if (token_score >= THRESH_TYPE2_RELAXED_TOKEN
+            and ast_score >= THRESH_TYPE2_RELAXED_AST
+            and line_ratio <= 1.5
+            and cc_delta <= 0.4
+            and vol_delta <= 0.4):
         margin = token_score - THRESH_TYPE2_RELAXED_TOKEN
         conf = min(1.0, margin / max(1.0 - THRESH_TYPE2_RELAXED_TOKEN, 1e-9) + 0.50)
+        conf *= (1.0 - 0.4 * max(cc_delta, vol_delta))
+        return 2, round(conf, 4)
+
+    if (lit_token_score >= 0.70
+            and ast_score >= THRESH_TYPE2_RELAXED_AST
+            and line_ratio <= 1.8
+            and cc_delta <= 0.45
+            and vol_delta <= 0.45):
+        conf = min(1.0, (lit_token_score - 0.70) / 0.30 + 0.48)
+        conf *= (1.0 - 0.35 * max(cc_delta, vol_delta))
+        return 2, round(conf, 4)
+
+    # Type-2 ALIGN path: must evaluate before Type-3 to catch renamed clones
+    # that have high structural similarity (Fix: Type-2 misclassification bug)
+    if (rename_align >= THRESH_TYPE2_RENAME_ALIGN
+            and ast_score >= THRESH_TYPE2_RENAME_AST
+            and line_ratio <= 1.5
+            and cc_delta <= 0.4
+            and vol_delta <= 0.4):
+        conf = min(1.0, (rename_align - THRESH_TYPE2_RENAME_ALIGN) / 0.20 + 0.50)
+        conf *= (1.0 - 0.35 * max(cc_delta, vol_delta))
         return 2, round(conf, 4)
 
     # ------------------------------------------------------------------ Type 3
-    # Use per-type fusion score for Type-3 evaluation
-    fusion_t3 = compute_fusion_score(token_score, ast_score, halstead_score, clone_type=3)
+    fusion_default = compute_fusion_score(token_score, ast_score, halstead_score)
+    fusion_t3      = compute_fusion_score(token_score, ast_score, halstead_score, clone_type=3)
 
-    # Standard guard (needs full fusion >= 0.60)
+    max_line_ratio_t3 = 2.0
+    if token_containment >= THRESH_TYPE3_CONTAINMENT and ast_score >= THRESH_TYPE3_HIGH_AST:
+        max_line_ratio_t3 = 2.4
+
+    structurally_close = (
+        line_ratio <= max_line_ratio_t3
+        and cc_delta <= 0.6
+        and vol_delta <= 0.6
+    )
+
+    # --- STANDARD path ---
     if fusion_t3 >= THRESH_FUSION_TYPE3:
-        both_baseline = (ast_score >= THRESH_TYPE3_AST_MIN
-                         and token_score >= THRESH_TYPE3_TOKEN_MIN)
-        has_peak      = max(ast_score, token_score) >= THRESH_TYPE3_PEAK
-        if both_baseline and has_peak:
-            margin = fusion_t3 - THRESH_FUSION_TYPE3
+        tc_boost = (
+            token_containment >= THRESH_TYPE3_TC_BOOST
+            and (token_score >= THRESH_TYPE3_TC_BOOST_BASE
+                 or lit_token_score >= THRESH_TYPE3_TC_BOOST_BASE)
+        )
+        ast_hal_fallback = (
+            ast_score >= THRESH_TYPE3_AST_HAL_FALLBACK
+            and halstead_score >= THRESH_TYPE3_HAL_FALLBACK
+            and token_score >= 0.20
+                    )
+        lexical_support = (
+            token_score >= THRESH_TYPE3_TOKEN_MIN
+            or lit_token_score >= THRESH_TYPE3_LIT_MIN
+            or tc_boost
+            or ast_hal_fallback
+        )
+        both_baseline = (ast_score >= THRESH_TYPE3_AST_MIN and lexical_support)
+        has_peak = (max(ast_score, token_score) >= THRESH_TYPE3_PEAK
+            and token_score >= 0.10)
+        if both_baseline and has_peak and structurally_close:
+            margin = fusion_default - THRESH_FUSION_TYPE3
             conf = min(1.0, margin / max(1.0 - THRESH_FUSION_TYPE3, 1e-9) + 0.5)
+            conf *= (1.0 - 0.4 * max(cc_delta, vol_delta))
             return 3, round(conf, 4)
 
-    # Fix #v18-4: Halstead-substituted path — uses a LOWER dedicated threshold
-    # (THRESH_FUSION_TYPE3_HAL=0.55) because per-type weights depress the score
-    # for weak-token pairs. Also requires token >= 0.25 to avoid false positives.
+    # --- HALSTEAD path ---
     if (fusion_t3 >= THRESH_FUSION_TYPE3_HAL
             and ast_score >= THRESH_TYPE3_HAL_AST
             and halstead_score >= THRESH_TYPE3_HAL_MIN
-            and token_score >= THRESH_TYPE3_HAL_TOKEN):
-        conf = min(1.0, halstead_score * 0.7 + 0.1)
+            and structurally_close):
+        if token_score >= THRESH_TYPE3_HAL_TOKEN:
+            tok_ok = True
+        elif token_score > 0.0:
+            tok_ok = token_containment >= THRESH_TYPE3_CONTAINMENT_WEAK
+        else:
+            tok_ok = (
+                token_containment >= THRESH_TYPE3_CONTAINMENT
+                and cc_delta <= 0.30
+                and sp.token_ratio <= 1.80
+            )
+        if tok_ok:
+            conf = min(1.0, halstead_score * 0.7 + 0.1)
+            conf *= (1.0 - 0.4 * max(cc_delta, vol_delta))
+            return 3, round(conf, 4)
+
+    # --- HALSTEAD_DOMINANT path (Fix #v114-19) ---
+    # Fires when Halstead fingerprints are near-identical (>= 0.95) but AST
+    # similarity is depressed by a structural rewrite (e.g. class methods
+    # refactored into free functions).  The existing HALSTEAD path requires
+    # ast >= 0.40 which such rewrites routinely fall below.
+    # Token containment >= 0.15 guards against spurious matches between
+    # semantically unrelated short functions that happen to share vocabulary.
+    if (halstead_score >= THRESH_TYPE3_HALDOM_HALSTEAD
+            and fusion_t3 >= THRESH_FUSION_TYPE3_HAL
+            and ast_score >= THRESH_TYPE3_HALDOM_AST
+            and token_containment >= 0.35
+            and structurally_close):
+        conf = min(1.0, halstead_score * 0.6 + ast_score * 0.2 + 0.1)
+        conf *= (1.0 - 0.4 * max(cc_delta, vol_delta))
         return 3, round(conf, 4)
 
     return None, 0.0
@@ -1059,38 +1462,94 @@ def _strip_imports(source: str, language: str) -> str:
                          if not l.strip().startswith('import '))
 
 
-def _make_block(name, start_line, end_line, source, language) -> FunctionBlock:
+def _make_block(name, start_line, end_line, source, language,
+                ast_node: ast.AST = None) -> FunctionBlock:
+    """
+    Fix #v115-1: ast_node must be the FunctionDef/AsyncFunctionDef node,
+    not the containing Module.  The old signature accepted ast_tree (Module)
+    which caused _ensure_ast_sequence to always resolve to body[0].
+    """
     fb = FunctionBlock(
         name=name, start_line=start_line, end_line=end_line,
         source=source, language=language,
     )
-    clean = _strip_decorators(_strip_imports(source, language), language)
+    source_for_analysis = textwrap.dedent(source)
+    clean = _strip_decorators(_strip_imports(source_for_analysis, language), language)
+
     if language == "python":
-        fb.tokens     = _normalize_python_tokens(clean)
-        fb.raw_tokens = _raw_python_tokens(clean)
-        fb.lit_tokens = _literal_normalize_python_tokens(clean)
-        fb.halstead   = _extract_halstead_python(clean)
+        norm, raw, lit, hal_ops, hal_opds = _tokenize_python_all(clean)
+        fb.tokens     = norm
+        fb.raw_tokens = raw
+        fb.lit_tokens = lit
+        fb.halstead   = _extract_halstead_python_from_lists(hal_ops, hal_opds)
+        # Fix #v115-1: store the FunctionDef node itself
+        if ast_node is not None:
+            fb._ast_tree = ast_node
     else:
+        java_clean = _clean_java_source(clean)
+        fb._java_clean = java_clean
         fb.tokens     = _normalize_java_tokens(clean)
         fb.raw_tokens = _raw_java_tokens(clean)
         fb.lit_tokens = _literal_normalize_java_tokens(clean)
-        fb.halstead   = _extract_halstead_java(clean)
-    fb._ngrams_norm  = _make_ngrams(fb.tokens)
-    fb._ngrams_raw   = _make_ngrams(fb.raw_tokens)
-    fb._ngrams_lit   = _make_ngrams(fb.lit_tokens)
-    fb._halstead_vec = _halstead_vector(fb.halstead)
+        fb.halstead   = _extract_halstead_java(clean, cleaned=java_clean)
+
+    n = _adaptive_ngram_size(len(fb.tokens))
+    fb._ngram_size  = n
+    fb._ngrams_norm = _make_ngrams(fb.tokens,     n)
+    fb._ngrams_raw  = _make_ngrams(fb.raw_tokens, n)
+    fb._ngrams_lit  = _make_ngrams(fb.lit_tokens, n)
+    
+    # Precompute n-gram sums to avoid repeated sum() calls in Jaccard
+    fb._ngrams_norm_sum = sum(fb._ngrams_norm.values())
+    fb._ngrams_raw_sum  = sum(fb._ngrams_raw.values())
+    fb._ngrams_lit_sum  = sum(fb._ngrams_lit.values())
+
+    fb._token_counter     = collections.Counter(fb.tokens)
+    fb._token_count       = sum(fb._token_counter.values())
+    fb._raw_token_counter = collections.Counter(fb.raw_tokens)
+    fb._raw_token_count   = sum(fb._raw_token_counter.values())
+
+    vec = _halstead_vector(fb.halstead)
+    fb._halstead_vec = vec
+    fb._halstead_mag = math.sqrt(sum(v * v for v in vec))
+
+    fb._logical_loc = _logical_loc(source, language)
+
     return fb
 
 
-def _extract_python_blocks(source: str) -> list[FunctionBlock]:
+def _collect_top_level_funcs(tree: ast.AST) -> list:
+    """
+    Collect FunctionDef/AsyncFunctionDef nodes reachable through Module and
+    ClassDef containers without recursing into function bodies.
+
+    Patch 5: Uses an explicit stack instead of recursion to avoid Python's
+    ~1000-frame recursion limit when processing deeply nested class hierarchies.
+    """
+    result: list = []
+    stack = [tree]
+    while stack:
+        node = stack.pop()
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, _FUNC_WRAP_TYPES):
+                result.append(child)
+            elif isinstance(child, (ast.ClassDef, ast.Module)):
+                stack.append(child)
+    return result
+
+
+def _extract_python_blocks(source: str) -> list:
+    """
+    Fix #v115-1: passes the FunctionDef node to _make_block (not Module tree).
+    Fix #v115-4: uses _collect_top_level_funcs to exclude nested closures.
+    """
     lines = source.splitlines()
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return [_make_block("<module>", 1, len(lines), source, "python")]
 
-    func_nodes = [n for n in ast.walk(tree)
-                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    func_nodes = _collect_top_level_funcs(tree)
     if not func_nodes:
         return [_make_block("<module>", 1, len(lines), source, "python")]
 
@@ -1099,17 +1558,12 @@ def _extract_python_blocks(source: str) -> list[FunctionBlock]:
         start    = node.lineno
         end      = node.end_lineno
         func_src = "\n".join(lines[start - 1: end])
-        blocks.append(_make_block(node.name, start, end, func_src, "python"))
+        blocks.append(_make_block(node.name, start, end, func_src, "python",
+                                  ast_node=node))
     return blocks
 
 
-def _extract_java_blocks(source: str) -> list[FunctionBlock]:
-    """
-    Extract method/constructor-level blocks from Java source.
-
-    Fix #v18-10: Detects abstract/interface method signatures (ending in ';')
-    and skips them cleanly rather than falling through to the <class> fallback.
-    """
+def _extract_java_blocks(source: str) -> list:
     lines  = source.splitlines()
     clean  = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
     clean  = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
@@ -1125,15 +1579,14 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
         r"(?:public|private|protected)\s+([A-Z]\w*)\s*\([^)]*\)\s*"
         r"(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?\{"
     )
-    # Fix #v18-10: abstract/interface method signatures end with ';'
     abstract_pattern = re.compile(
         r"(?:(?:public|private|protected|abstract|static|final)\s+)*"
         r"(?:\w+(?:<(?:[^<>]|<[^<>]*>)*>)?)\s+"
         r"\w+\s*\([^)]*\)\s*(?:throws\s+\w+(?:\s*,\s*\w+)*\s*)?;"
     )
-    abstract_positions: set[int] = {m.start() for m in abstract_pattern.finditer(clean)}
+    abstract_positions: set = {m.start() for m in abstract_pattern.finditer(clean)}
 
-    all_matches: dict[int, str] = {}
+    all_matches: dict = {}
     for m in method_pattern.finditer(clean):
         if m.start() not in abstract_positions:
             all_matches[m.start()] = m.group(1)
@@ -1176,7 +1629,7 @@ def _extract_java_blocks(source: str) -> list[FunctionBlock]:
     return blocks
 
 
-def extract_blocks(source: str, language: str) -> list[FunctionBlock]:
+def extract_blocks(source: str, language: str) -> list:
     if language == "python":
         return _extract_python_blocks(source)
     elif language == "java":
@@ -1188,20 +1641,11 @@ def extract_blocks(source: str, language: str) -> list[FunctionBlock]:
 # PAIRWISE DETECTION
 # ===========================================================================
 
-def _compare_block_pairs(pair_iter, file_a: str, file_b: str) -> list[ClonePair]:
-    """
-    Core TAHD pipeline over (block_a, block_b) pairs.
-
-    Fix #v18-11: MIN_LINES floor in addition to MIN_TOKENS.
-    Fix #v18-12: Per-pair wall-clock budget (MAX_PAIR_SECONDS).
-    Fix #v18-13: Hard cap on total comparisons (MAX_PAIRS).
-    Fix #v18-15: classify_clone() now accepts ScoredPair.
-    """
+def _compare_block_pairs(pair_iter: Iterator, file_a: str, file_b: str) -> list:
     pairs = []
     pair_count = 0
 
     for block_a, block_b in pair_iter:
-        # Fix #v18-13: stop after MAX_PAIRS comparisons
         if pair_count >= MAX_PAIRS:
             logger.warning(
                 "TAHD: MAX_PAIRS (%d) reached — remaining pairs skipped.", MAX_PAIRS
@@ -1209,88 +1653,155 @@ def _compare_block_pairs(pair_iter, file_a: str, file_b: str) -> list[ClonePair]
             break
         pair_count += 1
 
-        # Guard 0: token floor
-        if len(block_a.tokens) < MIN_TOKENS or len(block_b.tokens) < MIN_TOKENS:
-            continue
-
-        # Fix #v18-11: line-count floor
+        len_a, len_b = len(block_a.tokens), len(block_b.tokens)
         lines_a = block_a.end_line - block_a.start_line + 1
         lines_b = block_b.end_line - block_b.start_line + 1
-        if lines_a < MIN_LINES or lines_b < MIN_LINES:
+
+        passes_default_floor = (
+            len_a >= MIN_TOKENS and len_b >= MIN_TOKENS
+            and lines_a >= MIN_LINES and lines_b >= MIN_LINES
+        )
+        passes_short_floor = (
+            len_a >= MIN_TOKENS_SHORT and len_b >= MIN_TOKENS_SHORT
+            and lines_a >= MIN_LINES_SHORT and lines_b >= MIN_LINES_SHORT
+        )
+        one_full = (
+            (len_a >= MIN_TOKENS and lines_a >= MIN_LINES)
+            or (len_b >= MIN_TOKENS and lines_b >= MIN_LINES)
+        )
+        other_compact = (
+            (len_a >= MIN_TOKENS_CROSS and lines_a >= MIN_LINES_CROSS)
+            and (len_b >= MIN_TOKENS_CROSS and lines_b >= MIN_LINES_CROSS)
+        )
+        passes_cross_floor = one_full and other_compact
+        if not (passes_default_floor or passes_short_floor or passes_cross_floor):
             continue
 
-        # Guard 0b: length ratio
-        len_a, len_b = len(block_a.tokens), len(block_b.tokens)
         if max(len_a, len_b) > 3 * min(len_a, len_b):
             continue
 
-        # Fix #v18-12: per-pair timeout
-        _pair_start = time.perf_counter()
-
-        # ---- Layer 1 ----
-        token_score = compute_token_similarity(block_a, block_b)
-
-        # Dual prefilter (Fix #v17-1)
-        if token_score < THRESH_TOKEN_PREFILTER:
-            hal_pre = compute_halstead_similarity(block_a, block_b)
-            if hal_pre < THRESH_HALSTEAD_PREFILTER:
-                continue
-
-        raw_token_score = compute_raw_token_similarity(block_a, block_b)
-
-        # ---- Layer 2 ----
-        ast_score = compute_ast_similarity(block_a, block_b)
-
-        # Fix #v18-12: check budget after most expensive step
-        if time.perf_counter() - _pair_start > MAX_PAIR_SECONDS:
-            logger.warning(
-                "TAHD: pair (%s, %s) exceeded %.1fs budget — skipped.",
-                block_a.name, block_b.name, MAX_PAIR_SECONDS,
-            )
+        if not _volume_ratio_ok(block_a, block_b):
             continue
 
-        # ---- Layer 3 ----
-        halstead_score = compute_halstead_similarity(block_a, block_b)
+        _pair_start = time.perf_counter()
 
-        # ---- Fusion (default weights for initial estimate) ----
-        fusion = compute_fusion_score(token_score, ast_score, halstead_score)
+        try:
+            token_score = compute_token_similarity(block_a, block_b)
+            halstead_prefilter_score = None
 
-        # ---- Fix #v18-15: build ScoredPair and classify ----
-        sp = ScoredPair(
-            token_score    = token_score,
-            ast_score      = ast_score,
-            halstead_score = halstead_score,
-            fusion_score   = fusion,
-            raw_token_score = raw_token_score,
-            raw_tokens_a   = block_a.raw_tokens,
-            raw_tokens_b   = block_b.raw_tokens,
-            lit_tokens_a   = block_a.lit_tokens,
-            lit_tokens_b   = block_b.lit_tokens,
-        )
-        clone_type, confidence = classify_clone(sp)
+            if token_score < THRESH_TOKEN_PREFILTER:
+                hal_pre = compute_halstead_similarity(block_a, block_b)
+                halstead_prefilter_score = hal_pre
+                if hal_pre < THRESH_HALSTEAD_PREFILTER:
+                    continue
 
-        if clone_type is not None:
-            # Recompute fusion with per-type weights for the output score
-            typed_fusion = compute_fusion_score(
-                token_score, ast_score, halstead_score, clone_type=clone_type
+            raw_token_score = compute_raw_token_similarity(block_a, block_b)
+
+            if not (passes_default_floor or passes_cross_floor) \
+                    and raw_token_score < THRESH_TYPE1_FALLBACK \
+                    and token_score < THRESH_TYPE2:
+                continue
+
+            token_containment = compute_token_containment_similarity(block_a, block_b)
+            ast_score = compute_ast_similarity(block_a, block_b)
+
+            if time.perf_counter() - _pair_start > MAX_PAIR_SECONDS:
+                logger.warning(
+                    "TAHD: pair (%s, %s) exceeded %.1fs budget — skipped.",
+                    block_a.name, block_b.name, MAX_PAIR_SECONDS,
+                )
+                continue
+
+            if halstead_prefilter_score is not None:
+                halstead_score = halstead_prefilter_score
+            else:
+                halstead_score = compute_halstead_similarity(block_a, block_b)
+
+            fusion = compute_fusion_score(token_score, ast_score, halstead_score)
+
+            lloc_a = block_a._logical_loc if block_a._logical_loc > 0 else _logical_loc(block_a.source, block_a.language)
+            lloc_b = block_b._logical_loc if block_b._logical_loc > 0 else _logical_loc(block_b.source, block_b.language)
+            min_lloc = max(min(lloc_a, lloc_b), 1)
+            line_ratio = max(lloc_a, lloc_b) / min_lloc
+
+            if block_a._cc_cache is None:
+                if block_a.language == "python" and block_a._ast_tree is not None:
+                    block_a._cc_cache = _compute_cc_from_tree(block_a._ast_tree)
+                else:
+                    block_a._cc_cache = compute_cyclomatic_complexity(block_a.source, block_a.language)
+            if block_b._cc_cache is None:
+                if block_b.language == "python" and block_b._ast_tree is not None:
+                    block_b._cc_cache = _compute_cc_from_tree(block_b._ast_tree)
+                else:
+                    block_b._cc_cache = compute_cyclomatic_complexity(block_b.source, block_b.language)
+
+            cc_a: float = block_a._cc_cache
+            cc_b: float = block_b._cc_cache
+            max_cc = max(cc_a, cc_b, 2.0)
+            cc_delta = abs(cc_a - cc_b) / max_cc
+
+            vol_a = block_a.halstead.get("volume", 0.0)
+            vol_b = block_b.halstead.get("volume", 0.0)
+            max_vol = max(vol_a, vol_b, 1.0)
+            vol_delta = abs(vol_a - vol_b) / max_vol
+
+            lit_token_score = compute_literal_token_similarity(block_a, block_b)
+            rename_align = _rename_alignment_score(block_a, block_b, token_score=token_score)
+
+            sp = ScoredPair(
+                token_score       = token_score,
+                lit_token_score   = lit_token_score,
+                ast_score         = ast_score,
+                halstead_score    = halstead_score,
+                fusion_score      = fusion,
+                line_ratio        = line_ratio,
+                cc_delta          = cc_delta,
+                vol_delta         = vol_delta,
+                token_containment = token_containment,
+                token_ratio       = max(len_a, len_b) / max(min(len_a, len_b), 1),
+                raw_token_score   = raw_token_score,
+                raw_tokens_a      = block_a.raw_tokens,
+                raw_tokens_b      = block_b.raw_tokens,
+                lit_tokens_a      = block_a.lit_tokens,
+                lit_tokens_b      = block_b.lit_tokens,
+                rename_align_score = rename_align,
+                lines_a            = lloc_a,
+                lines_b            = lloc_b,
             )
-            pairs.append(ClonePair(
-                clone_id       = str(uuid.uuid4()),
-                clone_type     = clone_type,
-                token_score    = round(token_score,    4),
-                ast_score      = round(ast_score,      4),
-                halstead_score = round(halstead_score, 4),
-                fusion_score   = round(typed_fusion,   4),
-                block_a        = block_a,
-                block_b        = block_b,
-                file_a         = file_a,
-                file_b         = file_b,
-                confidence     = round(max(0.0, confidence), 4),
-            ))
+            clone_type, confidence = classify_clone(sp)
+
+            if clone_type is not None:
+                typed_fusion = compute_fusion_score(
+                    token_score, ast_score, halstead_score, clone_type=clone_type
+                )
+                pairs.append(ClonePair(
+                    clone_id       = str(uuid.uuid4()),
+                    clone_type     = clone_type,
+                    token_score    = round(token_score,    4),
+                    ast_score      = round(ast_score,      4),
+                    halstead_score = round(halstead_score, 4),
+                    fusion_score   = round(typed_fusion,   4),
+                    block_a        = block_a,
+                    block_b        = block_b,
+                    file_a         = file_a,
+                    file_b         = file_b,
+                    confidence     = round(max(0.0, confidence), 4),
+                ))
+        except Exception as exc:
+            logger.warning(
+                "TAHD: pair (%s, %s) raised %s — skipped.",
+                block_a.name, block_b.name, exc,
+            )
     return pairs
 
 
-def _deduplicate_clone_pairs(pairs: list, mode: str = "strict") -> list:
+def _deduplicate_clone_pairs(pairs: list, mode: str = "rank",
+                              top_k: int = None) -> list:
+    if mode == "rank":
+        if top_k is not None:
+            return heapq.nlargest(top_k, pairs, key=lambda p: p.fusion_score)
+        return sorted(pairs, key=lambda p: p.fusion_score, reverse=True)
+
     pairs_sorted = sorted(pairs, key=lambda p: p.fusion_score, reverse=True)
     used_a: set = set()
     used_b: set = set()
@@ -1310,21 +1821,86 @@ def _deduplicate_clone_pairs(pairs: list, mode: str = "strict") -> list:
 
 
 def detect_clones_in_blocks(
-    blocks_a: list[FunctionBlock],
-    blocks_b: list[FunctionBlock],
+    blocks_a: list,
+    blocks_b: list,
     file_a: str = "file_a",
     file_b: str = "file_b",
-) -> list[ClonePair]:
+) -> list:
     pairs = _compare_block_pairs(itertools.product(blocks_a, blocks_b), file_a, file_b)
-    return _deduplicate_clone_pairs(pairs, mode="cross_file")
+    return _deduplicate_clone_pairs(pairs, mode="rank")
 
 
 def detect_clones_single_file(
-    blocks: list[FunctionBlock],
+    blocks: list,
     filename: str = "submission",
-) -> list[ClonePair]:
+) -> list:
     pairs = _compare_block_pairs(itertools.combinations(blocks, 2), filename, filename)
-    return _deduplicate_clone_pairs(pairs, mode="strict")
+    return _deduplicate_clone_pairs(pairs, mode="rank")
+
+
+# ===========================================================================
+# CYCLOMATIC COMPLEXITY
+# ===========================================================================
+
+def _compute_cc_from_tree(tree: ast.AST) -> float:
+    """
+    Cyclomatic complexity matching _python_ast_combined_walk exactly.
+
+    Uses an explicit stack that recurses into nested FunctionDef bodies
+    (same traversal as combined_walk) but does NOT add +1 for the
+    FunctionDef node itself. This keeps results consistent regardless of
+    which code path populates _cc_cache.
+    """
+    try:
+        cc = 1
+        if isinstance(tree, _FUNC_WRAP_TYPES):
+            stack = list(ast.iter_child_nodes(tree))
+        else:
+            stack = [tree]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, _FUNC_WRAP_TYPES):
+                # Recurse into body but don't count the def node itself
+                stack.extend(ast.iter_child_nodes(node))
+                continue
+            if isinstance(node, _CC_NODES):
+                cc += 1
+            elif isinstance(node, ast.BoolOp):
+                cc += len(node.values) - 1
+            stack.extend(ast.iter_child_nodes(node))
+        return float(cc)
+    except (ValueError, MemoryError, RecursionError):
+        return 1.0
+
+
+def compute_cyclomatic_complexity(source: str, language: str) -> float:
+    if language == "python":
+        try:
+            tree = ast.parse(source)
+            return _compute_cc_from_tree(tree)
+        except (SyntaxError, ValueError, MemoryError, RecursionError):
+            pass
+        clean = _PY_COMMENT_RE.sub(' ', source)
+        clean = _PY_TRIPLE_DQ_RE.sub('STR', clean)
+        clean = _PY_TRIPLE_SQ_RE.sub('STR', clean)
+        clean = _PY_DOUBLE_STRING_RE.sub('STR', clean)
+        clean = _PY_SINGLE_STRING_RE.sub('STR', clean)
+        count = 1
+        count += clean.count("elif ")
+        clean_no_elif = clean.replace("elif ", "ELIF_ ")
+        count += clean_no_elif.count("if ")
+        for kw in ["else:", "for ", "while ", "except", " and ", " or "]:
+            count += clean.count(kw)
+        return float(count)
+    else:
+        clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
+        clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
+        clean = _JAVA_STRING_LIT_RE.sub('STR', clean)
+        clean = _JAVA_CHAR_LIT_RE.sub('STR', clean)
+        count = 1
+        for kw in ["if ", "else ", "for ", "while ", "case ", "catch ", " && ", " || ", " ? "]:
+            count += clean.count(kw)
+        return float(count)
 
 
 # ===========================================================================
@@ -1449,27 +2025,27 @@ def _generate_after_code(pair: ClonePair) -> str:
 
 
 def generate_refactoring_suggestions(
-    clone_pairs: list[ClonePair],
+    clone_pairs: list,
     max_suggestions: int = 5,
-) -> list[dict]:
+) -> list:
     sorted_pairs = sorted(clone_pairs, key=lambda p: p.fusion_score, reverse=True)
     suggestions  = []
     for rank, pair in enumerate(sorted_pairs[:max_suggestions], start=1):
-        # Fix #v18-16: strict key guard — fail loudly on unknown clone type
         if pair.clone_type not in _REFACTOR_RULES:
             raise ValueError(
                 f"Unknown clone_type {pair.clone_type!r} in ClonePair {pair.clone_id}. "
                 f"Expected one of {list(_REFACTOR_RULES)}."
             )
         rule = _REFACTOR_RULES[pair.clone_type]
+        cmt = "#" if pair.block_a.language == "python" else "//"
         lines_a = pair.block_a.source.splitlines()
         lines_b = pair.block_b.source.splitlines()
         snippet_a = "\n".join(lines_a[:MAX_SNIPPET_LINES])
         if len(lines_a) > MAX_SNIPPET_LINES:
-            snippet_a += f"\n# ... ({len(lines_a) - MAX_SNIPPET_LINES} more lines)"
+            snippet_a += f"\n{cmt} ... ({len(lines_a) - MAX_SNIPPET_LINES} more lines)"
         snippet_b = "\n".join(lines_b[:MAX_SNIPPET_LINES])
         if len(lines_b) > MAX_SNIPPET_LINES:
-            snippet_b += f"\n# ... ({len(lines_b) - MAX_SNIPPET_LINES} more lines)"
+            snippet_b += f"\n{cmt} ... ({len(lines_b) - MAX_SNIPPET_LINES} more lines)"
         suggestions.append({
             "suggestion_id":     str(uuid.uuid4()),
             "priority":          rank,
@@ -1496,54 +2072,16 @@ def generate_refactoring_suggestions(
                 },
             },
             "explanation": rule["explain"],
-            "before_code": (f"# Block A ({pair.block_a.name})\n{snippet_a}\n\n"
-                            f"# Block B ({pair.block_b.name})\n{snippet_b}"),
+            "before_code": (f"{cmt} Block A ({pair.block_a.name})\n{snippet_a}\n\n"
+                            f"{cmt} Block B ({pair.block_b.name})\n{snippet_b}"),
             "after_code":  _generate_after_code(pair),
         })
     return suggestions
 
 
 # ===========================================================================
-# QUALITY METRICS (unchanged from v1.7)
+# QUALITY METRICS
 # ===========================================================================
-
-def compute_cyclomatic_complexity(source: str, language: str) -> float:
-    if language == "python":
-        try:
-            tree = ast.parse(source)
-            count = 1
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.If, ast.For, ast.While,
-                                      ast.ExceptHandler, ast.With,
-                                      ast.AsyncFor, ast.AsyncWith)):
-                    count += 1
-                elif isinstance(node, ast.BoolOp):
-                    count += len(node.values) - 1
-            return float(count)
-        except (SyntaxError, ValueError, MemoryError, RecursionError):
-            pass
-        clean = _PY_COMMENT_RE.sub(' ', source)
-        clean = _PY_TRIPLE_DQ_RE.sub('STR', clean)
-        clean = _PY_TRIPLE_SQ_RE.sub('STR', clean)
-        clean = _PY_DOUBLE_STRING_RE.sub('STR', clean)
-        clean = _PY_SINGLE_STRING_RE.sub('STR', clean)
-        count = 1
-        count += clean.count("elif ")
-        clean_no_elif = clean.replace("elif ", "ELIF_ ")
-        count += clean_no_elif.count("if ")
-        for kw in ["else:", "for ", "while ", "except", " and ", " or "]:
-            count += clean.count(kw)
-        return float(count)
-    else:
-        clean = _JAVA_BLOCK_COMMENT_RE.sub(" ", source)
-        clean = _JAVA_LINE_COMMENT_RE.sub(" ", clean)
-        clean = _JAVA_STRING_LIT_RE.sub('STR', clean)
-        clean = _JAVA_CHAR_LIT_RE.sub('STR', clean)
-        count = 1
-        for kw in ["if ", "else ", "for ", "while ", "case ", "catch ", " && ", " || ", " ? "]:
-            count += clean.count(kw)
-        return float(count)
-
 
 def compute_maintainability_index(
     halstead_volume: float,
@@ -1557,24 +2095,31 @@ def compute_maintainability_index(
 
 
 # ===========================================================================
-# CODE QUALITY REPORT HELPERS (unchanged from v1.7)
+# CODE QUALITY REPORT HELPERS
 # ===========================================================================
 
-def _compute_nesting_depth(source: str, language: str) -> int:
+def _compute_nesting_depth(source: str, language: str,
+                            parsed_tree: ast.AST = None) -> int:
+    """
+    Fix #v115-7: Accept an optional pre-parsed tree (Python only) so callers
+    with a cached _ast_tree can avoid a redundant ast.parse() call.
+    """
     if language == "python":
         SCOPE_NODES = (
-            ast.If, ast.For, ast.While, ast.With, ast.Try,
-            ast.ExceptHandler, ast.AsyncFor, ast.AsyncWith,
+            ast.If, ast.For, ast.While, ast.Try,
+            ast.ExceptHandler, ast.AsyncFor, ast.AsyncWith, ast.With,
         )
         max_depth = 0
-        def _walk_depth(node: ast.AST, depth: int) -> None:
-            nonlocal max_depth
-            if depth > max_depth:
-                max_depth = depth
-            for child in ast.iter_child_nodes(node):
-                _walk_depth(child, depth + (1 if isinstance(child, SCOPE_NODES) else 0))
         try:
-            _walk_depth(ast.parse(source), 0)
+            root = parsed_tree if parsed_tree is not None else ast.parse(source)
+            stack: list = [(root, 0)]
+            while stack:
+                node, depth = stack.pop()
+                if depth > max_depth:
+                    max_depth = depth
+                for child in ast.iter_child_nodes(node):
+                    child_depth = depth + (1 if isinstance(child, SCOPE_NODES) else 0)
+                    stack.append((child, child_depth))
         except SyntaxError:
             for line in source.splitlines():
                 stripped = line.lstrip()
@@ -1615,7 +2160,7 @@ def _compute_comment_density(source: str, language: str) -> float:
         return 0.0
     comment_count = 0
     if language == "python":
-        docstring_lines: set[int] = set()
+        docstring_lines: set = set()
         try:
             tree = ast.parse(source)
             for node in ast.walk(tree):
@@ -1654,13 +2199,13 @@ def _compute_comment_density(source: str, language: str) -> float:
     return round(comment_count / total, 3)
 
 
-def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
+def _detect_unused_functions(blocks: list, source: str) -> dict:
     ENTRY_POINT_RE = re.compile(
         r"^(main|__main__|setUp|tearDown|run|execute|start|stop"
         r"|test\w*|on[A-Z]\w*|handle[A-Z]\w*)$"
     )
     defined = {b.name for b in blocks if b.name not in ("<module>", "<class>")}
-    called: set[str] = set()
+    called: set = set()
     if any(getattr(b, "language", "") == "java" for b in blocks):
         searchable = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
         searchable = re.sub(r"//[^\n]*", " ", searchable)
@@ -1668,9 +2213,14 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
         searchable = re.sub(r"#[^\n]*", " ", source)
     if not defined:
         return {}
-    combined = re.compile(
-        r"\b(" + "|".join(re.escape(n) for n in sorted(defined, key=len, reverse=True)) + r")\b"
-    )
+
+    cache_key = frozenset(defined)
+    if cache_key not in _UNUSED_PATTERN_CACHE:
+        _UNUSED_PATTERN_CACHE[cache_key] = re.compile(
+            r"\b(" + "|".join(re.escape(n) for n in sorted(defined, key=len, reverse=True)) + r")\b"
+        )
+    combined = _UNUSED_PATTERN_CACHE[cache_key]
+
     for m in combined.finditer(searchable):
         name = m.group(1)
         if name in called:
@@ -1688,6 +2238,7 @@ def _detect_unused_functions(blocks: list, source: str) -> dict[str, dict]:
         is_entry = bool(ENTRY_POINT_RE.match(name))
         result[name] = {
             "unused_in_file": True,
+            "unused_scope": "file",
             "confidence": "low" if is_entry else "high",
             "note": (
                 "Likely an entry point, callback, or test method — may be called externally."
@@ -1706,14 +2257,19 @@ def _compute_quality_report(
     unused_info  = _detect_unused_functions(blocks, source)
     func_details = []
     for block in blocks:
-        cc         = compute_cyclomatic_complexity(block.source, language)
-        nesting    = _compute_nesting_depth(block.source, language)
+        # Fix #v115-7: reuse cached CC and AST tree from block analysis phase
+        cc = block._cc_cache if block._cc_cache is not None else compute_cyclomatic_complexity(block.source, language)
+        nesting = _compute_nesting_depth(
+            block.source, language,
+            parsed_tree=block._ast_tree if language == "python" else None
+        )
         line_count = block.end_line - block.start_line + 1
         smells = []
-        if line_count > 30:       smells.append("long_function")
-        if cc > 10:               smells.append("high_complexity")
-        if block.name in cloned_names: smells.append("internal_duplication")
-        if block.name in unused_info and unused_info[block.name]["confidence"] == "high":
+        if line_count > 30:                 smells.append("long_function")
+        if cc > 10:                         smells.append("high_complexity")
+        if block.name in cloned_names:      smells.append("internal_duplication")
+        if (block.name in unused_info
+                and unused_info[block.name]["confidence"] == "high"):
             smells.append("unused_function")
         func_details.append({
             "name": block.name, "start_line": block.start_line,
@@ -1750,25 +2306,26 @@ def _compute_quality_report(
 def validate_syntax(code: str, language: str) -> bool:
     if language not in SUPPORTED_LANGUAGES:
         raise ValueError(f"Unsupported language: {language}")
+    if not isinstance(code, str):
+        raise ValueError("code must be a string")
     if language == "python":
-        if not isinstance(code, str):
-            raise SyntaxError("Code must be a string")
         ast.parse(code)
     return True
 
 
-def _detect_language(code: str) -> str | None:
-    """
-    Fix #v18-9: Heuristic language detection for cross-language guard.
-    Returns 'python', 'java', or None (ambiguous / unknown).
-    """
+def _detect_language(code: str) -> str:
     has_py   = bool(_PY_SIGNATURE_RE.search(code))
     has_java = bool(_JAVA_SIGNATURE_RE.search(code))
+    if not has_java:
+        if ("public static void main" in code
+                or code.lstrip().startswith("package ")
+                or code.lstrip().startswith("import java.")):
+            has_java = True
     if has_py and not has_java:
         return "python"
     if has_java and not has_py:
         return "java"
-    return None   # ambiguous — caller decides
+    return None
 
 
 # ===========================================================================
@@ -1777,7 +2334,7 @@ def _detect_language(code: str) -> str | None:
 
 class CodeAnalyzer:
     """
-    TAHD v1.8 drop-in CodeAnalyzer.
+    TAHD v1.14.1 drop-in CodeAnalyzer.
 
     analyze(code)         → single-file analysis with quality report
     analyze_pair(a, b)    → cross-file clone detection between two submissions
@@ -1787,7 +2344,7 @@ class CodeAnalyzer:
         if language not in SUPPORTED_LANGUAGES:
             raise ValueError("Unsupported language")
         self.language = language
-        self.code: str | None = None
+        self.code: str = None
 
     def analyze(self, code: str, max_suggestions: int = 5) -> dict:
         if not isinstance(code, str):
@@ -1796,15 +2353,18 @@ class CodeAnalyzer:
         lines = code.splitlines()
         loc   = max(1, len(lines))
 
+        _t0 = time.perf_counter()
         blocks      = extract_blocks(code, self.language)
+        _t_extract  = time.perf_counter()
         clone_pairs = detect_clones_single_file(blocks)
+        _t_detect   = time.perf_counter()
 
         all_halstead = [b.halstead for b in blocks]
         total_volume = sum(h.get("volume", 0) for h in all_halstead)
         cc = compute_cyclomatic_complexity(code, self.language)
         mi = compute_maintainability_index(total_volume, cc, loc)
 
-        cloned_lines: set[int] = set()
+        cloned_lines: set = set()
         for pair in clone_pairs:
             cloned_lines.update(range(pair.block_a.start_line, pair.block_a.end_line + 1))
             cloned_lines.update(range(pair.block_b.start_line, pair.block_b.end_line + 1))
@@ -1851,6 +2411,19 @@ class CodeAnalyzer:
             },
             "detection_method": f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
             "quality_report":   _compute_quality_report(blocks, clone_pairs, code, self.language),
+            "audience_guidance": _build_single_audience_guidance(
+                clone_percentage=clone_pct,
+                cyclomatic_complexity=cc,
+                maintainability_index=mi,
+                clone_pairs=clone_pairs,
+            ),
+            "performance_profile": {
+                "extract_ms":     round((_t_extract - _t0)          * 1000, 2),
+                "detect_ms":      round((_t_detect  - _t_extract)   * 1000, 2),
+                "total_ms":       round((_t_detect  - _t0)          * 1000, 2),
+                "function_blocks": len(blocks),
+                "clone_pairs":    len(clone_pairs),
+            },
         }
 
     def analyze_pair(
@@ -1861,17 +2434,11 @@ class CodeAnalyzer:
         file_b: str = "submission_b",
         max_suggestions: int = 5,
     ) -> dict:
-        """
-        Fix #v18-9: Language guard — warns when submitted code doesn't match
-                    self.language, rather than silently producing garbage.
-        Fix #v18-5: Symmetric overall_similarity.
-        """
         if not isinstance(code_a, str) or not code_a.strip():
             raise ValueError("code_a must be a non-empty string")
         if not isinstance(code_b, str) or not code_b.strip():
             raise ValueError("code_b must be a non-empty string")
 
-        # Fix #v18-9: heuristic cross-language guard
         for label, code in ((file_a, code_a), (file_b, code_b)):
             detected = _detect_language(code)
             if detected is not None and detected != self.language:
@@ -1881,11 +2448,13 @@ class CodeAnalyzer:
                     f"Initialize CodeAnalyzer('{detected}') for that submission."
                 )
 
+        _t0 = time.perf_counter()
         blocks_a = extract_blocks(code_a, self.language)
         blocks_b = extract_blocks(code_b, self.language)
+        _t_extract = time.perf_counter()
         clone_pairs = detect_clones_in_blocks(blocks_a, blocks_b, file_a, file_b)
+        _t_detect = time.perf_counter()
 
-        # Fix #v18-5: symmetric overall_similarity
         if clone_pairs and blocks_a and blocks_b:
             matched_a = {(p.block_a.name, p.block_a.start_line) for p in clone_pairs}
             matched_b = {(p.block_b.name, p.block_b.start_line) for p in clone_pairs}
@@ -1932,6 +2501,15 @@ class CodeAnalyzer:
             "detection_method":        f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
             "dominant_clone_type":     dominant_type,
             "clone_type_breakdown":    dict(type_counts),
+            "audience_guidance":       _build_pair_audience_guidance(overall_sim, clone_pairs),
+            "performance_profile": {
+                "extract_ms":  round((_t_extract - _t0)        * 1000, 2),
+                "detect_ms":   round((_t_detect  - _t_extract) * 1000, 2),
+                "total_ms":    round((_t_detect  - _t0)        * 1000, 2),
+                "blocks_a":    len(blocks_a),
+                "blocks_b":    len(blocks_b),
+                "clone_pairs": len(clone_pairs),
+            },
         }
 
 
@@ -1966,3 +2544,87 @@ def _clone_type_explanation(clone_type: int) -> dict:
     }.get(clone_type, {
         "type_name": "Unknown", "description": "", "why_flagged": "",
     })
+
+
+def _risk_level_from_ratio(score_ratio: float) -> str:
+    if score_ratio >= 0.45:
+        return "high"
+    if score_ratio >= 0.20:
+        return "medium"
+    return "low"
+
+
+def _build_single_audience_guidance(
+    clone_percentage: float,
+    cyclomatic_complexity: float,
+    maintainability_index: float,
+    clone_pairs: list,
+) -> dict:
+    risk_level = _risk_level_from_ratio(clone_percentage / 100.0)
+    type_counts = collections.Counter(p.clone_type for p in clone_pairs)
+    dominant_type = type_counts.most_common(1)[0][0] if type_counts else None
+
+    if dominant_type == 1:
+        type_focus = "exact-copy patterns"
+    elif dominant_type == 2:
+        type_focus = "renamed structural duplicates"
+    elif dominant_type == 3:
+        type_focus = "near-miss shared logic"
+    else:
+        type_focus = "duplicate logic patterns"
+
+    instructor_actions = [
+        f"Prioritize review of {type_focus}; current risk is {risk_level.upper()} ({clone_percentage:.1f}% cloned lines).",
+        "Validate flagged blocks with short oral walkthroughs and ask students to explain intent for the matched regions.",
+        "Use clone evidence to target a short remediation lesson on abstraction and decomposition for the next class.",
+    ]
+
+    student_actions = [
+        "Rewrite duplicated regions into one helper function and call it from each usage site.",
+        "Rename variables to reflect intent only after logic is uniquely authored, not as a post-copy change.",
+    ]
+    if cyclomatic_complexity >= 12:
+        student_actions.append("Reduce branching with guard clauses or smaller functions to lower complexity.")
+    if maintainability_index < 60:
+        student_actions.append("Improve readability with clearer function boundaries and comments for non-obvious decisions.")
+
+    return {
+        "risk_level": risk_level,
+        "clone_type_breakdown": dict(type_counts),
+        "teaching_focus": type_focus,
+        "for_instructor": instructor_actions,
+        "for_student": student_actions,
+    }
+
+
+def _build_pair_audience_guidance(
+    overall_similarity: float,
+    clone_pairs: list,
+) -> dict:
+    risk_level = _risk_level_from_ratio(overall_similarity)
+    type_counts = collections.Counter(p.clone_type for p in clone_pairs)
+    dominant_type = type_counts.most_common(1)[0][0] if type_counts else None
+
+    if dominant_type == 1:
+        type_focus = "exact-copy overlap"
+    elif dominant_type == 2:
+        type_focus = "renamed structural overlap"
+    elif dominant_type == 3:
+        type_focus = "near-miss overlap"
+    else:
+        type_focus = "structural overlap"
+
+    return {
+        "risk_level": risk_level,
+        "clone_type_breakdown": dict(type_counts),
+        "teaching_focus": type_focus,
+        "for_instructor": [
+            f"Treat this pair as {risk_level.upper()} risk ({overall_similarity * 100:.1f}% overall similarity, {type_focus}).",
+            "Review the highest-confidence clone blocks first, then ask both students to independently explain algorithm choices.",
+            "Document whether overlap is assignment-template reuse or unauthorized collaboration before escalation.",
+        ],
+        "for_student": [
+            "Refactor repeated logic into original, task-specific functions with distinct control-flow decisions.",
+            "Submit a short design note describing how your approach differs from common class solutions.",
+        ],
+    }

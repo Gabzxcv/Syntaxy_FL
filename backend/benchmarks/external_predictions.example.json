@@ -1,0 +1,22 @@
+{
+  "moss": {
+    "py_t1_exact_a": "Type-1",
+    "py_t2_rename_a": "Type-2",
+    "py_t3_nearmiss_a": "Type-3",
+    "py_nonclone_sort_vs_fact": 0,
+    "java_t1_exact": "Type-1",
+    "java_t2_rename_a": "Type-2",
+    "java_t3_nearmiss_a": "Type-3",
+    "java_nonclone_parse_vs_prime": 0
+  },
+  "jplag": {
+    "py_t1_exact_a": "Type-1",
+    "py_t2_rename_a": "Type-2",
+    "py_t3_nearmiss_a": "Type-3",
+    "py_nonclone_sort_vs_fact": 0,
+    "java_t1_exact": "Type-1",
+    "java_t2_rename_a": "Type-2",
+    "java_t3_nearmiss_a": "Type-3",
+    "java_nonclone_parse_vs_prime": 0
+  }
+}

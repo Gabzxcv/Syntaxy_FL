@@ -1,0 +1,78 @@
+{
+  "version": "2.0",
+  "description": "Extended benchmark set emphasizing Type-1/2/3 plus non-clone robustness.",
+  "cases": [
+    {
+      "id": "py_t1_exact_a",
+      "language": "python",
+      "expected_type": 1,
+      "file_a": "a.py",
+      "file_b": "b.py",
+      "code_a": "def clamp_score(score):\n    bounded = max(0, min(100, score))\n    rounded = round(bounded, 2)\n    return rounded\n",
+      "code_b": "def clamp_score(score):\n    bounded = max(0, min(100, score))\n    rounded = round(bounded, 2)\n    return rounded\n"
+    },
+    {
+      "id": "py_t2_rename_a",
+      "language": "python",
+      "expected_type": 2,
+      "file_a": "a.py",
+      "file_b": "b.py",
+      "code_a": "def compute_total(items):\n    total = 0\n    for value in items:\n        total += value\n    return total\n",
+      "code_b": "def aggregate_numbers(nums):\n    result = 0\n    for n in nums:\n        result += n\n    return result\n"
+    },
+    {
+      "id": "py_t3_nearmiss_a",
+      "language": "python",
+      "expected_type": 3,
+      "file_a": "a.py",
+      "file_b": "b.py",
+      "code_a": "def summarize(nums):\n    total = 0\n    for n in nums:\n        if n > 0:\n            total += n\n    return total\n",
+      "code_b": "def summarize(data):\n    total = 0\n    for item in data:\n        if item > 0:\n            total += item\n        else:\n            total += 0\n    return total\n"
+    },
+    {
+      "id": "py_nonclone_sort_vs_fact",
+      "language": "python",
+      "expected_type": 0,
+      "file_a": "a.py",
+      "file_b": "b.py",
+      "code_a": "def bubble(values):\n    items = list(values)\n    for i in range(len(items)):\n        for j in range(0, len(items) - i - 1):\n            if items[j] > items[j + 1]:\n                items[j], items[j + 1] = items[j + 1], items[j]\n    return items\n",
+      "code_b": "def factorial(n):\n    result = 1\n    for i in range(2, n + 1):\n        result *= i\n    return result\n"
+    },
+    {
+      "id": "java_t1_exact",
+      "language": "java",
+      "expected_type": 1,
+      "file_a": "A.java",
+      "file_b": "B.java",
+      "code_a": "public class A {\n  public int sum(int[] arr) {\n    int total = 0;\n    for (int n : arr) total += n;\n    return total;\n  }\n}\n",
+      "code_b": "public class B {\n  public int sum(int[] arr) {\n    int total = 0;\n    for (int n : arr) total += n;\n    return total;\n  }\n}\n"
+    },
+    {
+      "id": "java_t2_rename_a",
+      "language": "java",
+      "expected_type": 2,
+      "file_a": "A.java",
+      "file_b": "B.java",
+      "code_a": "public class A {\n  public int clamp(int score) {\n    int bounded = score;\n    if (bounded < 0) bounded = 0;\n    if (bounded > 100) bounded = 100;\n    return bounded;\n  }\n}\n",
+      "code_b": "public class B {\n  public int limit(int points) {\n    int value = points;\n    if (value < 0) value = 0;\n    if (value > 100) value = 100;\n    return value;\n  }\n}\n"
+    },
+    {
+      "id": "java_t3_nearmiss_a",
+      "language": "java",
+      "expected_type": 3,
+      "file_a": "A.java",
+      "file_b": "B.java",
+      "code_a": "public class A {\n  public int positiveSum(int[] arr) {\n    int total = 0;\n    for (int n : arr) {\n      if (n > 0) total += n;\n    }\n    return total;\n  }\n}\n",
+      "code_b": "public class B {\n  public int positiveSum(int[] arr) {\n    int total = 0;\n    int skipped = 0;\n    for (int n : arr) {\n      if (n > 0) {\n        total += n;\n      } else {\n        skipped++;\n      }\n    }\n    if (skipped > 10) {\n      total = total;\n    }\n    return total;\n  }\n}\n"
+    },
+    {
+      "id": "java_nonclone_parse_vs_prime",
+      "language": "java",
+      "expected_type": 0,
+      "file_a": "A.java",
+      "file_b": "B.java",
+      "code_a": "public class A {\n  public int parse(String s) {\n    return Integer.parseInt(s.trim());\n  }\n}\n",
+      "code_b": "public class B {\n  public boolean isPrime(int n) {\n    if (n < 2) return false;\n    for (int i = 2; i * i <= n; i++) if (n % i == 0) return false;\n    return true;\n  }\n}\n"
+    }
+  ]
+}

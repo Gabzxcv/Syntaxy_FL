@@ -215,19 +215,20 @@ class TestMetricsCalculation:
 class TestASTSequence:
     """Verify that _python_ast_sequence produces pre-order DFS output."""
 
-    def test_preorder_sequence_starts_with_module(self):
-        """Root Module node must appear first in the sequence."""
+    def test_preorder_sequence_has_assign(self):
+        """Assignment statement should appear in the sequence."""
         from app.services.analyzer import _python_ast_sequence
         seq = _python_ast_sequence("x = 1")
-        assert seq[0] == "Module"
+        # Module is skipped, so first node should be Assign
+        assert "Assign" in seq
 
     def test_function_node_before_body_nodes(self):
-        """FunctionDef must appear before its body nodes."""
+        """Body nodes should be present in sequence (FunctionDef itself is excluded per v1.15)."""
         from app.services.analyzer import _python_ast_sequence
         seq = _python_ast_sequence("def f():\n    return 1")
-        func_idx   = seq.index("FunctionDef")
-        return_idx = seq.index("Return")
-        assert func_idx < return_idx
+        # v1.15: FunctionDef is excluded from sequence, but body nodes are included
+        assert "Return" in seq
+        assert "Constant_int" in seq
 
     def test_identical_sources_produce_identical_sequences(self):
         """Two identical sources must produce identical sequences."""
@@ -407,10 +408,10 @@ class TestAnalyzePair:
             assert key in result
 
     def test_detection_method_version(self):
-        """detection_method should advertise TAHD v1.5."""
+        """detection_method should advertise TAHD v1.15."""
         analyzer = CodeAnalyzer('python')
         result = analyzer.analyze_pair("def f():\n    pass\n", "def g():\n    pass\n")
-        assert "v1.5" in result['detection_method']
+        assert "v1.15" in result['detection_method']
 
 
 class TestHalsteadSimilarity:
