@@ -5,6 +5,56 @@ import './Students.css';
 
 import API from '../api';
 
+function toNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function getClonePercentage(entry) {
+  return toNumber(entry.clonePercentage ?? entry.clone_percentage ?? entry.clonePct);
+}
+
+function getComplexity(entry) {
+  return toNumber(entry.complexity ?? entry.cyclomatic_complexity);
+}
+
+function getMaintainability(entry) {
+  return toNumber(entry.maintainability ?? entry.maintainability_index);
+}
+
+function getStudentName(entry) {
+  return entry.studentName || entry.student || entry.studentEmail || 'Unknown Student';
+}
+
+function similarityStatus(similarity) {
+  if (similarity > 70) return 'high';
+  if (similarity > 40) return 'medium';
+  return 'low';
+}
+
+function normalizeStoredPair(pair) {
+  const rawSimilarity = toNumber(pair.similarity);
+  const similarity = rawSimilarity <= 1 ? Math.round(rawSimilarity * 100) : Math.round(rawSimilarity);
+  const safeSimilarity = Math.max(0, Math.min(100, safeSimilarityClamp(similarity)));
+  return {
+    student1: pair.student1 || pair.studentA || 'Student A',
+    student2: pair.student2 || pair.studentB || 'Student B',
+    section: pair.section || 'Unassigned',
+    similarity: safeSimilarity,
+    file1: pair.file1 || pair.fileA || '-',
+    file2: pair.file2 || pair.fileB || '-',
+    status: pair.status || similarityStatus(safeSimilarity),
+    date: pair.date || pair.createdAt || null,
+  };
+}
+
+function safeSimilarityClamp(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return value;
+}
+
 function generateSimilarityPairs(results) {
   if (!results || results.length < 2) {
     return [];
@@ -24,11 +74,16 @@ function generateSimilarityPairs(results) {
     const students = [];
     const studentMap = {};
     sectionResults.forEach(r => {
-      if (!studentMap[r.studentEmail]) {
-        studentMap[r.studentEmail] = { name: r.studentName, email: r.studentEmail, results: [] };
-        students.push(studentMap[r.studentEmail]);
+      const studentKey = r.studentEmail || getStudentName(r);
+      if (!studentMap[studentKey]) {
+        studentMap[studentKey] = {
+          name: getStudentName(r),
+          email: r.studentEmail || studentKey,
+          results: [],
+        };
+        students.push(studentMap[studentKey]);
       }
-      studentMap[r.studentEmail].results.push(r);
+      studentMap[studentKey].results.push(r);
     });
 
     for (let i = 0; i < students.length; i++) {
@@ -38,24 +93,42 @@ function generateSimilarityPairs(results) {
         seen.add(key);
 
         const avgClone1 = students[i].results.length > 0
-          ? students[i].results.reduce((s, r) => s + (r.clonePercentage || 0), 0) / students[i].results.length
+          ? students[i].results.reduce((s, r) => s + getClonePercentage(r), 0) / students[i].results.length
           : 0;
         const avgClone2 = students[j].results.length > 0
-          ? students[j].results.reduce((s, r) => s + (r.clonePercentage || 0), 0) / students[j].results.length
+          ? students[j].results.reduce((s, r) => s + getClonePercentage(r), 0) / students[j].results.length
           : 0;
-        const base = (avgClone1 + avgClone2) / 2;
-        const randomVariation = Math.floor(Math.random() * 30) - 15;
-        const similarity = Math.max(5, Math.min(95, Math.round(base + randomVariation)));
+        const avgComplexity1 = students[i].results.length > 0
+          ? students[i].results.reduce((s, r) => s + getComplexity(r), 0) / students[i].results.length
+          : 0;
+        const avgComplexity2 = students[j].results.length > 0
+          ? students[j].results.reduce((s, r) => s + getComplexity(r), 0) / students[j].results.length
+          : 0;
+        const avgMaint1 = students[i].results.length > 0
+          ? students[i].results.reduce((s, r) => s + getMaintainability(r), 0) / students[i].results.length
+          : 0;
+        const avgMaint2 = students[j].results.length > 0
+          ? students[j].results.reduce((s, r) => s + getMaintainability(r), 0) / students[j].results.length
+          : 0;
 
-        let status = 'low';
-        if (similarity > 70) status = 'high';
-        else if (similarity > 40) status = 'medium';
+        const sharedCloneSignal = Math.min(avgClone1, avgClone2);
+        const complexityGapPenalty = Math.min(100, Math.abs(avgComplexity1 - avgComplexity2) * 10);
+        const maintainabilityGapPenalty = Math.min(100, Math.abs(avgMaint1 - avgMaint2) * 2);
+
+        const similarity = Math.round(
+          sharedCloneSignal * 0.75
+          + (100 - complexityGapPenalty) * 0.15
+          + (100 - maintainabilityGapPenalty) * 0.10
+        );
+        const boundedSimilarity = Math.max(0, Math.min(100, similarity));
+
+        const status = similarityStatus(boundedSimilarity);
 
         pairs.push({
           student1: students[i].name,
           student2: students[j].name,
           section,
-          similarity,
+          similarity: boundedSimilarity,
           file1: students[i].results[0].fileName,
           file2: students[j].results[0].fileName,
           status,
@@ -64,7 +137,7 @@ function generateSimilarityPairs(results) {
     }
   });
 
-  return pairs;
+  return pairs.sort((a, b) => b.similarity - a.similarity);
 }
 
 function AnalysisResults() {
@@ -80,12 +153,25 @@ function AnalysisResults() {
 
   const [results, setResults] = useState([]);
   const [analysisHistory, setAnalysisHistory] = useState([]);
+  const [storedPairs, setStoredPairs] = useState([]);
 
   useEffect(() => {
     function loadData() {
       const stored = localStorage.getItem('studentResults');
       if (stored) {
         try { setResults(JSON.parse(stored)); } catch { setResults([]); }
+      }
+
+      const storedPairData = localStorage.getItem('crossStudentSimilarityPairs');
+      if (storedPairData) {
+        try {
+          const parsedPairs = JSON.parse(storedPairData);
+          setStoredPairs(Array.isArray(parsedPairs) ? parsedPairs.map(normalizeStoredPair) : []);
+        } catch {
+          setStoredPairs([]);
+        }
+      } else {
+        setStoredPairs([]);
       }
 
       // Fetch TAHD analysis history from backend
@@ -109,10 +195,12 @@ function AnalysisResults() {
     return () => clearInterval(interval);
   }, []);
 
-  const similarityPairs = generateSimilarityPairs(results);
+  const similarityPairs = (storedPairs.length > 0 ? storedPairs : generateSimilarityPairs(results))
+    .slice()
+    .sort((a, b) => b.similarity - a.similarity);
 
   const avgClone = results.length > 0
-    ? Math.round(results.reduce((sum, r) => sum + (r.clonePercentage || 0), 0) / results.length)
+    ? Math.round(results.reduce((sum, r) => sum + getClonePercentage(r), 0) / results.length)
     : 0;
 
   const highSimilarityCount = similarityPairs.filter(p => p.status === 'high').length;
@@ -130,8 +218,8 @@ function AnalysisResults() {
     const sec = r.section || 'Unassigned';
     if (!sectionStats[sec]) sectionStats[sec] = { count: 0, totalClone: 0, students: new Set() };
     sectionStats[sec].count += 1;
-    sectionStats[sec].totalClone += (r.clonePercentage || 0);
-    sectionStats[sec].students.add(r.studentEmail || r.studentName);
+    sectionStats[sec].totalClone += getClonePercentage(r);
+    sectionStats[sec].students.add(r.studentEmail || getStudentName(r));
   });
 
   function handleLogout() {
@@ -374,16 +462,16 @@ function AnalysisResults() {
                   <tbody>
                     {results.map((r, i) => (
                       <tr key={i}>
-                        <td>{r.fileName}</td>
-                        <td>{r.studentName}</td>
+                        <td>{r.fileName || r.file || '-'}</td>
+                        <td>{getStudentName(r)}</td>
                         <td>{r.section || '-'}</td>
                         <td>
-                          <span className={`badge ${cloneColor(r.clonePercentage)}`}>
-                            {r.clonePercentage}%
+                          <span className={`badge ${cloneColor(getClonePercentage(r))}`}>
+                            {Math.round(getClonePercentage(r))}%
                           </span>
                         </td>
-                        <td>{r.complexity != null ? r.complexity : '-'}</td>
-                        <td>{r.maintainability != null ? r.maintainability : '-'}</td>
+                        <td>{Number.isFinite(getComplexity(r)) ? getComplexity(r) : '-'}</td>
+                        <td>{Number.isFinite(getMaintainability(r)) ? getMaintainability(r) : '-'}</td>
                         <td>{r.date ? new Date(r.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-'}</td>
                       </tr>
                     ))}
@@ -474,7 +562,7 @@ function AnalysisResults() {
               </div>
               <div className="help-section">
                 <h4>Code Similarity Matrix</h4>
-                <p>The similarity matrix compares code submissions between students within the same section. High similarity (above 70%) is flagged in red, medium (above 40%) in orange, and low similarity in green.</p>
+                <p>The similarity matrix uses TAHD pairwise batch comparisons when available. High similarity (above 70%) is flagged in red, medium (above 40%) in orange, and low similarity in green. Values are deterministic and ranked from highest to lowest.</p>
               </div>
               <div className="help-section">
                 <h4>Understanding Metrics</h4>

@@ -170,13 +170,41 @@ for _k, _w in FUSION_WEIGHTS.items():
         assert abs(sum(_w) - 1.0) < 1e-9, f"Fusion weights for type {_k} must sum to 1.0"
 
 # Pre-filter thresholds
-THRESH_TOKEN_PREFILTER    = 0.30
+THRESH_TOKEN_PREFILTER    = 0.40
 THRESH_HALSTEAD_PREFILTER = 0.80
+
+# Optional tuning knobs for over-flagging control (defaults are non-destructive)
+DEFAULT_CONFIDENCE_FLOOR = 0.0
+DEFAULT_ENABLE_POOL_SUPPRESSION = False
+DEFAULT_POOL_CONFIDENCE_FLOOR = 0.0
+DEFAULT_POOL_CONFIDENCE_MODE = "max"
+POOL_CONFIDENCE_MODES = frozenset({"max", "mean"})
+DEFAULT_AUTO_TUNE_FILTERS = False
+DEFAULT_BATCH_ENABLE_POOL_SUPPRESSION = True
+DEFAULT_BATCH_AUTO_TUNE_FILTERS = True
+DEFAULT_TYPE12_CONFIDENCE_FLOOR = 0.60
+DEFAULT_TYPE3_CONFIDENCE_FLOOR = 0.0
+DEFAULT_PRESERVE_TYPE3_RECALL = True
+
+TYPE3_TEMPLATE_FANOUT_THRESHOLD = 6
+TYPE3_TEMPLATE_TOKEN_MAX = 0.65
+TYPE3_TEMPLATE_HALSTEAD_MIN = 0.95
+
+TYPE12_TEMPLATE_FANOUT_THRESHOLD = 12
+TYPE12_TEMPLATE_KEEP_TOP_K = 1
+
+AUTO_CONFIDENCE_FLOOR_QUANTILE = 0.65
+AUTO_POOL_CONFIDENCE_QUANTILE = 0.85
+AUTO_MIN_CONFIDENCE_FLOOR = 0.55
+AUTO_MIN_POOL_CONFIDENCE_FLOOR = 0.75
+AUTO_MIN_SAMPLE_PAIRS = 8
 
 # Type-1 thresholds
 THRESH_TYPE1                  = 0.95
 THRESH_TYPE1_FALLBACK         = 0.88
 THRESH_TYPE1_FALLBACK_RATIO   = 1.05
+THRESH_TYPE1_FALLBACK_MIN_LINES = 5
+THRESH_TYPE1_FALLBACK_MIN_RAW_TOKENS = 15
 
 # Type-2 thresholds
 THRESH_TYPE2                    = 0.75
@@ -188,6 +216,8 @@ THRESH_TYPE2_RELAXED_TOKEN      = 0.82
 THRESH_TYPE2_RELAXED_AST        = 0.60
 THRESH_TYPE2_RENAME_ALIGN       = 0.80
 THRESH_TYPE2_RENAME_AST         = 0.65
+THRESH_TYPE2_STRICT_SHORT_MAX_LINES = 3
+THRESH_TYPE2_STRICT_SHORT_MIN_RAW_TOKENS = 15
 
 # Type-3 thresholds
 THRESH_FUSION_TYPE3     = 0.60
@@ -206,11 +236,20 @@ THRESH_TYPE3_LIT_MIN          = 0.30
 THRESH_TYPE3_HIGH_AST         = 0.75
 THRESH_TYPE3_AST_HAL_FALLBACK = 0.50
 THRESH_TYPE3_HAL_FALLBACK     = 0.75
+THRESH_TYPE3_MIN_LINES = 4
+THRESH_TYPE3_MIN_RAW_TOKENS = 18
+THRESH_TYPE3_SMALL_BLOCK_CONTAINMENT_RESCUE = 0.78
 
 # Fix #v114-19: HALSTEAD_DOMINANT path thresholds
 THRESH_TYPE3_HALDOM_HALSTEAD  = 0.95   # near-identical Halstead fingerprint
 THRESH_TYPE3_HALDOM_AST       = 0.25   # relaxed AST floor for structural rewrites
+THRESH_TYPE3_HALDOM_AST_DISCOUNT_START = 0.40
+THRESH_TYPE3_HALDOM_AST_DISCOUNT_SCALE = 1.0
+THRESH_TYPE3_HALDOM_MIN_DISCOUNT = 0.65
 # (reuses THRESH_FUSION_TYPE3_HAL = 0.55 as the fusion entry gate)
+
+# Rename-alignment pre-gate
+RENAME_ALIGN_GATE_THRESHOLD = 0.65
 
 # AST blend weights
 W_AST_EDIT     = 0.60
@@ -253,6 +292,26 @@ TAHD_VERSION = "v1.15"
 
 # Fix #v115-6: threshold below which LCS is skipped (SM-only is faster)
 LCS_SHORT_THRESHOLD = 80
+
+# Corpus-aware token weighting (classroom pool normalization)
+CORPUS_COMMON_DOC_RATIO = 0.60
+CORPUS_COMMON_MIN_WEIGHT = 0.15
+CORPUS_COMMON_MAX_WEIGHT = 0.35
+CORPUS_RARE_MAX_DOC_FREQ = 3
+CORPUS_RARE_MAX_BOOST = 0.20
+CORPUS_COMMON_SMALL_COHORT_RATIO_FLOOR = 0.70
+CORPUS_COMMON_LARGE_COHORT_RATIO_CAP = 0.55
+CORPUS_COMMON_OVERLAP_PENALTY_MIN = 0.70
+CORPUS_COMMON_OVERLAP_AST_MAX = 0.55
+CORPUS_COMMON_OVERLAP_SCALE = 0.60
+CORPUS_COMMON_OVERLAP_MIN_FACTOR = 0.65
+CORPUS_COMMON_OVERLAP_TYPE3_PENALTY_MIN = 0.75
+CORPUS_COMMON_OVERLAP_TYPE3_SCALE = 1.20
+CORPUS_COMMON_OVERLAP_TYPE3_MIN_FACTOR = 0.30
+CORPUS_COMMON_OVERLAP_TYPE3_HARD_PENALTY_MIN = 0.88
+CORPUS_COMMON_OVERLAP_TYPE3_HARD_MIN_FACTOR = 0.12
+CORPUS_RARE_OVERLAP_SIGNAL_MAX_DOC_FREQ = 2
+CORPUS_RARE_OVERLAP_SIGNAL_MAX_RATIO = 0.08
 
 # ---------------------------------------------------------------------------
 # Java token/keyword tables
@@ -658,10 +717,193 @@ def _jaccard(counter_a: collections.Counter,
     return inter / union if union else 1.0
 
 
+def _build_corpus_ngram_profile(
+        submission_blocks: list,
+        common_doc_ratio: float = CORPUS_COMMON_DOC_RATIO) -> dict:
+    """
+    Build corpus-level document frequency profile for normalized token n-grams.
+
+    submission_blocks: list of submissions, each submission is list[FunctionBlock].
+    Returns None when profile is not usable (e.g. fewer than 2 submissions).
+    """
+    if not submission_blocks or len(submission_blocks) < 2:
+        return None
+
+    requested_ratio = float(common_doc_ratio)
+    requested_ratio = min(max(requested_ratio, 0.05), 1.0)
+
+    doc_freq: collections.Counter = collections.Counter()
+    doc_count = 0
+
+    for blocks in submission_blocks:
+        if not blocks:
+            continue
+        doc_count += 1
+        doc_ngrams: set = set()
+        for block in blocks:
+            ngrams = (
+                block._ngrams_norm
+                if block._ngrams_norm is not None
+                else _make_ngrams(block.tokens)
+            )
+            if ngrams:
+                doc_ngrams.update(ngrams.keys())
+        for ng in doc_ngrams:
+            doc_freq[ng] += 1
+
+    if doc_count < 2 or not doc_freq:
+        return None
+
+    ratio = _calibrate_corpus_common_ratio(requested_ratio, doc_count)
+
+    common_docs = max(1, int(math.ceil(ratio * doc_count)))
+    return {
+        "doc_freq": doc_freq,
+        "doc_count": doc_count,
+        "requested_common_doc_ratio": requested_ratio,
+        "common_doc_ratio": ratio,
+        "common_docs": common_docs,
+    }
+
+
+def _calibrate_corpus_common_ratio(requested_ratio: float, doc_count: int) -> float:
+    """
+    Calibrate common-doc threshold by cohort size.
+
+    Smaller cohorts are noisier, so we require broader document presence before
+    marking n-grams as common. Larger cohorts can safely downweight boilerplate
+    more aggressively.
+    """
+    ratio = min(max(float(requested_ratio), 0.05), 1.0)
+    if doc_count <= 5:
+        return max(ratio, CORPUS_COMMON_SMALL_COHORT_RATIO_FLOOR)
+    if doc_count >= 12:
+        return min(ratio, CORPUS_COMMON_LARGE_COHORT_RATIO_CAP)
+    return ratio
+
+
+def _corpus_common_overlap_ratio(counter_a: collections.Counter,
+                                 counter_b: collections.Counter,
+                                 profile: dict) -> float:
+    if not profile or not counter_a or not counter_b:
+        return 0.0
+
+    doc_freq = profile.get("doc_freq", {})
+    common_docs = profile.get("common_docs", 0)
+    if common_docs <= 0:
+        return 0.0
+
+    inter_total = 0
+    inter_common = 0
+    for ng in counter_a:
+        cb_val = counter_b.get(ng)
+        if not cb_val:
+            continue
+        shared_count = min(counter_a[ng], cb_val)
+        inter_total += shared_count
+        if doc_freq.get(ng, 0) >= common_docs:
+            inter_common += shared_count
+
+    if inter_total <= 0:
+        return 0.0
+    return inter_common / inter_total
+
+
+def _corpus_rare_overlap_ratio(counter_a: collections.Counter,
+                               counter_b: collections.Counter,
+                               profile: dict) -> float:
+    if not profile or not counter_a or not counter_b:
+        return 0.0
+
+    doc_freq = profile.get("doc_freq", {})
+
+    inter_total = 0
+    inter_rare = 0
+    for ng in counter_a:
+        cb_val = counter_b.get(ng)
+        if not cb_val:
+            continue
+        shared_count = min(counter_a[ng], cb_val)
+        inter_total += shared_count
+        if doc_freq.get(ng, 0) <= CORPUS_RARE_OVERLAP_SIGNAL_MAX_DOC_FREQ:
+            inter_rare += shared_count
+
+    if inter_total <= 0:
+        return 0.0
+    return inter_rare / inter_total
+
+
+def _corpus_ngram_weight(ngram: tuple, profile: dict) -> float:
+    df = profile["doc_freq"].get(ngram, 0)
+    doc_count = profile["doc_count"]
+    if df <= 0 or doc_count <= 0:
+        return 1.0
+
+    common_docs = profile["common_docs"]
+    if df >= common_docs:
+        common_ratio = df / doc_count
+        base_ratio = profile["common_doc_ratio"]
+        if base_ratio >= 1.0:
+            return CORPUS_COMMON_MIN_WEIGHT
+        progress = (common_ratio - base_ratio) / max(1.0 - base_ratio, 1e-9)
+        progress = min(max(progress, 0.0), 1.0)
+        return CORPUS_COMMON_MAX_WEIGHT - (
+            CORPUS_COMMON_MAX_WEIGHT - CORPUS_COMMON_MIN_WEIGHT
+        ) * progress
+
+    # Rare n-grams are a stronger plagiarism signal in larger cohorts.
+    if doc_count >= 4 and df <= CORPUS_RARE_MAX_DOC_FREQ:
+        rare_progress = (CORPUS_RARE_MAX_DOC_FREQ - df + 1) / CORPUS_RARE_MAX_DOC_FREQ
+        return 1.0 + CORPUS_RARE_MAX_BOOST * rare_progress
+
+    return 1.0
+
+
+def _weighted_jaccard(counter_a: collections.Counter,
+                      counter_b: collections.Counter,
+                      profile: dict) -> float:
+    if not counter_a and not counter_b:
+        return 1.0
+    if not counter_a or not counter_b:
+        return 0.0
+
+    # Keep the same coarse early-exit used by _jaccard for very imbalanced sizes.
+    len_a = len(counter_a)
+    len_b = len(counter_b)
+    if len_a > 0 and len_b > 0:
+        ratio = max(len_a, len_b) / min(len_a, len_b)
+        if ratio > 10.0:
+            return 0.0
+
+    w_cache: dict = {}
+
+    def _w(ngram: tuple) -> float:
+        cached = w_cache.get(ngram)
+        if cached is not None:
+            return cached
+        val = _corpus_ngram_weight(ngram, profile)
+        w_cache[ngram] = val
+        return val
+
+    inter = 0.0
+    for ng in counter_a:
+        cb_val = counter_b.get(ng)
+        if cb_val:
+            inter += min(counter_a[ng], cb_val) * _w(ng)
+
+    sum_a = sum(count * _w(ng) for ng, count in counter_a.items())
+    sum_b = sum(count * _w(ng) for ng, count in counter_b.items())
+    union = sum_a + sum_b - inter
+    return inter / union if union else 1.0
+
+
 def compute_token_similarity(block_a: FunctionBlock,
-                              block_b: FunctionBlock) -> float:
+                              block_b: FunctionBlock,
+                              corpus_profile: dict = None) -> float:
     na = block_a._ngrams_norm if block_a._ngrams_norm is not None else _make_ngrams(block_a.tokens)
     nb = block_b._ngrams_norm if block_b._ngrams_norm is not None else _make_ngrams(block_b.tokens)
+    if corpus_profile:
+        return _weighted_jaccard(na, nb, corpus_profile)
     return _jaccard(na, nb)
 
 
@@ -695,14 +937,15 @@ def _rename_alignment_score(block_a: FunctionBlock, block_b: FunctionBlock, toke
     """
     Rename-consistent alignment score.
 
-    Gate: if token_score is provided and is < 0.65, return 0.0 immediately.
+    Gate: if token_score is provided and is below the rename gate threshold,
+    return 0.0 immediately.
     The Type-2 ALIGN branch requires rename_align >= 0.80; that is unreachable
     when Jaccard token similarity is below 0.65, so the O(N) SequenceMatcher
     diff is skipped.
 
     token_score=0.0 (default) means "not provided" and bypasses the gate.
     """
-    if token_score > 0.0 and token_score < 0.65:
+    if token_score > 0.0 and token_score < RENAME_ALIGN_GATE_THRESHOLD:
         return 0.0
 
     raw_a = block_a.raw_tokens
@@ -1286,6 +1529,16 @@ def classify_clone(sp: ScoredPair) -> tuple:
     # Fix #v115-3: 0.0 is a valid raw score; only fall back when truly absent
     raw_token_score   = sp.raw_token_score  # may be 0.0 legitimately
     rename_align      = sp.rename_align_score
+    raw_len_a         = len(sp.raw_tokens_a)
+    raw_len_b         = len(sp.raw_tokens_b)
+    short_snippet_pair = (
+        sp.lines_a <= THRESH_TYPE2_STRICT_SHORT_MAX_LINES
+        and sp.lines_b <= THRESH_TYPE2_STRICT_SHORT_MAX_LINES
+    )
+    has_strict_type2_substance = (
+        raw_len_a >= THRESH_TYPE2_STRICT_SHORT_MIN_RAW_TOKENS
+        and raw_len_b >= THRESH_TYPE2_STRICT_SHORT_MIN_RAW_TOKENS
+    )
 
     # ------------------------------------------------------------------ Type 1
     has_raw = bool(sp.raw_tokens_a and sp.raw_tokens_b)
@@ -1302,7 +1555,11 @@ def classify_clone(sp: ScoredPair) -> tuple:
             and ast_score >= THRESH_TYPE1
             and line_ratio <= THRESH_TYPE1_FALLBACK_RATIO
             and cc_delta <= 0.3
-            and vol_delta <= 0.3):
+            and vol_delta <= 0.3
+            and sp.lines_a >= THRESH_TYPE1_FALLBACK_MIN_LINES
+            and sp.lines_b >= THRESH_TYPE1_FALLBACK_MIN_LINES
+            and raw_len_a >= THRESH_TYPE1_FALLBACK_MIN_RAW_TOKENS
+            and raw_len_b >= THRESH_TYPE1_FALLBACK_MIN_RAW_TOKENS):
         conf = 0.92 * (1.0 - 0.4 * max(cc_delta, vol_delta))
         return 1, round(conf, 4)
 
@@ -1313,7 +1570,9 @@ def classify_clone(sp: ScoredPair) -> tuple:
         return 1, 0.96
 
     # ------------------------------------------------------------------ Type 2
-    if token_score >= THRESH_TYPE2 and ast_score >= THRESH_TYPE2:
+    if (token_score >= THRESH_TYPE2
+            and ast_score >= THRESH_TYPE2
+            and (not short_snippet_pair or has_strict_type2_substance)):
         margin = min(token_score, ast_score) - THRESH_TYPE2
         conf = min(1.0, margin / max(1.0 - THRESH_TYPE2, 1e-9) + 0.5)
         return 2, round(conf, 4)
@@ -1362,6 +1621,14 @@ def classify_clone(sp: ScoredPair) -> tuple:
         return 2, round(conf, 4)
 
     # ------------------------------------------------------------------ Type 3
+    has_type3_substance = (
+        (sp.lines_a >= THRESH_TYPE3_MIN_LINES and sp.lines_b >= THRESH_TYPE3_MIN_LINES)
+        or (raw_len_a >= THRESH_TYPE3_MIN_RAW_TOKENS and raw_len_b >= THRESH_TYPE3_MIN_RAW_TOKENS)
+        or token_containment >= THRESH_TYPE3_SMALL_BLOCK_CONTAINMENT_RESCUE
+    )
+    if not has_type3_substance:
+        return None, 0.0
+
     fusion_default = compute_fusion_score(token_score, ast_score, halstead_score)
     fusion_t3      = compute_fusion_score(token_score, ast_score, halstead_score, clone_type=3)
 
@@ -1434,7 +1701,13 @@ def classify_clone(sp: ScoredPair) -> tuple:
             and ast_score >= THRESH_TYPE3_HALDOM_AST
             and token_containment >= 0.35
             and structurally_close):
+        ast_gap = max(0.0, THRESH_TYPE3_HALDOM_AST_DISCOUNT_START - ast_score)
+        ast_discount = max(
+            THRESH_TYPE3_HALDOM_MIN_DISCOUNT,
+            1.0 - THRESH_TYPE3_HALDOM_AST_DISCOUNT_SCALE * ast_gap,
+        )
         conf = min(1.0, halstead_score * 0.6 + ast_score * 0.2 + 0.1)
+        conf *= ast_discount
         conf *= (1.0 - 0.4 * max(cc_delta, vol_delta))
         return 3, round(conf, 4)
 
@@ -1641,7 +1914,13 @@ def extract_blocks(source: str, language: str) -> list:
 # PAIRWISE DETECTION
 # ===========================================================================
 
-def _compare_block_pairs(pair_iter: Iterator, file_a: str, file_b: str) -> list:
+def _compare_block_pairs(
+    pair_iter: Iterator,
+    file_a: str,
+    file_b: str,
+    corpus_profile: dict = None,
+    confidence_floor: float = DEFAULT_CONFIDENCE_FLOOR,
+) -> list:
     pairs = []
     pair_count = 0
 
@@ -1686,7 +1965,9 @@ def _compare_block_pairs(pair_iter: Iterator, file_a: str, file_b: str) -> list:
         _pair_start = time.perf_counter()
 
         try:
-            token_score = compute_token_similarity(block_a, block_b)
+            token_score = compute_token_similarity(
+                block_a, block_b, corpus_profile=corpus_profile
+            )
             halstead_prefilter_score = None
 
             if token_score < THRESH_TOKEN_PREFILTER:
@@ -1771,6 +2052,50 @@ def _compare_block_pairs(pair_iter: Iterator, file_a: str, file_b: str) -> list:
             clone_type, confidence = classify_clone(sp)
 
             if clone_type is not None:
+                if corpus_profile:
+                    common_overlap_ratio = _corpus_common_overlap_ratio(
+                        block_a._ngrams_norm,
+                        block_b._ngrams_norm,
+                        corpus_profile,
+                    )
+                    rare_overlap_ratio = _corpus_rare_overlap_ratio(
+                        block_a._ngrams_norm,
+                        block_b._ngrams_norm,
+                        corpus_profile,
+                    )
+                    if (common_overlap_ratio >= CORPUS_COMMON_OVERLAP_PENALTY_MIN
+                            and ast_score <= CORPUS_COMMON_OVERLAP_AST_MAX):
+                        overlap_excess = common_overlap_ratio - CORPUS_COMMON_OVERLAP_PENALTY_MIN
+                        penalty_factor = max(
+                            CORPUS_COMMON_OVERLAP_MIN_FACTOR,
+                            1.0 - CORPUS_COMMON_OVERLAP_SCALE * overlap_excess,
+                        )
+                        confidence *= penalty_factor
+
+                    # Type-3 near-miss matches are the most prone to boilerplate
+                    # inflation in classroom pools. Apply an additional penalty
+                    # when overlap is mostly corpus-common n-grams.
+                    if (clone_type == 3
+                            and common_overlap_ratio >= CORPUS_COMMON_OVERLAP_TYPE3_PENALTY_MIN):
+                        type3_overlap_excess = (
+                            common_overlap_ratio - CORPUS_COMMON_OVERLAP_TYPE3_PENALTY_MIN
+                        )
+                        type3_penalty_factor = max(
+                            CORPUS_COMMON_OVERLAP_TYPE3_MIN_FACTOR,
+                            1.0 - CORPUS_COMMON_OVERLAP_TYPE3_SCALE * type3_overlap_excess,
+                        )
+                        confidence *= type3_penalty_factor
+
+                    # Suppress template-driven near-miss clones where overlap is
+                    # overwhelmingly corpus-common and carries almost no rare signal.
+                    if (clone_type == 3
+                            and common_overlap_ratio >= CORPUS_COMMON_OVERLAP_TYPE3_HARD_PENALTY_MIN
+                            and rare_overlap_ratio <= CORPUS_RARE_OVERLAP_SIGNAL_MAX_RATIO):
+                        confidence *= CORPUS_COMMON_OVERLAP_TYPE3_HARD_MIN_FACTOR
+
+                confidence = round(max(0.0, confidence), 4)
+                if confidence < confidence_floor:
+                    continue
                 typed_fusion = compute_fusion_score(
                     token_score, ast_score, halstead_score, clone_type=clone_type
                 )
@@ -1785,7 +2110,7 @@ def _compare_block_pairs(pair_iter: Iterator, file_a: str, file_b: str) -> list:
                     block_b        = block_b,
                     file_a         = file_a,
                     file_b         = file_b,
-                    confidence     = round(max(0.0, confidence), 4),
+                    confidence     = confidence,
                 ))
         except Exception as exc:
             logger.warning(
@@ -1825,17 +2150,332 @@ def detect_clones_in_blocks(
     blocks_b: list,
     file_a: str = "file_a",
     file_b: str = "file_b",
+    corpus_profile: dict = None,
+    confidence_floor: float = DEFAULT_CONFIDENCE_FLOOR,
 ) -> list:
-    pairs = _compare_block_pairs(itertools.product(blocks_a, blocks_b), file_a, file_b)
+    pairs = _compare_block_pairs(
+        itertools.product(blocks_a, blocks_b),
+        file_a,
+        file_b,
+        corpus_profile=corpus_profile,
+        confidence_floor=confidence_floor,
+    )
     return _deduplicate_clone_pairs(pairs, mode="rank")
 
 
 def detect_clones_single_file(
     blocks: list,
     filename: str = "submission",
+    confidence_floor: float = DEFAULT_CONFIDENCE_FLOOR,
 ) -> list:
-    pairs = _compare_block_pairs(itertools.combinations(blocks, 2), filename, filename)
+    pairs = _compare_block_pairs(
+        itertools.combinations(blocks, 2),
+        filename,
+        filename,
+        confidence_floor=confidence_floor,
+    )
     return _deduplicate_clone_pairs(pairs, mode="rank")
+
+
+def _validate_unit_interval(value, field_name: str, allow_none: bool = False):
+    if value is None:
+        if allow_none:
+            return None
+        raise ValueError(f"{field_name} must be numeric")
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be numeric") from None
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"{field_name} must be between 0.0 and 1.0")
+    return value
+
+
+def _aggregate_clone_confidence(clone_pairs: list, mode: str) -> float:
+    if not clone_pairs:
+        return 0.0
+    if mode == "max":
+        return max(p.confidence for p in clone_pairs)
+    if mode == "mean":
+        return sum(p.confidence for p in clone_pairs) / len(clone_pairs)
+    raise ValueError(
+        f"pool_confidence_mode must be one of {sorted(POOL_CONFIDENCE_MODES)}"
+    )
+
+
+def _contains_clone_type(clone_pairs: list, clone_type: int) -> bool:
+    return any(getattr(p, "clone_type", None) == clone_type for p in clone_pairs)
+
+
+def _filter_clone_pairs_for_precision(
+    clone_pairs: list,
+    base_confidence_floor: float,
+    type12_confidence_floor: float,
+    type3_confidence_floor: float,
+) -> tuple[list, int, int]:
+    """
+    Apply stricter confidence gating to Type-1/Type-2 only.
+
+    Type-3 is intentionally not tightened here so near-miss recall remains stable.
+    Returns (filtered_pairs, suppressed_type12_count, suppressed_type3_count).
+    """
+    if not clone_pairs:
+        return clone_pairs, 0, 0
+
+    filtered: list = []
+    suppressed_type12 = 0
+    suppressed_type3 = 0
+    for pair in clone_pairs:
+        clone_type = getattr(pair, "clone_type", None)
+        if clone_type in (1, 2):
+            floor = max(base_confidence_floor, type12_confidence_floor)
+        elif clone_type == 3:
+            floor = max(base_confidence_floor, type3_confidence_floor)
+        else:
+            floor = base_confidence_floor
+
+        if pair.confidence < floor:
+            if clone_type in (1, 2):
+                suppressed_type12 += 1
+            elif clone_type == 3:
+                suppressed_type3 += 1
+            continue
+        filtered.append(pair)
+    return filtered, suppressed_type12, suppressed_type3
+
+
+def _pool_confidence_for_suppression(
+    clone_pairs: list,
+    mode: str,
+    preserve_type3_recall: bool,
+) -> tuple[float, str]:
+    """
+    Derive pair confidence used for pool suppression.
+
+    For non-Type-3 pairs, use mean confidence when mode=max to reduce
+    outlier-driven false positives. For Type-3-containing pairs, keep caller mode.
+    Returns (pair_confidence, effective_mode_used).
+    """
+    if not clone_pairs:
+        return 0.0, mode
+
+    has_type3 = preserve_type3_recall and _contains_clone_type(clone_pairs, 3)
+    if has_type3:
+        return _aggregate_clone_confidence(clone_pairs, mode), mode
+
+    effective_mode = "mean" if mode == "max" else mode
+    return _aggregate_clone_confidence(clone_pairs, effective_mode), effective_mode
+
+
+def _type3_block_key(file_name: str, block: FunctionBlock) -> tuple:
+    return (file_name, block.name, block.start_line)
+
+
+def _type12_edge_key(
+    file_a: str,
+    block_a: FunctionBlock,
+    file_b: str,
+    block_b: FunctionBlock,
+) -> tuple:
+    key_a = _type3_block_key(file_a, block_a)
+    key_b = _type3_block_key(file_b, block_b)
+    return tuple(sorted((key_a, key_b)))
+
+
+def _build_type3_fanout_map(pair_candidates: list) -> dict:
+    fanout: dict = collections.defaultdict(set)
+    for item in pair_candidates:
+        file_a = item["a"]["file"]
+        file_b = item["b"]["file"]
+        for pair in item["clone_pairs"]:
+            if pair.clone_type != 3:
+                continue
+            key_a = _type3_block_key(file_a, pair.block_a)
+            key_b = _type3_block_key(file_b, pair.block_b)
+            fanout[key_a].add(key_b)
+            fanout[key_b].add(key_a)
+    return {k: len(v) for k, v in fanout.items()}
+
+
+def _build_type12_fanout_map(pair_candidates: list) -> dict:
+    fanout: dict = collections.defaultdict(set)
+    for item in pair_candidates:
+        file_a = item["a"]["file"]
+        file_b = item["b"]["file"]
+        for pair in item["clone_pairs"]:
+            if pair.clone_type not in (1, 2):
+                continue
+            key_a = _type3_block_key(file_a, pair.block_a)
+            key_b = _type3_block_key(file_b, pair.block_b)
+            fanout[key_a].add(key_b)
+            fanout[key_b].add(key_a)
+    return {k: len(v) for k, v in fanout.items()}
+
+
+def _build_type12_template_keep_set(
+    pair_candidates: list,
+    fanout_map: dict,
+    top_k: int = TYPE12_TEMPLATE_KEEP_TOP_K,
+    fanout_threshold: int = TYPE12_TEMPLATE_FANOUT_THRESHOLD,
+) -> set:
+    edge_best_conf: dict = {}
+    edge_endpoints: dict = {}
+    edges_by_block: dict = collections.defaultdict(list)
+
+    for item in pair_candidates:
+        file_a = item["a"]["file"]
+        file_b = item["b"]["file"]
+        for pair in item["clone_pairs"]:
+            if pair.clone_type not in (1, 2):
+                continue
+            key_a = _type3_block_key(file_a, pair.block_a)
+            key_b = _type3_block_key(file_b, pair.block_b)
+            edge_key = _type12_edge_key(file_a, pair.block_a, file_b, pair.block_b)
+            best = edge_best_conf.get(edge_key)
+            if best is None or pair.confidence > best:
+                edge_best_conf[edge_key] = pair.confidence
+                edge_endpoints[edge_key] = (key_a, key_b)
+
+    for edge_key, confidence in edge_best_conf.items():
+        key_a, key_b = edge_endpoints[edge_key]
+        if fanout_map.get(key_a, 0) >= fanout_threshold:
+            edges_by_block[key_a].append((confidence, edge_key))
+        if fanout_map.get(key_b, 0) >= fanout_threshold:
+            edges_by_block[key_b].append((confidence, edge_key))
+
+    keep_set: set = set()
+
+    for edge_key, (key_a, key_b) in edge_endpoints.items():
+        if (fanout_map.get(key_a, 0) < fanout_threshold
+                and fanout_map.get(key_b, 0) < fanout_threshold):
+            keep_set.add(edge_key)
+
+    for block_key, scored_edges in edges_by_block.items():
+        scored_edges.sort(key=lambda x: (-x[0], x[1]))
+        for _, edge_key in scored_edges[:max(1, top_k)]:
+            keep_set.add(edge_key)
+
+    return keep_set
+
+
+def _suppress_template_type12_pairs(
+    clone_pairs: list,
+    file_a: str,
+    file_b: str,
+    fanout_map: dict,
+    keep_edges: set,
+    fanout_threshold: int = TYPE12_TEMPLATE_FANOUT_THRESHOLD,
+) -> tuple[list, int]:
+    if not clone_pairs or not fanout_map:
+        return clone_pairs, 0
+
+    kept: list = []
+    suppressed = 0
+
+    for pair in clone_pairs:
+        if pair.clone_type not in (1, 2):
+            kept.append(pair)
+            continue
+
+        key_a = _type3_block_key(file_a, pair.block_a)
+        key_b = _type3_block_key(file_b, pair.block_b)
+        edge_key = _type12_edge_key(file_a, pair.block_a, file_b, pair.block_b)
+
+        template_like = (
+            fanout_map.get(key_a, 0) >= fanout_threshold
+            or fanout_map.get(key_b, 0) >= fanout_threshold
+        )
+        if template_like and edge_key not in keep_edges:
+            suppressed += 1
+            continue
+
+        kept.append(pair)
+
+    return kept, suppressed
+
+
+def _suppress_template_type3_pairs(
+    clone_pairs: list,
+    file_a: str,
+    file_b: str,
+    fanout_map: dict,
+) -> tuple[list, int]:
+    if not clone_pairs or not fanout_map:
+        return clone_pairs, 0
+
+    kept: list = []
+    suppressed = 0
+    for pair in clone_pairs:
+        if pair.clone_type != 3:
+            kept.append(pair)
+            continue
+
+        key_a = _type3_block_key(file_a, pair.block_a)
+        key_b = _type3_block_key(file_b, pair.block_b)
+        fanout_a = fanout_map.get(key_a, 0)
+        fanout_b = fanout_map.get(key_b, 0)
+        template_like = (
+            pair.token_score <= TYPE3_TEMPLATE_TOKEN_MAX
+            and pair.halstead_score >= TYPE3_TEMPLATE_HALSTEAD_MIN
+        )
+        if template_like and (
+            fanout_a >= TYPE3_TEMPLATE_FANOUT_THRESHOLD
+            or fanout_b >= TYPE3_TEMPLATE_FANOUT_THRESHOLD
+        ):
+            suppressed += 1
+            continue
+
+        kept.append(pair)
+
+    return kept, suppressed
+
+
+def _quantile(values: list, q: float) -> float:
+    if not values:
+        return 0.0
+    if q <= 0.0:
+        return min(values)
+    if q >= 1.0:
+        return max(values)
+
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+
+    pos = q * (len(ordered) - 1)
+    lo = int(math.floor(pos))
+    hi = int(math.ceil(pos))
+    if lo == hi:
+        return ordered[lo]
+    alpha = pos - lo
+    return ordered[lo] * (1.0 - alpha) + ordered[hi] * alpha
+
+
+def _derive_auto_filter_thresholds(
+    clone_confidences: list,
+    pair_confidences: list,
+    confidence_floor: float,
+    pool_confidence_floor: float,
+) -> tuple[float, float]:
+    if len(pair_confidences) < AUTO_MIN_SAMPLE_PAIRS:
+        return confidence_floor, pool_confidence_floor
+
+    derived_conf_floor = _quantile(
+        clone_confidences, AUTO_CONFIDENCE_FLOOR_QUANTILE
+    ) if clone_confidences else confidence_floor
+    derived_pool_floor = _quantile(
+        pair_confidences, AUTO_POOL_CONFIDENCE_QUANTILE
+    ) if pair_confidences else pool_confidence_floor
+
+    derived_conf_floor = max(
+        confidence_floor,
+        min(max(derived_conf_floor, AUTO_MIN_CONFIDENCE_FLOOR), 1.0),
+    )
+    derived_pool_floor = max(
+        pool_confidence_floor,
+        min(max(derived_pool_floor, AUTO_MIN_POOL_CONFIDENCE_FLOOR), 1.0),
+    )
+    return round(derived_conf_floor, 4), round(derived_pool_floor, 4)
 
 
 # ===========================================================================
@@ -2338,6 +2978,7 @@ class CodeAnalyzer:
 
     analyze(code)         → single-file analysis with quality report
     analyze_pair(a, b)    → cross-file clone detection between two submissions
+    analyze_batch(items)  → pairwise analysis over a submission pool
     """
 
     def __init__(self, language: str):
@@ -2433,11 +3074,42 @@ class CodeAnalyzer:
         file_a: str = "submission_a",
         file_b: str = "submission_b",
         max_suggestions: int = 5,
+        corpus_codes: list = None,
+        corpus_common_ngram_ratio: float = CORPUS_COMMON_DOC_RATIO,
+        confidence_floor: float = DEFAULT_CONFIDENCE_FLOOR,
+        enable_pool_suppression: bool = DEFAULT_ENABLE_POOL_SUPPRESSION,
+        pool_confidence_floor: float = DEFAULT_POOL_CONFIDENCE_FLOOR,
+        pool_confidence_mode: str = DEFAULT_POOL_CONFIDENCE_MODE,
+        auto_tune_filters: bool = DEFAULT_AUTO_TUNE_FILTERS,
+        type12_confidence_floor: float = DEFAULT_TYPE12_CONFIDENCE_FLOOR,
+        type3_confidence_floor: float = DEFAULT_TYPE3_CONFIDENCE_FLOOR,
+        preserve_type3_recall: bool = DEFAULT_PRESERVE_TYPE3_RECALL,
     ) -> dict:
         if not isinstance(code_a, str) or not code_a.strip():
             raise ValueError("code_a must be a non-empty string")
         if not isinstance(code_b, str) or not code_b.strip():
             raise ValueError("code_b must be a non-empty string")
+
+        confidence_floor = _validate_unit_interval(
+            confidence_floor, "confidence_floor"
+        )
+        pool_confidence_floor = _validate_unit_interval(
+            pool_confidence_floor, "pool_confidence_floor"
+        )
+        if pool_confidence_mode not in POOL_CONFIDENCE_MODES:
+            raise ValueError(
+                f"pool_confidence_mode must be one of {sorted(POOL_CONFIDENCE_MODES)}"
+            )
+        if not isinstance(auto_tune_filters, bool):
+            raise ValueError("auto_tune_filters must be boolean")
+        type12_confidence_floor = _validate_unit_interval(
+            type12_confidence_floor, "type12_confidence_floor"
+        )
+        type3_confidence_floor = _validate_unit_interval(
+            type3_confidence_floor, "type3_confidence_floor"
+        )
+        if not isinstance(preserve_type3_recall, bool):
+            raise ValueError("preserve_type3_recall must be boolean")
 
         for label, code in ((file_a, code_a), (file_b, code_b)):
             detected = _detect_language(code)
@@ -2451,8 +3123,118 @@ class CodeAnalyzer:
         _t0 = time.perf_counter()
         blocks_a = extract_blocks(code_a, self.language)
         blocks_b = extract_blocks(code_b, self.language)
+
+        corpus_profile = None
+        corpus_submission_count = 2
+        corpus_weighting_reason = "disabled_no_corpus_pool"
+        corpus_entries: list = []
+        if corpus_codes:
+            corpus_blocks = [blocks_a, blocks_b]
+            for idx, corpus_code in enumerate(corpus_codes):
+                if not isinstance(corpus_code, str) or not corpus_code.strip():
+                    raise ValueError(
+                        f"corpus_codes[{idx}] must be a non-empty string"
+                    )
+                entry_blocks = extract_blocks(corpus_code, self.language)
+                corpus_blocks.append(entry_blocks)
+                corpus_entries.append({
+                    "file": f"corpus_{idx + 1}",
+                    "blocks": entry_blocks,
+                })
+
+            corpus_profile = _build_corpus_ngram_profile(
+                corpus_blocks,
+                common_doc_ratio=corpus_common_ngram_ratio,
+            )
+            if corpus_profile:
+                corpus_submission_count = corpus_profile["doc_count"]
+                corpus_weighting_reason = "enabled_with_corpus_pool"
+            else:
+                corpus_submission_count = len(corpus_blocks)
+                corpus_weighting_reason = "disabled_insufficient_corpus_signal"
+
         _t_extract = time.perf_counter()
-        clone_pairs = detect_clones_in_blocks(blocks_a, blocks_b, file_a, file_b)
+        clone_pairs = detect_clones_in_blocks(
+            blocks_a,
+            blocks_b,
+            file_a,
+            file_b,
+            corpus_profile=corpus_profile,
+            confidence_floor=confidence_floor,
+        )
+
+        effective_confidence_floor = confidence_floor
+        effective_pool_confidence_floor = pool_confidence_floor
+        effective_type12_confidence_floor = type12_confidence_floor
+        if auto_tune_filters:
+            clone_confidences = [p.confidence for p in clone_pairs]
+            pair_confidences = [
+                _aggregate_clone_confidence(clone_pairs, pool_confidence_mode)
+            ] if clone_pairs else []
+
+            # Build a larger confidence distribution from pair-with-corpus
+            # comparisons so auto calibration is meaningful in pair mode.
+            for entry in corpus_entries:
+                pair_a = detect_clones_in_blocks(
+                    blocks_a,
+                    entry["blocks"],
+                    file_a,
+                    entry["file"],
+                    corpus_profile=corpus_profile,
+                    confidence_floor=confidence_floor,
+                )
+                if pair_a:
+                    pair_confidences.append(
+                        _aggregate_clone_confidence(pair_a, pool_confidence_mode)
+                    )
+                    clone_confidences.extend(p.confidence for p in pair_a)
+
+                pair_b = detect_clones_in_blocks(
+                    blocks_b,
+                    entry["blocks"],
+                    file_b,
+                    entry["file"],
+                    corpus_profile=corpus_profile,
+                    confidence_floor=confidence_floor,
+                )
+                if pair_b:
+                    pair_confidences.append(
+                        _aggregate_clone_confidence(pair_b, pool_confidence_mode)
+                    )
+                    clone_confidences.extend(p.confidence for p in pair_b)
+
+            effective_confidence_floor, effective_pool_confidence_floor = _derive_auto_filter_thresholds(
+                clone_confidences,
+                pair_confidences,
+                confidence_floor,
+                pool_confidence_floor,
+            )
+            effective_type12_confidence_floor = max(
+                type12_confidence_floor, effective_confidence_floor
+            )
+
+        clone_pairs, suppressed_type12_clones, suppressed_type3_clones = _filter_clone_pairs_for_precision(
+            clone_pairs,
+            effective_confidence_floor,
+            effective_type12_confidence_floor,
+            type3_confidence_floor,
+        )
+
+        suppressed_by_pool = 0
+        pool_confidence, effective_pool_confidence_mode = _pool_confidence_for_suppression(
+            clone_pairs,
+            pool_confidence_mode,
+            preserve_type3_recall,
+        )
+        has_type3_clones = _contains_clone_type(clone_pairs, 3)
+        should_apply_pool_suppression = bool(corpus_codes) and bool(enable_pool_suppression)
+        can_suppress_pair = not (preserve_type3_recall and has_type3_clones)
+        if (should_apply_pool_suppression
+                and can_suppress_pair
+                and pool_confidence < effective_pool_confidence_floor):
+            suppressed_by_pool = len(clone_pairs)
+            clone_pairs = []
+
         _t_detect = time.perf_counter()
 
         if clone_pairs and blocks_a and blocks_b:
@@ -2501,7 +3283,35 @@ class CodeAnalyzer:
             "detection_method":        f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
             "dominant_clone_type":     dominant_type,
             "clone_type_breakdown":    dict(type_counts),
+            "corpus_weighting": {
+                "enabled": bool(corpus_profile),
+                "submission_count": corpus_submission_count,
+                "common_ngram_ratio": (
+                    corpus_profile["common_doc_ratio"]
+                    if corpus_profile else float(corpus_common_ngram_ratio)
+                ),
+                "requested_common_ngram_ratio": float(corpus_common_ngram_ratio),
+                "reason": corpus_weighting_reason,
+            },
             "audience_guidance":       _build_pair_audience_guidance(overall_sim, clone_pairs),
+            "filters_applied": {
+                "confidence_floor": confidence_floor,
+                "effective_confidence_floor": effective_confidence_floor,
+                "type12_confidence_floor": type12_confidence_floor,
+                "effective_type12_confidence_floor": effective_type12_confidence_floor,
+                "suppressed_type12_clones": suppressed_type12_clones,
+                "type3_confidence_floor": type3_confidence_floor,
+                "suppressed_type3_clones": suppressed_type3_clones,
+                "pool_suppression": should_apply_pool_suppression,
+                "pool_confidence_floor": pool_confidence_floor,
+                "effective_pool_confidence_floor": effective_pool_confidence_floor,
+                "pool_confidence_mode": pool_confidence_mode,
+                "effective_pool_confidence_mode": effective_pool_confidence_mode,
+                "pool_confidence": round(pool_confidence, 4),
+                "suppressed_by_pool": suppressed_by_pool,
+                "auto_tune_filters": auto_tune_filters,
+                "preserve_type3_recall": preserve_type3_recall,
+            },
             "performance_profile": {
                 "extract_ms":  round((_t_extract - _t0)        * 1000, 2),
                 "detect_ms":   round((_t_detect  - _t_extract) * 1000, 2),
@@ -2509,6 +3319,289 @@ class CodeAnalyzer:
                 "blocks_a":    len(blocks_a),
                 "blocks_b":    len(blocks_b),
                 "clone_pairs": len(clone_pairs),
+            },
+        }
+
+    def analyze_batch(
+        self,
+        submissions: list,
+        max_suggestions: int = 5,
+        corpus_common_ngram_ratio: float = CORPUS_COMMON_DOC_RATIO,
+        confidence_floor: float = DEFAULT_CONFIDENCE_FLOOR,
+        enable_pool_suppression: bool = DEFAULT_BATCH_ENABLE_POOL_SUPPRESSION,
+        pool_confidence_floor: float = DEFAULT_POOL_CONFIDENCE_FLOOR,
+        pool_confidence_mode: str = DEFAULT_POOL_CONFIDENCE_MODE,
+        auto_tune_filters: bool = DEFAULT_BATCH_AUTO_TUNE_FILTERS,
+        type12_confidence_floor: float = DEFAULT_TYPE12_CONFIDENCE_FLOOR,
+        type3_confidence_floor: float = DEFAULT_TYPE3_CONFIDENCE_FLOOR,
+        preserve_type3_recall: bool = DEFAULT_PRESERVE_TYPE3_RECALL,
+    ) -> dict:
+        """
+        Batch pairwise analysis with one shared corpus profile.
+
+        submissions must be a list of dicts:
+          {"file": "optional_name", "code": "source code"}
+        """
+        if not isinstance(submissions, list) or len(submissions) < 2:
+            raise ValueError("submissions must contain at least two items")
+
+        confidence_floor = _validate_unit_interval(
+            confidence_floor, "confidence_floor"
+        )
+        pool_confidence_floor = _validate_unit_interval(
+            pool_confidence_floor, "pool_confidence_floor"
+        )
+        if pool_confidence_mode not in POOL_CONFIDENCE_MODES:
+            raise ValueError(
+                f"pool_confidence_mode must be one of {sorted(POOL_CONFIDENCE_MODES)}"
+            )
+        if not isinstance(auto_tune_filters, bool):
+            raise ValueError("auto_tune_filters must be boolean")
+        type12_confidence_floor = _validate_unit_interval(
+            type12_confidence_floor, "type12_confidence_floor"
+        )
+        type3_confidence_floor = _validate_unit_interval(
+            type3_confidence_floor, "type3_confidence_floor"
+        )
+        if not isinstance(preserve_type3_recall, bool):
+            raise ValueError("preserve_type3_recall must be boolean")
+
+        prepared: list = []
+        for idx, item in enumerate(submissions):
+            if not isinstance(item, dict):
+                raise ValueError(f"submissions[{idx}] must be an object")
+            code = item.get("code")
+            if not isinstance(code, str) or not code.strip():
+                raise ValueError(f"submissions[{idx}].code must be a non-empty string")
+            file_name = item.get("file", f"submission_{idx + 1}")
+
+            detected = _detect_language(code)
+            if detected is not None and detected != self.language:
+                raise ValueError(
+                    f"{file_name} appears to be {detected!r} but this analyzer "
+                    f"is configured for {self.language!r}. "
+                    f"Initialize CodeAnalyzer('{detected}') for that submission."
+                )
+
+            prepared.append({
+                "file": file_name,
+                "code": code,
+                "blocks": extract_blocks(code, self.language),
+            })
+
+        _t0 = time.perf_counter()
+        corpus_blocks = [entry["blocks"] for entry in prepared]
+        corpus_profile = _build_corpus_ngram_profile(
+            corpus_blocks,
+            common_doc_ratio=corpus_common_ngram_ratio,
+        )
+        corpus_weighting_reason = (
+            "enabled_with_submission_pool"
+            if corpus_profile else
+            "disabled_insufficient_submission_signal"
+        )
+        _t_extract = time.perf_counter()
+
+        pair_candidates: list = []
+        pair_confidences: list = []
+        clone_confidences: list = []
+        suppressed_pairs = 0
+        suppressed_clones = 0
+        for i in range(len(prepared)):
+            for j in range(i + 1, len(prepared)):
+                a = prepared[i]
+                b = prepared[j]
+                clone_pairs = detect_clones_in_blocks(
+                    a["blocks"],
+                    b["blocks"],
+                    a["file"],
+                    b["file"],
+                    corpus_profile=corpus_profile,
+                    confidence_floor=confidence_floor,
+                )
+
+                pair_confidence = _aggregate_clone_confidence(
+                    clone_pairs, pool_confidence_mode
+                )
+                if clone_pairs:
+                    pair_confidences.append(pair_confidence)
+                    clone_confidences.extend(p.confidence for p in clone_pairs)
+
+                pair_candidates.append({
+                    "a": a,
+                    "b": b,
+                    "clone_pairs": clone_pairs,
+                    "pair_confidence": pair_confidence,
+                })
+
+        effective_confidence_floor = confidence_floor
+        effective_pool_confidence_floor = pool_confidence_floor
+        effective_type12_confidence_floor = type12_confidence_floor
+        if auto_tune_filters:
+            effective_confidence_floor, effective_pool_confidence_floor = _derive_auto_filter_thresholds(
+                clone_confidences,
+                pair_confidences,
+                confidence_floor,
+                pool_confidence_floor,
+            )
+            effective_type12_confidence_floor = max(
+                type12_confidence_floor, effective_confidence_floor
+            )
+
+        pair_results: list = []
+        suppressed_type12_clones = 0
+        suppressed_type3_clones = 0
+        suppressed_template_type12_clones = 0
+        suppressed_template_type3_clones = 0
+        type12_fanout_map = _build_type12_fanout_map(pair_candidates)
+        type12_keep_edges = _build_type12_template_keep_set(
+            pair_candidates,
+            type12_fanout_map,
+            top_k=TYPE12_TEMPLATE_KEEP_TOP_K,
+            fanout_threshold=TYPE12_TEMPLATE_FANOUT_THRESHOLD,
+        )
+        type3_fanout_map = _build_type3_fanout_map(pair_candidates)
+        for item in pair_candidates:
+            a = item["a"]
+            b = item["b"]
+            clone_pairs = item["clone_pairs"]
+
+            clone_pairs, suppressed_type12_now, suppressed_type3_now = _filter_clone_pairs_for_precision(
+                clone_pairs,
+                effective_confidence_floor,
+                effective_type12_confidence_floor,
+                type3_confidence_floor,
+            )
+            suppressed_type12_clones += suppressed_type12_now
+            suppressed_type3_clones += suppressed_type3_now
+
+            clone_pairs, suppressed_template_type12_now = _suppress_template_type12_pairs(
+                clone_pairs,
+                a["file"],
+                b["file"],
+                type12_fanout_map,
+                type12_keep_edges,
+                fanout_threshold=TYPE12_TEMPLATE_FANOUT_THRESHOLD,
+            )
+            suppressed_template_type12_clones += suppressed_template_type12_now
+
+            clone_pairs, suppressed_template_now = _suppress_template_type3_pairs(
+                clone_pairs,
+                a["file"],
+                b["file"],
+                type3_fanout_map,
+            )
+            suppressed_template_type3_clones += suppressed_template_now
+
+            pair_confidence, effective_pair_conf_mode = _pool_confidence_for_suppression(
+                clone_pairs,
+                pool_confidence_mode,
+                preserve_type3_recall,
+            )
+            has_type3_clones = _contains_clone_type(clone_pairs, 3)
+            can_suppress_pair = not (preserve_type3_recall and has_type3_clones)
+            if (enable_pool_suppression
+                    and can_suppress_pair
+                    and pair_confidence < effective_pool_confidence_floor):
+                suppressed_pairs += 1
+                suppressed_clones += len(clone_pairs)
+                continue
+
+            if clone_pairs and a["blocks"] and b["blocks"]:
+                matched_a = {(p.block_a.name, p.block_a.start_line) for p in clone_pairs}
+                matched_b = {(p.block_b.name, p.block_b.start_line) for p in clone_pairs}
+                sim_a = len(matched_a) / len(a["blocks"])
+                sim_b = len(matched_b) / len(b["blocks"])
+                overall_sim = round(max(sim_a, sim_b), 4)
+            else:
+                overall_sim = 0.0
+
+            clones_out = [
+                {
+                    "clone_id":       p.clone_id,
+                    "type":           p.clone_type,
+                    "similarity":     p.fusion_score,
+                    "token_score":    p.token_score,
+                    "ast_score":      p.ast_score,
+                    "halstead_score": p.halstead_score,
+                    "confidence":     p.confidence,
+                    "locations": [
+                        {"file": p.file_a, "function": p.block_a.name,
+                         "start_line": p.block_a.start_line,
+                         "end_line": p.block_a.end_line},
+                        {"file": p.file_b, "function": p.block_b.name,
+                         "start_line": p.block_b.start_line,
+                         "end_line": p.block_b.end_line},
+                    ],
+                    "explanation": _clone_type_explanation(p.clone_type),
+                }
+                for p in clone_pairs
+            ]
+
+            type_counts = collections.Counter(p.clone_type for p in clone_pairs)
+            dominant_type = type_counts.most_common(1)[0][0] if type_counts else None
+
+            pair_results.append({
+                "pair_id": str(uuid.uuid4()),
+                "file_a": a["file"],
+                "file_b": b["file"],
+                "overall_similarity": overall_sim,
+                "clone_count": len(clone_pairs),
+                "clones": clones_out,
+                "refactoring_suggestions": generate_refactoring_suggestions(
+                    clone_pairs, max_suggestions
+                ),
+                "dominant_clone_type": dominant_type,
+                "clone_type_breakdown": dict(type_counts),
+                "audience_guidance": _build_pair_audience_guidance(overall_sim, clone_pairs),
+                "pair_confidence": round(pair_confidence, 4),
+                "effective_pool_confidence_mode": effective_pair_conf_mode,
+            })
+
+        _t_detect = time.perf_counter()
+
+        return {
+            "analysis_id": str(uuid.uuid4()),
+            "language": self.language,
+            "submission_count": len(prepared),
+            "pair_count": len(pair_results),
+            "pairs": pair_results,
+            "detection_method": f"TAHD {TAHD_VERSION} (Token + AST + Halstead)",
+            "corpus_weighting": {
+                "enabled": bool(corpus_profile),
+                "submission_count": (
+                    corpus_profile["doc_count"] if corpus_profile else len(prepared)
+                ),
+                "common_ngram_ratio": (
+                    corpus_profile["common_doc_ratio"]
+                    if corpus_profile else float(corpus_common_ngram_ratio)
+                ),
+                "requested_common_ngram_ratio": float(corpus_common_ngram_ratio),
+                "reason": corpus_weighting_reason,
+            },
+            "filters_applied": {
+                "confidence_floor": confidence_floor,
+                "effective_confidence_floor": effective_confidence_floor,
+                "type12_confidence_floor": type12_confidence_floor,
+                "effective_type12_confidence_floor": effective_type12_confidence_floor,
+                "suppressed_type12_clones": suppressed_type12_clones,
+                "type3_confidence_floor": type3_confidence_floor,
+                "suppressed_type3_clones": suppressed_type3_clones,
+                "suppressed_template_type12_clones": suppressed_template_type12_clones,
+                "suppressed_template_type3_clones": suppressed_template_type3_clones,
+                "pool_suppression": bool(enable_pool_suppression),
+                "pool_confidence_floor": pool_confidence_floor,
+                "effective_pool_confidence_floor": effective_pool_confidence_floor,
+                "pool_confidence_mode": pool_confidence_mode,
+                "suppressed_pairs": suppressed_pairs,
+                "suppressed_clones": suppressed_clones,
+                "auto_tune_filters": auto_tune_filters,
+                "preserve_type3_recall": preserve_type3_recall,
+            },
+            "performance_profile": {
+                "extract_ms": round((_t_extract - _t0) * 1000, 2),
+                "detect_ms": round((_t_detect - _t_extract) * 1000, 2),
+                "total_ms": round((_t_detect - _t0) * 1000, 2),
             },
         }
 

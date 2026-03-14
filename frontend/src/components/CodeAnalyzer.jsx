@@ -336,7 +336,7 @@ function tagConcepts(pair) {
 
 
 
-/** Generate student-facing educational feedback (no code fixes, just concepts) */
+/** Generate a compact explainability summary for student-level review */
 
 function generateStudentFeedback(studentFile, pairsInvolving) {
 
@@ -346,35 +346,49 @@ function generateStudentFeedback(studentFile, pairsInvolving) {
 
   const highestSim = Math.max(...pairsInvolving.map(p => p.similarity));
 
-  const allTags = [...new Set(pairsInvolving.flatMap(p => tagConcepts(p).map(t => t.label)))];
-
-  const primaryPair = pairsInvolving.sort((a, b) => b.similarity - a.similarity)[0];
+  const primaryPair = [...pairsInvolving].sort((a, b) => b.similarity - a.similarity)[0];
 
   const primaryType = primaryPair.cloneType;
 
   const meta = CLONE_TYPE_META[primaryType] || CLONE_TYPE_META['Type-1'];
 
+  const riskBand = highestSim >= 0.8 ? 'high' : highestSim >= 0.6 ? 'suspicious' : 'low';
 
+  const reason = primaryType === 'Type-1'
 
-  let message = '';
+    ? 'Exact clone pattern detected in the strongest matching pair.'
 
-  if (primaryType === 'Type-1') {
+    : primaryType === 'Type-2'
 
-    message = `Your submission contains blocks of code that are nearly identical to another student's submission. This is a strong signal to practice the DRY (Don't Repeat Yourself) principle by extracting shared logic into reusable functions.`;
+      ? 'Renamed clone pattern detected (structure is highly similar with identifier changes).'
 
-  } else if (primaryType === 'Type-2') {
+      : 'Near-miss clone pattern detected (logic is similar with partial edits).';
 
-    message = `Your submission shares the same code structure as another student's submission, with differences mainly in variable or function names. This suggests an opportunity to practice writing parameterized, abstract functions instead of duplicating logic with small changes.`;
+  const signals = {
 
-  } else {
+    token: Math.round((primaryPair.rawSim || 0) * 100),
 
-    message = `Your submission has near-miss similarities with another student's submission — some statements differ, but the overall logic flow is substantially shared. Consider practicing code decomposition to break problems into smaller, unique sub-functions.`;
+    ast: Math.round((primaryPair.astSim || 0) * 100),
 
-  }
+    hybrid: Math.round((primaryPair.normSim || 0) * 100),
 
+  };
 
+  return {
 
-  return { highestSim, allTags, message, pairCount: pairsInvolving.length, meta };
+    highestSim,
+
+    pairCount: pairsInvolving.length,
+
+    meta,
+
+    riskBand,
+
+    reason,
+
+    signals,
+
+  };
 
 }
 
@@ -528,7 +542,7 @@ function exportCSV(files, flaggedPairs, datasetStats) {
 
     ['Student Name', 'Student ID (from file)', 'File', 'Risk Level', 'Highest Similarity %',
 
-     'Flagged Pairs', 'Primary Clone Type', 'Concepts to Study', 'LOC', 'Identity Source'],
+     'Flagged Pairs', 'Primary Clone Type', 'LOC', 'Identity Source'],
 
   ];
 
@@ -553,8 +567,6 @@ function exportCSV(files, flaggedPairs, datasetStats) {
     const primaryPair = pairs.sort((a, b) => b.similarity - a.similarity)[0];
 
     const cloneType = primaryPair?.cloneType || 'N/A';
-
-    const concepts = primaryPair ? tagConcepts(primaryPair).map(c => c.label).join('; ') : 'None';
 
     const loc = f.content.split('\n').filter(l => l.trim()).length;
 
@@ -583,8 +595,6 @@ function exportCSV(files, flaggedPairs, datasetStats) {
       pairedWith || 'None',
 
       cloneType,
-
-      concepts,
 
       loc,
 
@@ -918,8 +928,6 @@ function exportPDF(files, flaggedPairs, datasetStats, threshold) {
 
         <th>Flagged Pairs</th>
 
-        <th>Concepts to Study</th>
-
         <th>LOC</th>
 
       </tr>
@@ -938,10 +946,6 @@ function exportPDF(files, flaggedPairs, datasetStats, threshold) {
 
         const { label, color } = riskLabel(pairs);
 
-        const primaryPair = [...pairs].sort((a, b) => b.similarity - a.similarity)[0];
-
-        const concepts = primaryPair ? tagConcepts(primaryPair) : [];
-
         const loc = f.content.split('\n').filter(l => l.trim()).length;
 
         return `<tr>
@@ -957,8 +961,6 @@ function exportPDF(files, flaggedPairs, datasetStats, threshold) {
           <td class="sim-col" style="color:${riskColor(maxSim)}">${maxSim > 0 ? (maxSim * 100).toFixed(1) + '%' : '—'}</td>
 
           <td>${pairs.length}</td>
-
-          <td>${concepts.map(c => `<span class="concept-tag" style="display:inline-flex;align-items:center;gap:4px">${renderConceptIconHtml(c.iconKey, c.color, 10)} ${c.label}</span>`).join('')}</td>
 
           <td>${loc}</td>
 
@@ -1141,6 +1143,112 @@ function evidenceTooltip(pair) {
   const sim = (pair.similarity || 0) * 100;
 
   return `Evidence rule: High if overall ≥85% and all signals ≥45%; Medium if overall ≥70% and all signals ≥30%; else Low. Current: overall ${sim.toFixed(1)}%, token ${raw.toFixed(0)}%, AST ${ast.toFixed(0)}%, hybrid ${hybrid.toFixed(0)}%.`;
+
+}
+
+function inferCopyDirection(pair, studentPairsMap = {}) {
+
+  if (!pair?.fileA || !pair?.fileB) return null;
+
+  const fileA = pair.fileA;
+
+  const fileB = pair.fileB;
+
+  const pairHasFile = (p, fileId) => p.fileA.id === fileId || p.fileB.id === fileId;
+
+  const isSamePair = (p) => {
+
+    const ids = [p.fileA.id, p.fileB.id].sort().join('|');
+
+    const current = [fileA.id, fileB.id].sort().join('|');
+
+    return ids === current;
+
+  };
+
+  const avgPeerSimilarity = (fileId) => {
+
+    const peers = (studentPairsMap[fileId] || []).filter(p => pairHasFile(p, fileId) && !isSamePair(p));
+
+    if (!peers.length) return 0;
+
+    return peers.reduce((sum, p) => sum + (p.similarity || 0), 0) / peers.length;
+
+  };
+
+  const locCount = (f) => f.content.split('\n').filter(l => l.trim()).length;
+
+  const peerA = avgPeerSimilarity(fileA.id);
+
+  const peerB = avgPeerSimilarity(fileB.id);
+
+  const locA = locCount(fileA);
+
+  const locB = locCount(fileB);
+
+  let source = fileA;
+
+  let score = 0;
+
+  const reasons = [];
+
+  const peerGap = Math.abs(peerA - peerB);
+
+  if (peerGap >= 0.06) {
+
+    source = peerA > peerB ? fileA : fileB;
+
+    score += peerGap >= 0.14 ? 0.5 : 0.35;
+
+    reasons.push('one submission overlaps with more peers');
+
+  }
+
+  const locGap = Math.abs(locA - locB);
+
+  if (locGap >= 10) {
+
+    const locSource = locA > locB ? fileA : fileB;
+
+    if (score === 0 || locSource.id === source.id) {
+
+      source = locSource;
+
+      score += locGap >= 30 ? 0.35 : 0.2;
+
+    }
+
+    reasons.push('one implementation has substantially more code');
+
+  }
+
+  if (pair.cloneType === 'Type-2' && (pair.normSim || 0) > (pair.rawSim || 0) + 0.2) {
+
+    score += 0.1;
+
+    reasons.push('structure is shared despite identifier changes');
+
+  }
+
+  const target = source.id === fileA.id ? fileB : fileA;
+
+  const confidence = score >= 0.65 ? 'high' : score >= 0.35 ? 'medium' : 'low';
+
+  return {
+
+    source,
+
+    target,
+
+    score,
+
+    confidence,
+
+    undecided: score < 0.2,
+
+    rationale: reasons.length ? reasons.join('; ') : 'pairwise similarity alone cannot determine direction',
+
+  };
 
 }
 
@@ -2092,15 +2200,11 @@ function StudentCard({ file, pairsInvolving, onSelect, isSelected, rank }) {
 
           <div className="sc-concept-tags">
 
-            {tagConcepts(pairsInvolving.sort((a,b)=>b.similarity-a.similarity)[0]).slice(0,2).map(tag => (
+            <span className="sc-concept-tag" style={{ background: `${riskColor}18`, color: riskColor }}>
 
-              <span key={tag.label} className="sc-concept-tag" style={{ background: tag.bg, color: tag.color, display:'inline-flex', alignItems:'center', gap:4 }}>
+              Explainability
 
-                {renderConceptIcon(tag.iconKey, 10, tag.color)} {tag.label}
-
-              </span>
-
-            ))}
+            </span>
 
           </div>
 
@@ -2146,17 +2250,13 @@ function StudentCard({ file, pairsInvolving, onSelect, isSelected, rank }) {
 
 
 
-function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectPair }) {
+function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectPair, studentPairsMap }) {
 
   const [activeTab, setActiveTab] = useState('feedback');
 
   const name = displayName(file);
 
   const feedback = generateStudentFeedback(file, pairsInvolving);
-
-  const concepts = feedback ? [...new Set(pairsInvolving.flatMap(p => tagConcepts(p)))] : [];
-
-  const uniqueConcepts = concepts.filter((c, i, arr) => arr.findIndex(x => x.label === c.label) === i);
 
 
 
@@ -2200,7 +2300,7 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
 
               {renderTabIcon(tab === 'pairs' ? 'pairs' : tab, 12)}
 
-              {tab === 'feedback' ? 'Feedback' : tab === 'pairs' ? 'Pairs' : 'Code'}
+              {tab === 'feedback' ? 'Explainability' : tab === 'pairs' ? 'Pairs' : 'Code'}
 
             </span>
 
@@ -2230,7 +2330,7 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
 
             <>
 
-              {/* Educational message */}
+              {/* Explainability summary */}
 
               <div className="sdp-feedback-card">
 
@@ -2238,57 +2338,33 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
 
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 15a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 4.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 10a16 16 0 0 0 6 6l.81-.81a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17.92z"/></svg>
 
-                  Student Feedback
+                  Explainability
 
                 </div>
 
-                <p className="sdp-feedback-text">{feedback.message}</p>
+                <p className="sdp-feedback-text">{feedback.reason}</p>
+
+                <div style={{ marginTop: 12 }}>
+
+                  <div className="sdp-section-label">Simple Layer</div>
+
+                  <ul className="explain-list">
+
+                    <li className="explain-item"><span className="explain-bullet">▸</span>Risk level: {feedback.riskBand.toUpperCase()}</li>
+
+                    <li className="explain-item"><span className="explain-bullet">▸</span>Primary clone type: {feedback.meta.label}</li>
+
+                    <li className="explain-item"><span className="explain-bullet">▸</span>Strongest pair similarity: {(feedback.highestSim * 100).toFixed(1)}%</li>
+
+                    <li className="explain-item"><span className="explain-bullet">▸</span>Signal scores - Token {feedback.signals.token}%, AST {feedback.signals.ast}%, Hybrid {feedback.signals.hybrid}%</li>
+
+                    <li className="explain-item"><span className="explain-bullet">▸</span>Total flagged pairs: {feedback.pairCount}</li>
+
+                  </ul>
+
+                </div>
 
               </div>
-
-
-
-              {/* Concept tags */}
-
-              {uniqueConcepts.length > 0 && (
-
-                <div className="sdp-concepts-section">
-
-                  <div className="sdp-section-label">Concepts to Study</div>
-
-                  <div className="sdp-concept-list">
-
-                    {uniqueConcepts.map(concept => (
-
-                      <div key={concept.label} className="sdp-concept-card" style={{ borderColor: concept.color + '40', background: concept.bg }}>
-
-                        <div className="sdp-concept-header">
-
-                          <span className="sdp-concept-icon">{renderConceptIcon(concept.iconKey, 12, concept.color)}</span>
-
-                          <span className="sdp-concept-name" style={{ color: concept.color }}>{concept.fullName}</span>
-
-                        </div>
-
-                        <p className="sdp-concept-desc">{concept.description}</p>
-
-                        <div className="sdp-concept-study">
-
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-
-                          Review: {concept.study}
-
-                        </div>
-
-                      </div>
-
-                    ))}
-
-                  </div>
-
-                </div>
-
-              )}
 
             </>
 
@@ -2322,7 +2398,17 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
 
                 const other = pair.fileA.id === file.id ? pair.fileB : pair.fileA;
 
-                const concepts = tagConcepts(pair);
+                const direction = inferCopyDirection(pair, studentPairsMap);
+
+                const roleText = direction?.undecided
+
+                  ? 'Direction unclear'
+
+                  : direction?.source?.id === file.id
+
+                    ? 'Likely source in this pair'
+
+                    : 'Likely copied from peer in this pair';
 
                 return (
 
@@ -2356,19 +2442,7 @@ function StudentDetailPanel({ file, pairsInvolving, allFiles, onClose, onSelectP
 
                     </div>
 
-                    <div className="sdp-pair-concepts">
-
-                      {concepts.map(c => (
-
-                        <span key={c.label} className="sc-concept-tag" style={{ background: c.bg, color: c.color, display:'inline-flex', alignItems:'center', gap:4 }}>
-
-                          {renderConceptIcon(c.iconKey, 10, c.color)} {c.label}
-
-                        </span>
-
-                      ))}
-
-                    </div>
+                    <div className="sdp-pair-role">{roleText}</div>
 
                     <button className="sdp-compare-btn" onClick={() => onSelectPair(pair)}>
 
@@ -2488,9 +2562,11 @@ function CodeAnalyzer() {
 
   const [datasetStats, setDatasetStats] = useState(null);
 
+  const [batchFilterInfo, setBatchFilterInfo] = useState(null);
+
   const [expandedExplain, setExpandedExplain] = useState(null);
 
-  const [showPreventionGuide, setShowPreventionGuide] = useState(false);
+  const [pairSortMode, setPairSortMode] = useState('similarity');
 
 
 
@@ -2624,7 +2700,20 @@ function CodeAnalyzer() {
 
     if(complexity>10) suggestions.push({ refactoring_type:'Simplify Conditionals', explanation:{ remember:'High cyclomatic complexity makes code hard to test and maintain.', apply:'Consider using guard clauses, lookup tables, or the strategy pattern to reduce branching.' }});
 
-    return { clone_percentage:clonePercentage, cyclomatic_complexity:complexity, maintainability_index:maintainability, total_lines:totalLines, execution_time_ms:Math.round(Math.random()*50+10), clones:clones.slice(0,6), refactoring_suggestions:suggestions, mock:true };
+    return {
+      clone_percentage:clonePercentage,
+      cyclomatic_complexity:complexity,
+      maintainability_index:maintainability,
+      total_lines:totalLines,
+      execution_time_ms:Math.round(Math.random()*50+10),
+      clones:clones.slice(0,6),
+      refactoring_suggestions:suggestions,
+      mock:true,
+      comparative_mode:'single_file_non_comparative',
+      plagiarism_verdict_available:false,
+      analysis_scope:'intra_submission_only',
+      instructor_guidance:'Single-file analysis highlights internal duplication and quality risks only. Use Batch/Class compare with multiple submissions for plagiarism evidence.',
+    };
 
   }
 
@@ -2633,6 +2722,13 @@ function CodeAnalyzer() {
   function normalizeAnalysisData(data) {
 
     const d = { ...data };
+
+    if (!d.comparative_mode) d.comparative_mode = 'single_file_non_comparative';
+    if (d.plagiarism_verdict_available === undefined) d.plagiarism_verdict_available = false;
+    if (!d.analysis_scope) d.analysis_scope = 'intra_submission_only';
+    if (!d.instructor_guidance) {
+      d.instructor_guidance = 'Single-file analysis highlights internal duplication and quality risks only. Use Batch/Class compare with multiple submissions for plagiarism evidence.';
+    }
 
     if (d.lines_of_code !== undefined && d.total_lines === undefined) d.total_lines = d.lines_of_code;
 
@@ -2864,7 +2960,7 @@ function CodeAnalyzer() {
 
     if (files.length < 2) { alert('Upload at least 2 files to run batch analysis.'); return; }
 
-    setBatchDone(false); setSimilarityMatrix(null); setFlaggedPairs([]); setSelectedPair(null); setSelectedStudent(null);
+    setBatchDone(false); setSimilarityMatrix(null); setFlaggedPairs([]); setSelectedPair(null); setSelectedStudent(null); setBatchFilterInfo(null);
 
 
 
@@ -2912,239 +3008,290 @@ function CodeAnalyzer() {
 
     const total_pairs = (n*(n-1))/2;
 
-    let pair_idx = 0;
-
-    setBatchProgress({ current:0, total:total_pairs, phase:'Comparing pairs', currentName:'' });
-
-
-
     const matrix = Array.from({length:n},()=>Array(n).fill(null));
 
     const pairs = [];
 
+    for (let i = 0; i < n; i++) matrix[i][i] = 1;
+
+    const typeLabelFromDominant = (dt, sim) => {
+
+      if (dt === 1) return 'Type-1';
+
+      if (dt === 2) return 'Type-2';
+
+      if (dt === 3) return 'Type-3';
+
+      return sim >= 0.6 ? 'Type-3' : null;
+
+    };
+
+    // Automatic backend-side suppression controls for large class pools.
+    const backendFilterTuning = {
+      confidence_floor: 0.0,
+      enable_pool_suppression: true,
+      pool_confidence_floor: 0.0,
+      pool_confidence_mode: 'max',
+      auto_tune_filters: true,
+    };
 
 
-    // Fix #34: Pre-hash deduplication — instantly mark identical-content pairs as Type-1
 
-    // Secondary equality check prevents false positives from hash collisions.
+    let usedBatchEndpoint = false;
+    let resolvedBatchFilterInfo = null;
 
-    const contentHashes = {};
+    try {
 
-    const normalizedContents = analyzed.map(f => f.content.replace(/\s+/g, '').toLowerCase());
+      setBatchProgress({ current:0, total:1, phase:'Comparing pairs', currentName:'Submitting batch request' });
 
-    normalizedContents.forEach((normalized, i) => {
+      const cmpToken = localStorage.getItem('token');
 
-      let hash = 0;
+      const cmpHeaders = { 'Content-Type': 'application/json' };
 
-      for (let c = 0; c < normalized.length; c++) {
+      if (cmpToken) cmpHeaders['Authorization'] = `Bearer ${cmpToken}`;
 
-        hash = ((hash << 5) - hash + normalized.charCodeAt(c)) | 0;
+      const batchRes = await fetch(`${API}/compare-batch`, {
 
-      }
+        method: 'POST',
 
-      const key = String(hash);
+        headers: cmpHeaders,
 
-      if (!contentHashes[key]) contentHashes[key] = [];
+        body: JSON.stringify({
 
-      contentHashes[key].push(i);
+          language: analyzed[0].lang,
 
-    });
+          submissions: analyzed.map(f => ({ file: f.name, code: f.content })),
 
-    const preMatched = new Set();
+          corpus_common_ngram_ratio: 0.60,
 
-    for (const indices of Object.values(contentHashes)) {
+          ...backendFilterTuning,
 
-      if (indices.length > 1) {
+        }),
 
-        for (let a = 0; a < indices.length; a++) {
+      });
 
-          for (let b = a + 1; b < indices.length; b++) {
+      if (!batchRes.ok) throw new Error('Backend batch compare failed');
 
-            const ii = indices[a], jj = indices[b];
+      const batchData = await batchRes.json();
+      resolvedBatchFilterInfo = batchData.filters_applied || null;
 
-            // Secondary check: verify actual content equality to guard against hash collisions
+      const idxByName = new Map(analyzed.map((f, idx) => [f.name, idx]));
 
-            if (normalizedContents[ii] !== normalizedContents[jj]) continue;
+      for (const p of (batchData.pairs || [])) {
 
-            matrix[ii][jj] = 1.0; matrix[jj][ii] = 1.0;
+        const i = idxByName.get(p.file_a);
 
-            pairs.push({
+        const j = idxByName.get(p.file_b);
 
-              fileA: analyzed[ii], fileB: analyzed[jj],
+        if (i == null || j == null) continue;
 
-              similarity: 1.0, rawSim: 1.0, normSim: 1.0, astSim: 1.0,
+        const sim = p.overall_similarity || 0;
 
-              cloneType: 'Type-1', typeBreakdown: {1: 1},
+        matrix[i][j] = sim;
 
-              audienceGuidance: {
+        matrix[j][i] = sim;
 
-                risk_level: 'high',
+        let rawSim = sim;
 
-                clone_type_breakdown: { 1: 1 },
+        let astSim = sim;
 
-                teaching_focus: 'exact-copy overlap',
+        let normSim = sim;
 
-                for_instructor: ['This pair is an exact-content match. Prioritize integrity review and oral walkthrough validation.'],
+        if (p.clones && p.clones.length > 0) {
 
-                for_student: ['Rebuild the solution independently and submit a brief design rationale.'],
+          const best = p.clones.reduce((a, b) => (b.similarity || 0) > (a.similarity || 0) ? b : a, p.clones[0]);
 
-              },
+          rawSim = best.token_score || sim;
 
-            });
+          astSim = best.ast_score || sim;
 
-            preMatched.add(`${Math.min(ii,jj)}-${Math.max(ii,jj)}`);
-
-          }
+          normSim = best.similarity || sim;
 
         }
 
-      }
-
-    }
-
-
-
-    for (let i=0; i<n; i++) {
-
-      matrix[i][i] = 1;
-
-      for (let j=i+1; j<n; j++) {
-
-        pair_idx++;
-
-        setBatchProgress({ current:pair_idx, total:total_pairs, phase:'Comparing pairs', currentName:`${shortName(analyzed[i].name)} ↔ ${shortName(analyzed[j].name)}` });
-
-        await new Promise(r=>setTimeout(r,0));
-
-
-
-        // Skip pairs already matched by content hash
-
-        if (preMatched.has(`${i}-${j}`)) { continue; }
-
-
-
-        let sim, rawSim, normSim, astSim, cloneType, breakdown, audienceGuidance, perfProfile;
-
-
-
-        // Try backend /compare endpoint first (TAHD pipeline)
-
-        try {
-
-          const cmpToken = localStorage.getItem('token');
-
-          const cmpHeaders = { 'Content-Type': 'application/json' };
-
-          if (cmpToken) cmpHeaders['Authorization'] = `Bearer ${cmpToken}`;
-
-          const cmpRes = await fetch(`${API}/compare`, {
-
-            method: 'POST',
-
-            headers: cmpHeaders,
-
-            body: JSON.stringify({
-
-              code_a: analyzed[i].content,
-
-              code_b: analyzed[j].content,
-
-              language: analyzed[i].lang,
-
-              file_a: analyzed[i].name,
-
-              file_b: analyzed[j].name,
-
-            }),
-
-          });
-
-          if (cmpRes.ok) {
-
-            const cmpData = await cmpRes.json();
-
-            sim = cmpData.overall_similarity || 0;
-
-            // Use the highest clone pair scores if available
-
-            if (cmpData.clones && cmpData.clones.length > 0) {
-
-            const best = cmpData.clones.reduce((a, b) => (b.similarity || 0) > (a.similarity || 0) ? b : a, cmpData.clones[0]);
-
-            rawSim = best.token_score || sim;
-
-            astSim = best.ast_score || sim;
-
-            normSim = best.similarity || sim;
-
-            // Use dominant (most frequent) type from backend breakdown, not the type of the
-
-            // highest-similarity clone — a single exact-match helper would otherwise stamp
-
-            // the whole pair as Type-1 even when most clones are Type-2/3.
-
-            const dt = cmpData.dominant_clone_type;
-
-            breakdown = cmpData.clone_type_breakdown || {};
-
-            audienceGuidance = cmpData.audience_guidance || null;
-
-            perfProfile = cmpData.performance_profile || null;
-
-            cloneType = dt === 1 ? 'Type-1' : dt === 2 ? 'Type-2' : dt === 3 ? 'Type-3' : null;
-
-            } else {
-
-              rawSim = sim; normSim = sim; astSim = sim;
-
-              cloneType = sim >= 0.6 ? 'Type-3' : null;
-
-              audienceGuidance = cmpData.audience_guidance || null;
-
-              perfProfile = cmpData.performance_profile || null;
-
-            }
-
-          } else {
-
-            throw new Error('Backend compare failed');
-
-          }
-
-        } catch {
-
-          // Fallback to local comparison
-
-          rawSim = computeSimilarity(analyzed[i].content, analyzed[j].content);
-
-          normSim = computeStructuralSimilarity(analyzed[i].content, analyzed[j].content);
-
-          const astNodes_i = astLinearize(analyzed[i].content);
-
-          const astNodes_j = astLinearize(analyzed[j].content);
-
-          astSim = ngramJaccardSimilarity(astNodes_i, astNodes_j, 2);
-
-          sim = rawSim * 0.30 + normSim * 0.40 + astSim * 0.30;
-
-          cloneType = classifyPairType(rawSim, normSim);
-
-        }
-
-
-
-        matrix[i][j] = sim; matrix[j][i] = sim;
+        const cloneType = typeLabelFromDominant(p.dominant_clone_type, sim);
 
         if (cloneType) {
 
-          // AFTER
+          pairs.push({
 
-          pairs.push({ fileA:analyzed[i], fileB:analyzed[j], similarity:sim, rawSim, normSim, astSim, cloneType, typeBreakdown: breakdown, audienceGuidance, perfProfile });
+            fileA: analyzed[i],
+
+            fileB: analyzed[j],
+
+            similarity: sim,
+
+            rawSim,
+
+            normSim,
+
+            astSim,
+
+            cloneType,
+
+            typeBreakdown: p.clone_type_breakdown || {},
+
+            perfProfile: p.performance_profile || null,
+
+          });
 
         }
 
       }
+
+      // Any missing pair entries from backend are treated as 0 similarity.
+
+      for (let i = 0; i < n; i++) {
+
+        for (let j = i + 1; j < n; j++) {
+
+          if (matrix[i][j] == null) {
+
+            matrix[i][j] = 0;
+
+            matrix[j][i] = 0;
+
+          }
+
+        }
+
+      }
+
+      usedBatchEndpoint = true;
+
+      setBatchProgress({ current:1, total:1, phase:'Comparing pairs', currentName:'Batch compare complete' });
+
+    } catch {
+
+      // Fallback path: legacy pairwise compare loop
+
+      let fallbackFilterInfo = null;
+
+      let pair_idx = 0;
+
+      setBatchProgress({ current:0, total:total_pairs, phase:'Comparing pairs', currentName:'' });
+
+      for (let i=0; i<n; i++) {
+
+        for (let j=i+1; j<n; j++) {
+
+          pair_idx++;
+
+          setBatchProgress({ current:pair_idx, total:total_pairs, phase:'Comparing pairs', currentName:`${shortName(analyzed[i].name)} ↔ ${shortName(analyzed[j].name)}` });
+
+          await new Promise(r=>setTimeout(r,0));
+
+          let sim, rawSim, normSim, astSim, cloneType, breakdown, perfProfile;
+
+          try {
+
+            const cmpToken = localStorage.getItem('token');
+
+            const cmpHeaders = { 'Content-Type': 'application/json' };
+
+            if (cmpToken) cmpHeaders['Authorization'] = `Bearer ${cmpToken}`;
+
+            const cmpRes = await fetch(`${API}/compare`, {
+
+              method: 'POST',
+
+              headers: cmpHeaders,
+
+              body: JSON.stringify({
+
+                code_a: analyzed[i].content,
+
+                code_b: analyzed[j].content,
+
+                language: analyzed[i].lang,
+
+                file_a: analyzed[i].name,
+
+                file_b: analyzed[j].name,
+
+                ...backendFilterTuning,
+
+              }),
+
+            });
+
+            if (cmpRes.ok) {
+
+              const cmpData = await cmpRes.json();
+
+              sim = cmpData.overall_similarity || 0;
+
+              if (cmpData.clones && cmpData.clones.length > 0) {
+
+                const best = cmpData.clones.reduce((a, b) => (b.similarity || 0) > (a.similarity || 0) ? b : a, cmpData.clones[0]);
+
+                rawSim = best.token_score || sim;
+
+                astSim = best.ast_score || sim;
+
+                normSim = best.similarity || sim;
+
+                breakdown = cmpData.clone_type_breakdown || {};
+
+                perfProfile = cmpData.performance_profile || null;
+
+                cloneType = typeLabelFromDominant(cmpData.dominant_clone_type, sim);
+
+                if (!fallbackFilterInfo && cmpData.filters_applied) {
+                  fallbackFilterInfo = cmpData.filters_applied;
+                }
+
+              } else {
+
+                rawSim = sim; normSim = sim; astSim = sim;
+
+                cloneType = typeLabelFromDominant(null, sim);
+
+                if (!fallbackFilterInfo && cmpData.filters_applied) {
+                  fallbackFilterInfo = cmpData.filters_applied;
+                }
+
+                perfProfile = cmpData.performance_profile || null;
+
+              }
+
+            } else {
+
+              throw new Error('Backend compare failed');
+
+            }
+
+          } catch {
+
+            rawSim = computeSimilarity(analyzed[i].content, analyzed[j].content);
+
+            normSim = computeStructuralSimilarity(analyzed[i].content, analyzed[j].content);
+
+            const astNodes_i = astLinearize(analyzed[i].content);
+
+            const astNodes_j = astLinearize(analyzed[j].content);
+
+            astSim = ngramJaccardSimilarity(astNodes_i, astNodes_j, 2);
+
+            sim = rawSim * 0.30 + normSim * 0.40 + astSim * 0.30;
+
+            cloneType = classifyPairType(rawSim, normSim);
+
+          }
+
+          matrix[i][j] = sim; matrix[j][i] = sim;
+
+          if (cloneType) {
+
+            pairs.push({ fileA:analyzed[i], fileB:analyzed[j], similarity:sim, rawSim, normSim, astSim, cloneType, typeBreakdown: breakdown, perfProfile });
+
+          }
+
+        }
+
+      }
+
+      resolvedBatchFilterInfo = fallbackFilterInfo;
 
     }
 
@@ -3156,6 +3303,13 @@ function CodeAnalyzer() {
 
     setSimilarityMatrix({ files:analyzed, matrix });
 
+    if (resolvedBatchFilterInfo) {
+      setBatchFilterInfo({
+        ...resolvedBatchFilterInfo,
+        source: usedBatchEndpoint ? 'batch' : 'pairwise',
+      });
+    }
+
     setBatchProgress(null);
 
     setBatchDone(true);
@@ -3166,13 +3320,24 @@ function CodeAnalyzer() {
 
     // Save batch results to studentResults localStorage for Analysis Results page
 
-    const studentResults = analyzed.map(f => ({
+    const studentResults = analyzed.map((f) => {
+      const identity = extractStudentIdentity(f);
+      const studentName = identity.name || displayName(f);
+      const studentEmail = f.studentEmail || (identity.id ? `${identity.id}@student.local` : '');
+
+      return {
 
       fileName: shortName(f.name),
 
-      student: displayName(f),
+      student: studentName,
+
+      studentName,
+
+      studentEmail,
 
       section: f.section || '',
+
+      language: f.lang || '',
 
       clonePercentage: f.result?.clone_percentage ?? 0,
 
@@ -3182,7 +3347,8 @@ function CodeAnalyzer() {
 
       date: new Date().toISOString(),
 
-    }));
+      };
+    });
 
     const existing = JSON.parse(localStorage.getItem('studentResults') || '[]');
 
@@ -3196,9 +3362,50 @@ function CodeAnalyzer() {
 
     localStorage.setItem('studentResults', JSON.stringify(merged));
 
+    // Save deterministic pairwise similarity summaries for professor review.
+    const pairSummaries = pairs.map(p => {
+      const identityA = extractStudentIdentity(p.fileA);
+      const identityB = extractStudentIdentity(p.fileB);
+      const similarityPct = Math.round((p.similarity || 0) * 100);
+      const sectionA = p.fileA.section || 'Unassigned';
+      const sectionB = p.fileB.section || 'Unassigned';
+      const section = sectionA === sectionB ? sectionA : `${sectionA} / ${sectionB}`;
+
+      let status = 'low';
+      if (similarityPct > 70) status = 'high';
+      else if (similarityPct > 40) status = 'medium';
+
+      return {
+        student1: identityA.name || displayName(p.fileA),
+        student2: identityB.name || displayName(p.fileB),
+        student1Id: identityA.id || '',
+        student2Id: identityB.id || '',
+        file1: shortName(p.fileA.name),
+        file2: shortName(p.fileB.name),
+        section,
+        similarity: similarityPct,
+        status,
+        cloneType: p.cloneType || '',
+        date: new Date().toISOString(),
+      };
+    });
+
+    const existingPairSummaries = JSON.parse(localStorage.getItem('crossStudentSimilarityPairs') || '[]');
+    const newPairKeys = new Set(
+      pairSummaries.map((p) => [p.file1, p.file2].sort().join('|'))
+    );
+    const preservedPairSummaries = existingPairSummaries.filter((p) => {
+      const key = [p.file1, p.file2].sort().join('|');
+      return !newPairKeys.has(key);
+    });
+    const mergedPairSummaries = [...pairSummaries, ...preservedPairSummaries].slice(0, 1000);
+    localStorage.setItem('crossStudentSimilarityPairs', JSON.stringify(mergedPairSummaries));
 
 
-    logActivity('analysis', `Batch analysis: ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
+
+    const mode = usedBatchEndpoint ? 'batch endpoint' : 'pairwise fallback';
+
+    logActivity('analysis', `Batch analysis (${mode}): ${n} files, ${pairs.length} suspicious pairs found`, pairs.some(p=>p.similarity>=0.8)?'warning':'success');
 
   }, [extractedFiles, user, logActivity]);
 
@@ -3272,6 +3479,38 @@ function CodeAnalyzer() {
 
     : {};
 
+  const rankedFlaggedPairs = [...displayedFlaggedPairs].sort((a, b) => {
+
+    if (pairSortMode === 'direction') {
+
+      const scoreA = inferCopyDirection(a, studentPairsMap)?.score || 0;
+
+      const scoreB = inferCopyDirection(b, studentPairsMap)?.score || 0;
+
+      if (scoreB !== scoreA) return scoreB - scoreA;
+
+    }
+
+    if (pairSortMode === 'source') {
+
+      const sourceA = shortName((inferCopyDirection(a, studentPairsMap)?.source || a.fileA).name);
+
+      const sourceB = shortName((inferCopyDirection(b, studentPairsMap)?.source || b.fileA).name);
+
+      const bySource = sourceA.localeCompare(sourceB);
+
+      if (bySource !== 0) return bySource;
+
+    }
+
+    return b.similarity - a.similarity;
+
+  });
+
+  const highRiskPairCount = rankedFlaggedPairs.filter(p => p.similarity >= 0.8).length;
+
+  const directionalConfidenceCount = rankedFlaggedPairs.filter(p => (inferCopyDirection(p, studentPairsMap)?.score || 0) >= 0.35).length;
+
 
 
   // Sort students by risk
@@ -3324,15 +3563,29 @@ function CodeAnalyzer() {
 
 
 
-  // Class-wide learning gap summary
+  // Class-wide similarity overview
 
-  const classConcepts = batchDone && flaggedPairs.length > 0
+  const classSimilarityOverview = batchDone && flaggedPairs.length > 0
 
-    ? flaggedPairs.flatMap(p => tagConcepts(p))
+    ? {
 
-        .reduce((acc, c) => { acc[c.label] = (acc[c.label] || { ...c, count: 0 }); acc[c.label].count++; return acc; }, {})
+        highRiskPairs: flaggedPairs.filter(p => p.similarity >= 0.8).length,
 
-    : {};
+        suspiciousPairs: flaggedPairs.filter(p => p.similarity >= 0.6 && p.similarity < 0.8).length,
+
+        byCloneType: flaggedPairs.reduce((acc, p) => {
+
+          const key = p.cloneType || 'Unknown';
+
+          acc[key] = (acc[key] || 0) + 1;
+
+          return acc;
+
+        }, {}),
+
+      }
+
+    : null;
 
 
 
@@ -3416,7 +3669,7 @@ function CodeAnalyzer() {
 
             <h2 className="page-title">Code Analyzer</h2>
 
-            <p className="page-subtitle">Detect code clones and compare student submissions</p>
+            <p className="page-subtitle">Single file = quality triage. Batch/Class = comparative plagiarism evidence.</p>
 
           </div>
 
@@ -3426,7 +3679,7 @@ function CodeAnalyzer() {
 
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:6}}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
 
-              Single File
+              Single File Triage
 
             </button>
 
@@ -3462,7 +3715,11 @@ function CodeAnalyzer() {
 
               <section className="analyzer-section">
 
-                <h3 className="section-title">Analyze Code</h3>
+                <h3 className="section-title">Single-File Quality Triage</h3>
+
+                <p className="page-subtitle" style={{marginTop:6, marginBottom:14}}>
+                  This mode analyzes one submission for internal duplication and maintainability. It does not produce plagiarism verdicts.
+                </p>
 
                 <div className="controls-row">
 
@@ -3548,7 +3805,9 @@ function CodeAnalyzer() {
 
                       <div className="result-header-left">
 
-                        <span className="result-title">Analysis Results</span>
+                        <span className="result-title">Single-File Analysis Results</span>
+
+                        {analysisData.comparative_mode==='single_file_non_comparative'&&<span className="detection-method-badge">NON-COMPARATIVE</span>}
 
                         {analysisData.mock&&<span className="mock-badge">MOCK MODE</span>}
 
@@ -3559,6 +3818,22 @@ function CodeAnalyzer() {
                       <span className="result-time">{analysisData.execution_time_ms}ms</span>
 
                     </div>
+
+                    {analysisData.instructor_guidance&&(
+
+                      <div className="result-box" style={{marginTop:12, borderColor:'rgba(245,158,11,0.35)', background:'rgba(245,158,11,0.08)'}}>
+
+                        <pre style={{whiteSpace:'pre-wrap'}}>{analysisData.instructor_guidance}</pre>
+
+                        <button className="action-btn secondary" style={{marginTop:10}} onClick={()=>setBatchMode(true)}>
+
+                          Switch to Batch/Class Compare
+
+                        </button>
+
+                      </div>
+
+                    )}
 
                     <div className="metrics-rings-row">
 
@@ -3747,74 +4022,6 @@ function CodeAnalyzer() {
                         </div>
 
                       </>
-
-                    )}
-
-                    {analysisData.audience_guidance&&(
-
-                      <div className="suggestions-section">
-
-                        <h4 className="subsection-title">Instructor & Student Guidance</h4>
-
-                        {analysisData.audience_guidance.teaching_focus&&(
-
-                          <div className="clone-scores-row" style={{marginBottom:10}}>
-
-                            <span className="clone-score-tag">Teaching Focus: {analysisData.audience_guidance.teaching_focus}</span>
-
-                          </div>
-
-                        )}
-
-                        {analysisData.audience_guidance.clone_type_breakdown&&Object.keys(analysisData.audience_guidance.clone_type_breakdown).length>0&&(
-
-                          <div className="clone-scores-row" style={{marginBottom:12}}>
-
-                            {Object.entries(analysisData.audience_guidance.clone_type_breakdown).sort().map(([t,count])=>{
-
-                              const m = resolveCloneMeta(`Type-${t}`);
-
-                              return <span key={t} className="clone-score-tag" style={{borderColor:m.border,color:m.color}}>{count}× {m.label}</span>;
-
-                            })}
-
-                          </div>
-
-                        )}
-
-                        <div className="suggestion-cards">
-
-                          <div className="analyzer-suggestion-card">
-
-                            <div className="analyzer-suggestion-type">
-
-                              Instructor Actions ({analysisData.audience_guidance.risk_level||'n/a'} risk)
-
-                            </div>
-
-                            {(analysisData.audience_guidance.for_instructor||[]).map((item,i)=>(
-
-                              <div key={i} className="analyzer-suggestion-text">• {item}</div>
-
-                            ))}
-
-                          </div>
-
-                          <div className="analyzer-suggestion-card">
-
-                            <div className="analyzer-suggestion-type">Student Improvement Plan</div>
-
-                            {(analysisData.audience_guidance.for_student||[]).map((item,i)=>(
-
-                              <div key={i} className="analyzer-suggestion-text">• {item}</div>
-
-                            ))}
-
-                          </div>
-
-                        </div>
-
-                      </div>
 
                     )}
 
@@ -4028,7 +4235,7 @@ function CodeAnalyzer() {
 
                   <h3 className="section-title" style={{marginBottom:4}}>Batch Class Analysis</h3>
 
-                  <p className="page-subtitle">Upload student submissions to detect similarities and identify learning gaps</p>
+                  <p className="page-subtitle">Upload student submissions to detect similarities and review class-level patterns</p>
 
                 </div>
 
@@ -4248,6 +4455,32 @@ function CodeAnalyzer() {
 
                   </div>
 
+                  {batchFilterInfo && (
+                    <div className="batch-auto-filter-banner">
+                      <div className="bafb-left">
+                        <span className="bafb-pill">Auto Filters</span>
+                        <span className="bafb-title">
+                          {batchFilterInfo.auto_tune_filters ? 'Enabled' : 'Disabled'} via {batchFilterInfo.source} mode
+                        </span>
+                        <button
+                          type="button"
+                          className="bafb-info-btn"
+                          title="Automatic thresholds are learned from this class batch confidence distribution. TAHD derives effective clone confidence and pair confidence floors from confidence quantiles, then applies minimum safety floors to avoid over-aggressive suppression."
+                          aria-label="How automatic thresholds are computed"
+                        >
+                          ?
+                        </button>
+                      </div>
+                      <div className="bafb-metrics">
+                        <span>Confidence floor: {(batchFilterInfo.effective_confidence_floor ?? batchFilterInfo.confidence_floor ?? 0).toFixed(2)}</span>
+                        <span>Pool floor: {(batchFilterInfo.effective_pool_confidence_floor ?? batchFilterInfo.pool_confidence_floor ?? 0).toFixed(2)}</span>
+                        {typeof batchFilterInfo.suppressed_pairs === 'number' && (
+                          <span>Suppressed pairs: {batchFilterInfo.suppressed_pairs}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
 
 
                   {/* Export Bar */}
@@ -4338,35 +4571,75 @@ function CodeAnalyzer() {
 
 
 
-                  {/* Class Learning Gap Banner */}
+                  {/* Class Similarity Overview Banner */}
 
-                  {Object.keys(classConcepts).length > 0 && (
+                  {classSimilarityOverview && (
 
                     <div className="class-gap-banner">
 
                       <div className="cgb-title">
 
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
 
-                        Class-Wide Learning Gaps Detected
+                        Class-Wide Similarity Overview
 
-                        <span className="cgb-subtitle">Based on clone pattern analysis across all submissions</span>
+                        <span className="cgb-subtitle">Aggregated risk and clone-type trends across submitted files</span>
 
                       </div>
 
                       <div className="cgb-tags">
 
-                        {Object.values(classConcepts).sort((a,b)=>b.count-a.count).map(concept => (
+                        {[...
 
-                          <div key={concept.label} className="cgb-tag" style={{ background: concept.bg, borderColor: concept.color + '40' }}>
+                          Object.entries(classSimilarityOverview.byCloneType)
 
-                            <span className="cgb-icon">{renderConceptIcon(concept.iconKey, 12, concept.color)}</span>
+                            .sort((a, b) => b[1] - a[1])
 
-                            <span className="cgb-label" style={{ color: concept.color }}>{concept.fullName}</span>
+                            .map(([cloneType, count]) => ({
 
-                            <span className="cgb-count" style={{ background: concept.color + '25', color: concept.color }}>
+                              key: cloneType,
 
-                              {concept.count} pair{concept.count !== 1 ? 's' : ''}
+                              label: cloneType,
+
+                              count,
+
+                              color: (CLONE_TYPE_META[cloneType] || CLONE_TYPE_META['Type-1']).color,
+
+                            })),
+
+                          {
+
+                            key: 'High Risk',
+
+                            label: 'High Risk Pairs',
+
+                            count: classSimilarityOverview.highRiskPairs,
+
+                            color: '#ef4444',
+
+                          },
+
+                          {
+
+                            key: 'Suspicious',
+
+                            label: 'Suspicious Pairs',
+
+                            count: classSimilarityOverview.suspiciousPairs,
+
+                            color: '#f97316',
+
+                          },
+
+                        ].map(item => (
+
+                          <div key={item.key} className="cgb-tag" style={{ background: `${item.color}12`, borderColor: `${item.color}40` }}>
+
+                            <span className="cgb-label" style={{ color: item.color }}>{item.label}</span>
+
+                            <span className="cgb-count" style={{ background: `${item.color}25`, color: item.color }}>
+
+                              {item.count}
 
                             </span>
 
@@ -4378,7 +4651,7 @@ function CodeAnalyzer() {
 
                       <p className="cgb-note">
 
-                        Consider reviewing these concepts in your next class session. Students with flagged pairs are directed to study these topics individually.
+                        Use this summary to prioritize which pairs to review first and monitor distribution by clone type.
 
                       </p>
 
@@ -4571,6 +4844,8 @@ function CodeAnalyzer() {
                             setBatchView('pairs');
 
                           }}
+
+                          studentPairsMap={studentPairsMap}
 
                         />
 
@@ -4808,9 +5083,21 @@ function CodeAnalyzer() {
 
                         <div className="flagged-pairs-header">
 
-                          <h4 className="subsection-title">Flagged Pairs ({displayedFlaggedPairs.length})</h4>
+                          <div className="pairs-head-main">
 
-                          <div style={{display:'flex',alignItems:'center',gap:10}}>
+                            <h4 className="subsection-title">Flagged Pairs ({rankedFlaggedPairs.length})</h4>
+
+                            <div className="pairs-head-stats">
+
+                              <span className="pairs-head-chip">High Risk: {highRiskPairCount}</span>
+
+                              <span className="pairs-head-chip">Direction-Ready: {directionalConfidenceCount}</span>
+
+                            </div>
+
+                          </div>
+
+                          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
 
                             <span style={{fontSize:12,color:'#6b7280'}}>Threshold</span>
 
@@ -4818,19 +5105,39 @@ function CodeAnalyzer() {
 
                             <span style={{fontSize:12,color:'#9ca3af',minWidth:32}}>{Math.round(matrixThreshold*100)}%</span>
 
+                            <span style={{fontSize:12,color:'#6b7280'}}>Sort</span>
+
+                            <select className="language-select pair-sort-select" value={pairSortMode} onChange={e=>setPairSortMode(e.target.value)}>
+
+                              <option value="similarity">Similarity</option>
+
+                              <option value="direction">Direction Confidence</option>
+
+                              <option value="source">Likely Source</option>
+
+                            </select>
+
                           </div>
 
                         </div>
 
                         <div className="flagged-pairs-list">
 
-                          {displayedFlaggedPairs.map((pair,i)=>{
+                          {rankedFlaggedPairs.map((pair,i)=>{
 
                             const meta = resolveCloneMeta(pair.cloneType);
 
                             const isSelected = selectedPair?.fileA?.id===pair.fileA.id&&selectedPair?.fileB?.id===pair.fileB.id;
 
-                            const concepts = tagConcepts(pair);
+                            const direction = inferCopyDirection(pair, studentPairsMap);
+
+                            const likelySource = direction?.source || pair.fileA;
+
+                            const likelyTarget = direction?.target || pair.fileB;
+
+                            const directionConfidence = direction?.confidence || 'low';
+
+                            const directionLabel = direction?.undecided ? 'Direction unclear' : 'Likely source -> likely copier';
 
                             const evidence = evidenceLevel(pair);
 
@@ -4840,13 +5147,17 @@ function CodeAnalyzer() {
 
                                 <div className="fpc-top">
 
-                                  <div className="fpc-students">
+                                  <div className="fpc-students fpc-direction-row">
 
-                                    <span className="fpc-student"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{shortName(pair.fileA.name)}</span>
+                                    <span className="fpc-role-badge source">Likely source</span>
 
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                                    <span className="fpc-student"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{shortName(likelySource.name)}</span>
 
-                                    <span className="fpc-student"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{shortName(pair.fileB.name)}</span>
+                                    <span className="fpc-dir-arrow">-&gt;</span>
+
+                                    <span className="fpc-role-badge target">Likely copier</span>
+
+                                    <span className="fpc-student"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>{shortName(likelyTarget.name)}</span>
 
                                   </div>
 
@@ -4859,6 +5170,8 @@ function CodeAnalyzer() {
                                   </span>
 
                                   <span className="clone-type-badge" style={{background:evidence.color,color:'#fff',fontSize:10}} title={evidenceTooltip(pair)}>{evidence.label}</span>
+
+                                  <span className={`clone-type-badge direction-${directionConfidence}`} title={direction?.rationale || ''}>{directionLabel} ({directionConfidence})</span>
 
                                   <span className="fpc-sim" style={{color:meta.color}}>{(pair.similarity*100).toFixed(1)}%</span>
 
@@ -4894,6 +5207,8 @@ function CodeAnalyzer() {
 
                                 </div>
 
+                                <div className="fpc-direction-note">Heuristic: {direction?.rationale || 'insufficient metadata for source inference'}.</div>
+
                                 <div className="fpc-bar-bg"><div className="fpc-bar-fill" style={{width:`${pair.similarity*100}%`,background:meta.color}}/></div>
 
                                 <div className="fpc-sub">
@@ -4904,19 +5219,17 @@ function CodeAnalyzer() {
 
                                   <span>Hybrid: {(pair.normSim*100).toFixed(0)}%</span>
 
-                                  {concepts.length > 0 && (
+                                  <button className="mini-action-btn" onClick={e=>{ e.stopPropagation(); setSelectedStudent(likelySource); setBatchView('students'); }}>
 
-                                    <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                                    Open likely source
 
-                                      {concepts.map(c=>(
+                                  </button>
 
-                                        <span key={c.label} className="sc-concept-tag" style={{background:c.bg,color:c.color,fontSize:10,display:'inline-flex',alignItems:'center',gap:4}}>{renderConceptIcon(c.iconKey, 10, c.color)} {c.label}</span>
+                                  <button className="mini-action-btn" onClick={e=>{ e.stopPropagation(); setSelectedStudent(likelyTarget); setBatchView('students'); }}>
 
-                                      ))}
+                                    Open likely copier
 
-                                    </div>
-
-                                  )}
+                                  </button>
 
                                 </div>
 
@@ -4937,48 +5250,6 @@ function CodeAnalyzer() {
                                     <div className="explain-header"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><circle cx="12" cy="12" r="10"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Why this pair is flagged</div>
 
                                     <ul className="explain-list">{generateExplanation(pair).map((r,ri)=><li key={ri} className="explain-item"><span className="explain-bullet">▸</span>{r}</li>)}</ul>
-
-                                    {pair.audienceGuidance&&(
-
-                                      <>
-
-                                        {pair.audienceGuidance.teaching_focus&&(
-
-                                          <div className="clone-scores-row" style={{marginTop:8}}>
-
-                                            <span className="clone-score-tag">Focus: {pair.audienceGuidance.teaching_focus}</span>
-
-                                          </div>
-
-                                        )}
-
-                                        {(pair.audienceGuidance.for_instructor||[]).length>0&&(
-
-                                          <div style={{marginTop:8}}>
-
-                                            <div className="explain-header" style={{fontSize:12}}>Instructor Review Actions</div>
-
-                                            <ul className="explain-list">{pair.audienceGuidance.for_instructor.slice(0,2).map((r,ri)=><li key={`i-${ri}`} className="explain-item"><span className="explain-bullet">▸</span>{r}</li>)}</ul>
-
-                                          </div>
-
-                                        )}
-
-                                        {(pair.audienceGuidance.for_student||[]).length>0&&(
-
-                                          <div style={{marginTop:8}}>
-
-                                            <div className="explain-header" style={{fontSize:12}}>Student Support Plan</div>
-
-                                            <ul className="explain-list">{pair.audienceGuidance.for_student.slice(0,2).map((r,ri)=><li key={`s-${ri}`} className="explain-item"><span className="explain-bullet">▸</span>{r}</li>)}</ul>
-
-                                          </div>
-
-                                        )}
-
-                                      </>
-
-                                    )}
 
                                     {pair.perfProfile&&(
 
@@ -5016,7 +5287,7 @@ function CodeAnalyzer() {
 
                           })}
 
-                          {displayedFlaggedPairs.length===0&&(
+                          {rankedFlaggedPairs.length===0&&(
 
                             <div className="no-flags-box">
 
@@ -5034,113 +5305,89 @@ function CodeAnalyzer() {
 
 
 
-                      {/* Prevention guide */}
+                    </div>
 
-                      <div className="prevention-panel">
+                  )}
 
-                        <div className="prevention-header" onClick={()=>setShowPreventionGuide(v=>!v)}>
 
-                          <div className="prevention-title">
 
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  {/* Floating pair inspector */}
 
-                            Preventative Measures for Instructors
+                  {selectedPair && (() => {
 
-                          </div>
+                    const selectedMeta = resolveCloneMeta(selectedPair.cloneType);
 
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:showPreventionGuide?'rotate(180deg)':'none',transition:'transform 0.2s'}}><polyline points="6 9 12 15 18 9"/></svg>
+                    const selectedDirection = inferCopyDirection(selectedPair, studentPairsMap);
 
-                        </div>
+                    const sourceFile = selectedDirection?.source || selectedPair.fileA;
 
-                        {showPreventionGuide&&(
+                    const targetFile = selectedDirection?.target || selectedPair.fileB;
 
-                          <div className="prevention-body">
+                    const directionConfidence = selectedDirection?.confidence || 'low';
 
-                            <div className="prevention-grid">
+                    return (
 
-                              {[
+                      <div className="pair-inspector-overlay" onClick={() => setSelectedPair(null)}>
 
-                                {icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,title:'Randomize Assignment Parameters',desc:'Give each student slightly different inputs or constraints. This makes direct copying structurally invalid.'},
+                        <div className="pair-inspector-card" onClick={e => e.stopPropagation()}>
 
-                                {icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>,title:'Require Code Walkthroughs',desc:'Ask students to record a short video explaining their code. This quickly surfaces students who cannot explain their own submission.'},
+                          <div className="pair-inspector-header">
 
-                                {icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,title:'Stage Submissions with Deadlines',desc:'Break assignments into milestones. Plagiarism is harder to hide across multiple stages.'},
+                            <div className="pair-inspector-title-wrap">
 
-                                {icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,title:'Use This as an Early-Warning Tool',desc:'Run batch analysis after each deadline. Flag pairs ≥60% for follow-up interview.'},
+                              <h4 className="subsection-title">Pair Inspector</h4>
 
-                                {icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,title:'Establish Academic Integrity Policy',desc:"Communicate consequences of code sharing at the start of the course and reference it in every assignment brief."},
+                              <div className="pair-inspector-meta">
 
-                                {icon:<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,title:'Document High-Risk Pairs',desc:"For pairs ≥80%, save the diff report and attach it to a formal misconduct report per your institution's process."},
+                                <span className="clone-type-badge" style={{ background: selectedMeta.color, color: '#fff' }}>{selectedMeta.label}</span>
 
-                              ].map((item,i)=>(
+                                <span className="pair-inspector-sim" style={{ color: selectedMeta.color }}>{(selectedPair.similarity * 100).toFixed(1)}% similar</span>
 
-                                <div key={i} className="prevention-card">
+                                <span className={`clone-type-badge direction-${directionConfidence}`}>Direction {directionConfidence}</span>
 
-                                  <div className="prev-card-icon">{item.icon}</div>
+                              </div>
 
-                                  <div className="prev-card-content"><div className="prev-card-title">{item.title}</div><div className="prev-card-desc">{item.desc}</div></div>
+                              <div className="pair-inspector-lane">
 
-                                </div>
+                                <span>{shortName(sourceFile.name)} (Likely Source)</span>
 
-                              ))}
+                                <span className="pair-inspector-arrow">-&gt;</span>
+
+                                <span>{shortName(targetFile.name)} (Likely Copier)</span>
+
+                              </div>
 
                             </div>
 
-                          </div>
+                            <button className="pair-inspector-close" onClick={() => setSelectedPair(null)} aria-label="Close pair inspector">
 
-                        )}
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
 
-                      </div>
-
-                    </div>
-
-                  )}
-
-
-
-                  {/* Shared diff panel */}
-
-                  {selectedPair && batchView !== 'students' && (
-
-                    <div className="pair-diff-panel">
-
-                      <div className="pair-diff-header">
-
-                        <div className="pair-diff-title">
-
-                          <h4 className="subsection-title">Side-by-Side Comparison</h4>
-
-                          <div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-
-                            <span className="clone-type-badge" style={{background:resolveCloneMeta(selectedPair.cloneType).color,color:'#fff'}}>{resolveCloneMeta(selectedPair.cloneType).label}</span>
-
-                            <span style={{color:resolveCloneMeta(selectedPair.cloneType).color,fontWeight:700,fontSize:15}}>{(selectedPair.similarity*100).toFixed(1)}% similar</span>
+                            </button>
 
                           </div>
+
+                          <CodeDiff
+
+                            language={sourceFile.lang || selectedPair.fileA.lang || 'python'}
+
+                            labelA={`${shortName(sourceFile.name)} (Likely Source)`}
+
+                            labelB={`${shortName(targetFile.name)} (Likely Copier)`}
+
+                            codeA={sourceFile.content}
+
+                            codeB={targetFile.content}
+
+                          />
 
                         </div>
 
-                        <button className="action-btn secondary" onClick={()=>setSelectedPair(null)} style={{padding:'6px 12px',fontSize:12}}>Close</button>
-
                       </div>
 
-                      <CodeDiff
+                    );
 
-                        language={selectedPair.fileA.lang||'python'}
-
-                        labelA={`${shortName(selectedPair.fileA.name)} (Student A)`}
-
-                        labelB={`${shortName(selectedPair.fileB.name)} (Student B)`}
-
-                        codeA={selectedPair.fileA.content}
-
-                        codeB={selectedPair.fileB.content}
-
-                      />
-
-                    </div>
-
-                  )}
+                  })()}
 
                 </>
 
@@ -5184,11 +5431,9 @@ function CodeAnalyzer() {
 
                 ['Similarity Matrix','Heatmap showing pairwise similarity. Red = very similar. Click any cell to jump to that pair.'],
 
-                ['Flagged Pairs','Ranked list of suspicious pairs with explainability and concept tags.'],
+                ['Flagged Pairs','Ranked list of suspicious pairs with explainability and clone metadata.'],
 
-                ['Concept Tags','Rule-based labels like DRY, Abstraction, and Decomposition that identify what CS concept the student should study.'],
-
-                ['Learning Gap Banner','Aggregates concept tags across all submissions to identify class-wide curriculum gaps.'],
+                ['Class Similarity Overview','Aggregates pair counts by risk level and clone type for a quick class snapshot.'],
 
               ].map(([t,d])=><div key={t} className="help-section"><h4>{t}</h4><p>{d}</p></div>)}
 

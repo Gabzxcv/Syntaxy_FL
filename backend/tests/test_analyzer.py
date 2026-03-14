@@ -9,7 +9,12 @@ Tests cover:
 """
 
 import pytest
-from app.services.analyzer import CodeAnalyzer, validate_syntax
+from app.services.analyzer import (
+    AUTO_MIN_CONFIDENCE_FLOOR,
+    AUTO_MIN_POOL_CONFIDENCE_FLOOR,
+    CodeAnalyzer,
+    validate_syntax,
+)
 
 
 class TestCodeAnalyzerInitialization:
@@ -365,6 +370,111 @@ class TestType3CloneDetection:
             assert 0.0 <= clone['similarity']     <= 1.0
 
 
+class TestFalsePositiveGuardrails:
+    """Regression tests for false-positive suppression logic."""
+
+    def test_type1_fallback_requires_substantial_blocks(self):
+        """Type-1 fallback should not classify tiny high-score snippets."""
+        from app.services.analyzer import ScoredPair, classify_clone
+
+        sp = ScoredPair(
+            token_score=0.35,
+            lit_token_score=0.35,
+            ast_score=0.96,
+            halstead_score=0.30,
+            fusion_score=0.0,
+            line_ratio=1.0,
+            cc_delta=0.0,
+            vol_delta=0.0,
+            token_containment=0.20,
+            token_ratio=1.0,
+            raw_token_score=0.90,
+            raw_tokens_a=["alpha"] * 10,
+            raw_tokens_b=["beta"] * 10,
+            lines_a=3,
+            lines_b=3,
+        )
+
+        clone_type, confidence = classify_clone(sp)
+        assert clone_type is None
+        assert confidence == 0.0
+
+    def test_type2_strict_short_pair_needs_substance(self):
+        """Strict Type-2 should not fire for very short low-substance snippets."""
+        from app.services.analyzer import ScoredPair, classify_clone
+
+        sp = ScoredPair(
+            token_score=0.78,
+            lit_token_score=0.30,
+            ast_score=0.77,
+            halstead_score=0.10,
+            fusion_score=0.0,
+            line_ratio=1.0,
+            cc_delta=0.0,
+            vol_delta=0.0,
+            token_containment=0.20,
+            token_ratio=1.0,
+            raw_token_score=0.40,
+            raw_tokens_a=["a"] * 9,
+            raw_tokens_b=["b"] * 9,
+            lines_a=3,
+            lines_b=3,
+        )
+
+        clone_type, _ = classify_clone(sp)
+        assert clone_type is None
+
+    def test_halstead_dominant_low_ast_confidence_discounted(self):
+        """HALSTEAD_DOMINANT matches with weak AST should be confidence-discounted."""
+        from app.services.analyzer import ScoredPair, classify_clone
+
+        sp = ScoredPair(
+            token_score=0.35,
+            lit_token_score=0.20,
+            ast_score=0.25,
+            halstead_score=0.97,
+            fusion_score=0.0,
+            line_ratio=1.2,
+            cc_delta=0.0,
+            vol_delta=0.0,
+            token_containment=0.40,
+            token_ratio=1.1,
+            raw_token_score=0.0,
+            raw_tokens_a=["x"] * 20,
+            raw_tokens_b=["y"] * 20,
+            lines_a=8,
+            lines_b=8,
+        )
+
+        clone_type, confidence = classify_clone(sp)
+        assert clone_type == 3
+        assert confidence < 0.65
+
+    def test_rename_alignment_gate_boundary(self):
+        """Rename gate should hard-stop below threshold and evaluate at threshold."""
+        from app.services.analyzer import _rename_alignment_score, extract_blocks
+
+        src_a = (
+            "def add(a, b):\n"
+            "    result = a + b\n"
+            "    return result\n"
+        )
+        src_b = (
+            "def sum_nums(x, y):\n"
+            "    total = x + y\n"
+            "    return total\n"
+        )
+
+        block_a = extract_blocks(src_a, 'python')[0]
+        block_b = extract_blocks(src_b, 'python')[0]
+
+        low = _rename_alignment_score(block_a, block_b, token_score=0.649)
+        edge = _rename_alignment_score(block_a, block_b, token_score=0.65)
+
+        assert low == 0.0
+        assert edge > 0.0
+
+
 class TestAnalyzePair:
     """Test cross-file clone detection via analyze_pair."""
 
@@ -412,6 +522,265 @@ class TestAnalyzePair:
         analyzer = CodeAnalyzer('python')
         result = analyzer.analyze_pair("def f():\n    pass\n", "def g():\n    pass\n")
         assert "v1.15" in result['detection_method']
+
+    def test_analyze_pair_reports_corpus_weighting_metadata(self):
+        """Result should include corpus_weighting metadata even when disabled."""
+        analyzer = CodeAnalyzer('python')
+        result = analyzer.analyze_pair("def f():\n    return 1\n", "def g():\n    return 2\n")
+
+        assert 'corpus_weighting' in result
+        assert result['corpus_weighting']['enabled'] is False
+        assert result['corpus_weighting']['submission_count'] == 2
+
+    def test_analyze_pair_enables_corpus_weighting_with_pool(self):
+        """Providing corpus_codes should activate corpus-aware weighting."""
+        analyzer = CodeAnalyzer('python')
+        result = analyzer.analyze_pair(
+            "def f(x):\n    return x + 1\n",
+            "def g(y):\n    return y + 1\n",
+            corpus_codes=[
+                "def h(z):\n    total = 0\n    for i in range(z):\n        total += i\n    return total\n",
+                "def k(z):\n    total = 1\n    for i in range(z):\n        total *= i + 1\n    return total\n",
+            ],
+        )
+        assert result['corpus_weighting']['enabled'] is True
+        assert result['corpus_weighting']['submission_count'] == 4
+
+
+class TestAnalyzeBatch:
+    """Test batch cross-file clone detection with shared corpus profile."""
+
+    def test_analyze_batch_result_structure(self):
+        analyzer = CodeAnalyzer('python')
+        submissions = [
+            {"file": "a.py", "code": "def f(x):\n    return x + 1\n"},
+            {"file": "b.py", "code": "def g(y):\n    return y + 1\n"},
+            {"file": "c.py", "code": "def h(z):\n    return z * 2\n"},
+        ]
+
+        result = analyzer.analyze_batch(submissions)
+
+        for key in ('analysis_id', 'language', 'submission_count', 'pair_count',
+                    'pairs', 'detection_method', 'corpus_weighting', 'performance_profile'):
+            assert key in result
+        assert result['submission_count'] == 3
+        assert result['pair_count'] == 3
+        assert isinstance(result['pairs'], list)
+
+    def test_analyze_batch_requires_two_submissions(self):
+        analyzer = CodeAnalyzer('python')
+        with pytest.raises(ValueError, match='at least two'):
+            analyzer.analyze_batch([
+                {"file": "only.py", "code": "def f():\n    return 1\n"}
+            ])
+
+
+class TestOverflaggingControls:
+    """Tunable suppression controls should be opt-in and deterministic."""
+
+    def test_analyze_pair_confidence_floor_filters_low_confidence(self):
+        analyzer = CodeAnalyzer('python')
+        code_a = "def add(a, b):\n    return a + b\n"
+        code_b = "def sum_nums(x, y):\n    return x + y\n"
+
+        base = analyzer.analyze_pair(code_a, code_b)
+        strict = analyzer.analyze_pair(code_a, code_b, confidence_floor=1.0)
+
+        assert base['clone_count'] >= strict['clone_count']
+        assert strict['clone_count'] == 0
+        assert strict['filters_applied']['confidence_floor'] == 1.0
+
+    def test_analyze_batch_pool_suppression_removes_low_confidence_pairs(self):
+        analyzer = CodeAnalyzer('python')
+        submissions = [
+            {"file": "a.py", "code": "def add(a, b):\n    return a + b\n"},
+            {"file": "b.py", "code": "def sum_nums(x, y):\n    return x + y\n"},
+            {"file": "c.py", "code": "def unrelated(nums):\n    out = []\n    for n in nums:\n        out.append(n * 3)\n    return out\n"},
+        ]
+
+        base = analyzer.analyze_batch(submissions)
+        strict = analyzer.analyze_batch(
+            submissions,
+            enable_pool_suppression=True,
+            pool_confidence_floor=1.0,
+            pool_confidence_mode='max',
+        )
+
+        assert base['pair_count'] >= strict['pair_count']
+        assert strict['filters_applied']['pool_suppression'] is True
+        assert strict['filters_applied']['pool_confidence_floor'] == 1.0
+
+    def test_analyze_pair_pool_suppression_only_applies_with_corpus(self):
+        analyzer = CodeAnalyzer('python')
+        code_a = "def add(a, b):\n    return a + b\n"
+        code_b = "def sum_nums(x, y):\n    return x + y\n"
+
+        no_corpus = analyzer.analyze_pair(
+            code_a,
+            code_b,
+            enable_pool_suppression=True,
+            pool_confidence_floor=1.0,
+        )
+        with_corpus = analyzer.analyze_pair(
+            code_a,
+            code_b,
+            corpus_codes=["def helper(z):\n    return z - 1\n"],
+            enable_pool_suppression=True,
+            pool_confidence_floor=1.0,
+        )
+
+        assert no_corpus['filters_applied']['pool_suppression'] is False
+        assert with_corpus['filters_applied']['pool_suppression'] is True
+
+    def test_analyze_batch_auto_tune_filters_derives_effective_thresholds(self):
+        analyzer = CodeAnalyzer('python')
+        submissions = [
+            {"file": "a.py", "code": "def add(a, b):\n    return a + b\n"},
+            {"file": "b.py", "code": "def sum_nums(x, y):\n    return x + y\n"},
+            {"file": "c.py", "code": "def mul(a, b):\n    return a * b\n"},
+            {"file": "d.py", "code": "def sub(a, b):\n    return a - b\n"},
+            {"file": "e.py", "code": "def div(a, b):\n    if b == 0:\n        return 0\n    return a / b\n"},
+            {"file": "f.py", "code": "def sqr(x):\n    return x * x\n"},
+            {"file": "g.py", "code": "def cube(x):\n    return x * x * x\n"},
+            {"file": "h.py", "code": "def abs_val(x):\n    return x if x >= 0 else -x\n"},
+            {"file": "i.py", "code": "def clamp(v, lo, hi):\n    return max(lo, min(hi, v))\n"},
+            {"file": "j.py", "code": "def inc(v):\n    return v + 1\n"},
+        ]
+
+        result = analyzer.analyze_batch(
+            submissions,
+            enable_pool_suppression=True,
+            auto_tune_filters=True,
+        )
+
+        filters = result['filters_applied']
+        assert filters['auto_tune_filters'] is True
+        assert 'effective_confidence_floor' in filters
+        assert 'effective_pool_confidence_floor' in filters
+        assert filters['effective_confidence_floor'] >= filters['confidence_floor']
+        assert filters['effective_pool_confidence_floor'] >= filters['pool_confidence_floor']
+
+    def test_analyze_pair_auto_tune_filters_uses_corpus_distribution(self):
+        analyzer = CodeAnalyzer('python')
+        code_a = (
+            "def total_sum(nums):\n"
+            "    acc = 0\n"
+            "    for n in nums:\n"
+            "        acc += n\n"
+            "    return acc\n"
+        )
+        code_b = (
+            "def compute_total(values):\n"
+            "    out = 0\n"
+            "    for v in values:\n"
+            "        out += v\n"
+            "    return out\n"
+        )
+        corpus_codes = [
+            "def helper_1(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_2(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_3(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_4(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_5(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_6(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_7(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+            "def helper_8(xs):\n    s = 0\n    for x in xs:\n        s += x\n    return s\n",
+        ]
+
+        result = analyzer.analyze_pair(
+            code_a,
+            code_b,
+            corpus_codes=corpus_codes,
+            auto_tune_filters=True,
+        )
+
+        filters = result['filters_applied']
+        assert filters['auto_tune_filters'] is True
+        assert filters['effective_confidence_floor'] >= AUTO_MIN_CONFIDENCE_FLOOR
+        assert filters['effective_pool_confidence_floor'] >= AUTO_MIN_POOL_CONFIDENCE_FLOOR
+
+    def test_analyze_pair_rejects_non_boolean_auto_tune_filters(self):
+        analyzer = CodeAnalyzer('python')
+        with pytest.raises(ValueError, match='auto_tune_filters must be boolean'):
+            analyzer.analyze_pair(
+                "def add(a, b):\n    return a + b\n",
+                "def sum_nums(x, y):\n    return x + y\n",
+                auto_tune_filters='yes',
+            )
+
+
+class TestCorpusAwareWeighting:
+    """Test corpus-frequency weighting for token similarity."""
+
+    def test_common_ratio_calibrates_by_cohort_size(self):
+        from app.services.analyzer import _calibrate_corpus_common_ratio
+
+        small = _calibrate_corpus_common_ratio(0.60, doc_count=4)
+        large = _calibrate_corpus_common_ratio(0.60, doc_count=20)
+
+        assert small >= 0.70
+        assert large <= 0.60
+
+    def test_profile_reports_requested_and_effective_common_ratio(self):
+        from app.services.analyzer import _build_corpus_ngram_profile, extract_blocks
+
+        submissions = [
+            "def f1(x):\n    total = 0\n    for i in range(x):\n        total += i\n    return total\n",
+            "def f2(x):\n    total = 0\n    for i in range(x):\n        total += i\n    return total\n",
+            "def f3(x):\n    total = 0\n    for i in range(x):\n        total += i\n    return total\n",
+            "def f4(x):\n    total = 0\n    for i in range(x):\n        total += i\n    return total\n",
+        ]
+        corpus_blocks = [extract_blocks(src, 'python') for src in submissions]
+        profile = _build_corpus_ngram_profile(corpus_blocks, common_doc_ratio=0.60)
+
+        assert profile is not None
+        assert profile['requested_common_doc_ratio'] == pytest.approx(0.60)
+        assert profile['common_doc_ratio'] >= profile['requested_common_doc_ratio']
+
+    def test_common_ngrams_are_downweighted(self):
+        """Weighted token similarity should be lower when overlap is corpus-common."""
+        from app.services.analyzer import (
+            _build_corpus_ngram_profile,
+            compute_token_similarity,
+            extract_blocks,
+        )
+
+        code_a = (
+            "def s1(items):\n"
+            "    total = 0\n"
+            "    for item in items:\n"
+            "        if item > 0:\n"
+            "            total += item\n"
+            "    return total\n"
+        )
+        code_b = (
+            "def s2(data):\n"
+            "    total = 0\n"
+            "    for item in data:\n"
+            "        if item > 0:\n"
+            "            total += item\n"
+            "    return total\n"
+        )
+
+        boilerplate_pool = [
+            "def b1(nums):\n    total = 0\n    for item in nums:\n        if item > 0:\n            total += item\n    return total\n",
+            "def b2(nums):\n    total = 0\n    for item in nums:\n        if item > 0:\n            total += item\n    return total\n",
+            "def b3(nums):\n    total = 0\n    for item in nums:\n        if item > 0:\n            total += item\n    return total\n",
+            "def b4(nums):\n    total = 0\n    for item in nums:\n        if item > 0:\n            total += item\n    return total\n",
+        ]
+
+        block_a = extract_blocks(code_a, 'python')[0]
+        block_b = extract_blocks(code_b, 'python')[0]
+
+        unweighted = compute_token_similarity(block_a, block_b)
+        corpus_blocks = [
+            extract_blocks(code_a, 'python'),
+            extract_blocks(code_b, 'python'),
+        ] + [extract_blocks(src, 'python') for src in boilerplate_pool]
+        profile = _build_corpus_ngram_profile(corpus_blocks, common_doc_ratio=0.60)
+        weighted = compute_token_similarity(block_a, block_b, corpus_profile=profile)
+
+        assert weighted <= unweighted
 
 
 class TestHalsteadSimilarity:
